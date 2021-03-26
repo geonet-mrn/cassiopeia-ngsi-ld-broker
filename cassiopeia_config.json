@@ -1,0 +1,16 @@
+{
+    "psql": {        
+        "host": "localhost",
+        "database": "cassiopeia",
+        "user": "cassiopeia",
+        "password": "",
+        "port": 5432
+    },
+
+    "users": [
+        {
+            "username" : "cassiopeia",
+            "password" : "cassiopeia"
+        }
+    ]
+}
