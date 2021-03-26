@@ -39,7 +39,7 @@ An ongoing project to implement a light-weight and fast NGSI-LD broker in TypeSc
 
 NGSI-LD is a RESTful API for web services and distributed application, primarily designed with a focus on “Internet of Things” (IoT), “right-time” sensor data and “smart cities”. NGSI-LD is developed by the FIWARE Foundation and formally standardized by the European Telecommunications Standards Institute (ETSI). On the ETSI website, you can find the official specification document for the latest version of NGSI-LD:
 
-[https://www.etsi.org/deliver/etsi_gs/CIM/001_099/009/01.04.01_60/gs_CIM009v010401p.pdf]
+https://www.etsi.org/deliver/etsi_gs/CIM/001_099/009/01.04.01_60/gs_CIM009v010401p.pdf
 
 Cassiopeia is one of several software applications which partially or fully implement the NGSI-LD specification. Such an application is called a *NGSI-LD broker*. Expressed in a simple way, an NGSI-LD broker is basically a NoSQL database with an integrated HTTP interface, where for the structure of the stored data, as well as for the design of the HTTP interface, the rules defined in the NGSI-LD specification apply.
 
@@ -48,7 +48,7 @@ The Cassiopeia project currently aims to implement version 1.3.1 of the NGSI-LD 
 
 # 3. A Note About Current Limitations
 
-Please not that Cassiopeia is still in a very early stage of development. It does currently not implement the full NGSI-LD specification. However, it does already implement what we think are the most important parts of it, including support for spatial (NGSI-LD Geo-query language) and temporal (NGSI-LD Temporal Query Language) queries. If you need a more stable and complete NGSI-LD broker, consider using (Scorpio)[https://github.com/ScorpioBroker/ScorpioBroker] or (Orion-LD)[https://github.com/FIWARE/context.Orion-LD].
+Please not that Cassiopeia is still in a very early stage of development. It does currently not implement the full NGSI-LD specification. However, it does already implement what we think are the most important parts of it, including support for spatial (NGSI-LD Geo-query language) and temporal (NGSI-LD Temporal Query Language) queries. If you need a more stable and complete NGSI-LD broker, consider using **Scorpio** (https://github.com/ScorpioBroker/ScorpioBroker) or **Orion-LD** (https://github.com/FIWARE/context.Orion-LD).
 
 **PLEASE DO NOT RUN CASSIOPEIA IN A PRODUCTION ENVIRONMENT! EXPECT BUGS, SECURITY ISSUES AND DEVIATIONS FROM THE NGSI-LD SPECIFICATION! ALSO, READ THE LICENSE INFORMATION CAREFULLY!**
 
