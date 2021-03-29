@@ -456,7 +456,7 @@ export class ContextBroker {
 
 
         //################# BEGIN Validate input ##################
-        const entityCheckResults = checkEntity(entity_compacted, false)
+        const entityCheckResults = checkEntity(entity_expanded, false)
 
         if (entityCheckResults.length > 0) {
             throw errorTypes.InvalidRequest.withDetail("The submitted data is not a valid NGSI-LD temporal entity: " + entityCheckResults.join(" "))

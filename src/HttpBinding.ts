@@ -738,7 +738,6 @@ export class HttpBinding {
 
         // NOTE: This is the POST version of the "query entities" operation.
 
-
         //############### BEGIN Try to create Query object from request payload ###############
         let query = undefined
 
@@ -785,8 +784,47 @@ export class HttpBinding {
     // Binding for spec 5.7.4
     http_6_24_3_1_temporalEntityOperationsQuery = async (ctx: any, next: any) => {
 
-        throw errorTypes.OperationNotSupported.withDetail("Not implemented yet.")
-        // TODO: 2 Implement
+         // NOTE: This is the POST version of the "query tempooral entities" operation.
+
+        //############### BEGIN Try to create Query object from request payload ###############
+        let query = undefined
+
+        try {
+            query = JSON.parse(ctx.request.rawBody) as Query
+        }
+        catch (e) {
+            throw errorTypes.InvalidRequest.withDetail("Request payload is not a valid JSON string.")
+        }
+        //############### END Try to create Query object from request payload ###############
+
+        // NOTE: We need to set geoQ.location if it is not defined because the GeoQuery object
+        // is created by the JSON.parse() method and not through the GeoQuery constructor which
+        // would automatically set the value to "location" if it is undefined:
+
+        if (query.geoQ && query.geoQ.geoproperty == undefined) {
+            query.geoQ.geoproperty = "location"
+        }
+
+
+        //##################### BEGIN Resolve context ##################
+
+
+        let contextUrl = this.resolveRequestJsonLdContext(ctx.request)
+
+        if (ctx.request.headers["content-type"] == "application/ld+json") {
+            contextUrl = (query as any)['@context']
+        }
+
+        if (contextUrl == undefined) {
+            contextUrl = ""
+        }
+        //##################### END Resolve context ##################
+
+        //console.log(JSON.stringify(query))
+
+        //ctx.body = await this.broker.api_5_7_2_queryEntities(query, contextUrl)
+        ctx.body = await this.broker.api_5_7_4_queryTemporalEntities(query, contextUrl)
+        ctx.status = 200
         await next()
     }
 
@@ -1002,6 +1040,9 @@ export class HttpBinding {
         {
             this.router.post(this.apiBase + "entityOperations/query", this.http_6_23_3_1_POST_entityOperationsQuery)
             this.router.post(this.apiBase + "temporal/entityOperations/query", this.http_6_24_3_1_temporalEntityOperationsQuery)
+            
+            // TODO: 1 Implement inofficial endpoint: temporal/entityOperations/upsert
+            //this.router.post(this.apiBase + "temporal/entityOperations/query", this.http_6_24_3_1_temporalEntityOperationsQuery)
         }
         //#################### END entityOperations query endpoints ##################
 
