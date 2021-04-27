@@ -405,7 +405,7 @@ export class HttpBinding {
 
     // Spec 6.15.3.1
     // Binding for spec 5.6.8
-    http_6_15_3_1_batchEntityUpsert = async (ctx: any, next: any) => {
+    http_6_15_3_1_POST_batchEntityUpsert = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
@@ -423,18 +423,22 @@ export class HttpBinding {
         }
 
         const result = await this.broker.api_5_6_8_batchEntityUpsert(ctx.request.rawBody, options, contextUrl)
-
-        if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
-        }
+                
 
         if (result.errors.length == 0) {
-            ctx.status = 201
-            ctx.body = result.success
+
+            if (result.success.length == 0) {
+                ctx.status = 204
+            }
+            else {
+                ctx.status = 201
+                // Response body is the list of IDs of created entities:
+                ctx.body = result.success
+            }
         }
         else {
             ctx.status = 207
+            // Response body is the entire BatchOperationResult:
             ctx.body = result
         }
 
@@ -784,7 +788,7 @@ export class HttpBinding {
     // Binding for spec 5.7.4
     http_6_24_3_1_temporalEntityOperationsQuery = async (ctx: any, next: any) => {
 
-         // NOTE: This is the POST version of the "query tempooral entities" operation.
+        // NOTE: This is the POST version of the "query tempooral entities" operation.
 
         //############### BEGIN Try to create Query object from request payload ###############
         let query = undefined
@@ -901,6 +905,25 @@ export class HttpBinding {
     }
 
 
+    http_inofficial_temporalEntityOperationsUpsert = async (ctx: any, next: any) => {
+
+        if (this.getUser(auth(ctx.request)) == null) {
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
+            return
+        }
+
+
+        const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
+
+
+
+
+        ctx.body = await this.broker.inofficial_temporalEntityOperationsUpsert(ctx.request.rawBody, contextUrl)
+
+        await next()
+    }
+
+
     async init() {
 
         const config_string = fs.readFileSync("./cassiopeia_config.json").toString()
@@ -968,6 +991,7 @@ export class HttpBinding {
         {
             this.router.post(this.apiBase + "entities/", this.http_6_4_3_1_createEntity)
             this.router.get(this.apiBase + "entities/", this.http_6_4_3_2_GET_queryEntities)
+
             // Inofficial:
             this.router.delete(this.apiBase + "entities/", this.http_inofficial_deleteAllEntities)
 
@@ -1009,7 +1033,7 @@ export class HttpBinding {
         //################ BEGIN "entityOperations" endpoints #######################
         {
             this.router.post(this.apiBase + "entityOperations/create", this.http_6_14_3_1_batchEntityCreation)
-            this.router.post(this.apiBase + "entityOperations/upsert", this.http_6_15_3_1_batchEntityUpsert)
+            this.router.post(this.apiBase + "entityOperations/upsert", this.http_6_15_3_1_POST_batchEntityUpsert)
             this.router.post(this.apiBase + "entityOperations/update", this.http_6_16_3_1_batchEntityUpdate)
             this.router.post(this.apiBase + "entityOperations/delete", this.http_6_17_3_1_batchEntityDelete)
         }
@@ -1040,9 +1064,8 @@ export class HttpBinding {
         {
             this.router.post(this.apiBase + "entityOperations/query", this.http_6_23_3_1_POST_entityOperationsQuery)
             this.router.post(this.apiBase + "temporal/entityOperations/query", this.http_6_24_3_1_temporalEntityOperationsQuery)
-            
-            // TODO: 1 Implement inofficial endpoint: temporal/entityOperations/upsert
-            //this.router.post(this.apiBase + "temporal/entityOperations/query", this.http_6_24_3_1_temporalEntityOperationsQuery)
+            // ATTENTION: The following endpoint is not officially part of the NGSI-LD specification:
+            this.router.post(this.apiBase + "temporal/entityOperations/upsert", this.http_inofficial_temporalEntityOperationsUpsert)
         }
         //#################### END entityOperations query endpoints ##################
 

@@ -1,0 +1,220 @@
+[{
+    "id": "urn:ngsi-ld:TrafficRestriction:verkehrsinfobw:1996841_1996842_1996858",
+    "type": "TrafficRestriction",
+    "dateValidFrom": {
+        "type": "Property",
+        "value": {
+            "@type": "DateTime",
+            "@value": "2021-03-11T19:00:00.000Z"
+        }
+    },
+    "dateValidUntil": {
+        "type": "Property",
+        "value": {
+            "@type": "DateTime",
+            "@value": "2021-03-12T04:00:00.000Z"
+        }
+    },
+    "description": {
+        "type": "Property",
+        "value": "A5, AS KA-Nord, Schutzplankenreparaturen, Nachtbaustelle 10.-11.03.21 - A5, AS KA-Nord, Schutzplankenreparaturen, Nachtbaustelle 10.-11.03.21"
+    },
+    "location": {
+        "type": "GeoProperty",
+        "value": {
+            "type": "Point",
+            "coordinates": [
+                8.4650218748015,
+                49.0166210734534
+            ]
+        }
+    },
+    "maxVehicleWidth": {
+        "type": "Property",
+        "value": 3.75
+    },
+    "@context": [
+        "https://uri.geonet-mrn.de/xdatatogo/xdatatogo-context.jsonld",
+        "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
+    ]
+},
+{
+    "id": "urn:ngsi-ld:TrafficRestriction:verkehrsinfobw:1789093_1789094_1789097_gegen",
+    "type": "TrafficRestriction",
+    "dateValidFrom": {
+        "type": "Property",
+        "value": {
+            "@type": "DateTime",
+            "@value": "2021-02-08T06:00:00.000Z"
+        }
+    },
+    "dateValidUntil": {
+        "type": "Property",
+        "value": {
+            "@type": "DateTime",
+            "@value": "2021-03-12T18:00:00.000Z"
+        }
+    },
+    "description": {
+        "type": "Property",
+        "value": "A5 Fahrbahnsanierung bei Ettenheim und Rust - Bauphase 1 (prov. Verbreiterung im Mittelstreifen)"
+    },
+    "location": {
+        "type": "GeoProperty",
+        "value": {
+            "type": "Point",
+            "coordinates": [
+                7.75449545274303,
+                48.2404168846798
+            ]
+        }
+    },
+    "maxSpeed": {
+        "type": "Property",
+        "value": 80
+    },
+    "maxVehicleWidth": {
+        "type": "Property",
+        "value": 5.6
+    },
+    "@context": [
+        "https://uri.geonet-mrn.de/xdatatogo/xdatatogo-context.jsonld",
+        "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
+    ]
+},
+{
+    "id": "urn:ngsi-ld:TrafficRestriction:verkehrsinfobw:1789093_1789687_1789688_gegen",
+    "type": "TrafficRestriction",
+    "dateValidFrom": {
+        "type": "Property",
+        "value": {
+            "@type": "DateTime",
+            "@value": "2021-03-12T18:00:00.000Z"
+        }
+    },
+    "dateValidUntil": {
+        "type": "Property",
+        "value": {
+            "@type": "DateTime",
+            "@value": "2021-03-15T06:00:00.000Z"
+        }
+    },
+    "description": {
+        "type": "Property",
+        "value": "A5 Fahrbahnsanierung bei Ettenheim und Rust - Aufbauphase 2 - Fahrtrichtung Basel"
+    },
+    "location": {
+        "type": "GeoProperty",
+        "value": {
+            "type": "Point",
+            "coordinates": [
+                7.75449545274303,
+                48.2404168846798
+            ]
+        }
+    },
+    "maxSpeed": {
+        "type": "Property",
+        "value": 80
+    },
+    "maxVehicleWidth": {
+        "type": "Property",
+        "value": 5.6
+    },
+    "@context": [
+        "https://uri.geonet-mrn.de/xdatatogo/xdatatogo-context.jsonld",
+        "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
+    ]
+},
+{
+    "id": "urn:ngsi-ld:TrafficRestriction:verkehrsinfobw:1789093_1789754_1789755",
+    "type": "TrafficRestriction",
+    "dateValidFrom": {
+        "type": "Property",
+        "value": {
+            "@type": "DateTime",
+            "@value": "2021-03-15T06:00:00.000Z"
+        }
+    },
+    "dateValidUntil": {
+        "type": "Property",
+        "value": {
+            "@type": "DateTime",
+            "@value": "2021-07-23T17:00:00.000Z"
+        }
+    },
+    "description": {
+        "type": "Property",
+        "value": "A5 Fahrbahnsanierung bei Ettenheim und Rust - Bauphase 2 (Fahrbahndeckenerneuerung Westfahrbahn)"
+    },
+    "location": {
+        "type": "GeoProperty",
+        "value": {
+            "type": "Point",
+            "coordinates": [
+                7.75449545274303,
+                48.2404168846798
+            ]
+        }
+    },
+    "maxSpeed": {
+        "type": "Property",
+        "value": 80
+    },
+    "maxVehicleWidth": {
+        "type": "Property",
+        "value": 5.6
+    },
+    "@context": [
+        "https://uri.geonet-mrn.de/xdatatogo/xdatatogo-context.jsonld",
+        "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
+    ]
+},
+{
+    "id": "urn:ngsi-ld:TrafficRestriction:verkehrsinfobw:1807244_1807245_1807248_gegen",
+    "type": "TrafficRestriction",
+    "dateValidFrom": {
+        "type": "Property",
+        "value": {
+            "@type": "DateTime",
+            "@value": "2020-11-01T23:00:00.000Z"
+        }
+    },
+    "dateValidUntil": {
+        "type": "Property",
+        "value": {
+            "@type": "DateTime",
+            "@value": "2021-09-30T21:59:00.000Z"
+        }
+    },
+    "description": {
+        "type": "Property",
+        "value": "A5 Bauwerksarbeiten Grenzbrücke Basel - Bauphase"
+    },
+    "location": {
+        "type": "GeoProperty",
+        "value": {
+            "type": "Point",
+            "coordinates": [
+                7.60214547023026,
+                47.5861220100185
+            ]
+        }
+    },
+    "maxSpeed": {
+        "type": "Property",
+        "value": 60
+    },
+    "maxVehicleWeight": {
+        "type": "Property",
+        "value": 90
+    },
+    "maxVehicleWidth": {
+        "type": "Property",
+        "value": 3
+    },
+    "@context": [
+        "https://uri.geonet-mrn.de/xdatatogo/xdatatogo-context.jsonld",
+        "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context.jsonld"
+    ]
+}]

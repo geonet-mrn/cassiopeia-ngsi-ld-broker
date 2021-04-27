@@ -167,11 +167,8 @@ export class PsqlBackend {
         //################## END Create rows in attributes table ##################
 
 
-
         // Finish construction of transaction query:
         query_transaction += "COMMIT;"
-
-        //console.log(query_transaction)
 
         // Run transaction query:
 
@@ -183,7 +180,6 @@ export class PsqlBackend {
                     reject(error.code)
                 })
             }
-
         })
 
 
@@ -944,8 +940,7 @@ export class PsqlBackend {
             throw errorTypes.BadRequestData.withDetail("Invalid query: " + queryCheckResult.join(". "))
         }
 
-        if (query.geoQ != undefined) {
-            console.log("GEO QUERY EXISTS!")
+        if (query.geoQ != undefined) {          
 
             const geoQueryCheckResult = checkGeoQuery(query.geoQ)
 
@@ -1128,7 +1123,7 @@ export class PsqlBackend {
 
     private async runSqlQuery(sql: string): Promise<pg.QueryResult> {
 
-        console.log(sql)
+        //console.log(sql)
         console.log("-------------------------")
 
         const result = this.pool.query(sql)

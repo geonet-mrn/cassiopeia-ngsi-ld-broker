@@ -1,22 +1,16 @@
-// TODO: 3 Move everything PSQL-related to PsqlBackend and introduce a "neutral" interface / base class
-// for backends. The ContextBroker class should not deal with back end implementation details.
-
 import { BatchEntityError } from "./dataTypes/BatchEntityError"
 import { BatchOperationResult } from "./dataTypes/BatchOperationResult"
 import { Feature } from "./dataTypes/Feature"
 import { FeatureCollection } from "./dataTypes/FeatureCollection"
-import { NotUpdatedDetails } from "./dataTypes/NotUpdatedDetails"
 import { ProblemDetails } from "./dataTypes/ProblemDetails"
 import { Query } from "./dataTypes/Query"
 import { TemporalQuery } from "./dataTypes/TemporalQuery"
 import { UpdateResult } from "./dataTypes/UpdateResult"
 import { errorTypes } from "./errorTypes"
 import { PsqlBackend } from "./psqlBackend/PsqlBackend"
-import { checkArrayOfEntities, checkArrayOfUris, checkReifiedAttribute, checkEntity, isUri, isReifiedAttribute } from "./validate"
-import { appendCoreContext, compactObject, expandObject, getNormalizedContext, NGSI_LD_CORE_CONTEXT_URL } from "./jsonld"
+import { checkArrayOfEntities, checkArrayOfUris, checkReifiedAttribute, checkEntity, isUri } from "./validate"
+import { appendCoreContext, compactObject, expandObject, getNormalizedContext } from "./jsonld"
 import { parseJson, compactedEntityToGeoJsonFeature as compactedEntityToGeoJsonFeature } from "./util"
-import { threadId } from "node:worker_threads"
-import { isConstructorTypeNode } from "typescript"
 
 
 
@@ -115,8 +109,8 @@ export class ContextBroker {
         //################### END Validation ################
 
 
-        return await this.psql.appendEntityAttributes(entityId, fragment_expanded,overwrite)
-      
+        return await this.psql.appendEntityAttributes(entityId, fragment_expanded, overwrite)
+
     }
 
 
@@ -165,7 +159,7 @@ export class ContextBroker {
         //################### END Input validation ##################
 
         this.psql.partialAttributeUpdate(entityId, attributeId_expanded, attribute_expanded)
-      
+
     }
 
 
@@ -266,6 +260,10 @@ export class ContextBroker {
     // Spec 5.6.8
     async api_5_6_8_batchEntityUpsert(jsonString: string, options: string, contextUrl: string | undefined): Promise<BatchOperationResult> {
 
+        // ATTENTION: This method is already implemented as specified in NGSI-LD 1.4.1, as opposed to 1.3.1 like most
+        // other parts of Cassipeia. The reason for this is that the NGSI-LD 1.3.1 specification is not clear / contains
+        // inconsistencies in the description of what information is returned by the protocol-independent API method
+        // (spec 5.6.8) and what information is returned by the HTTP API endpoint as response.
 
         const entities_compacted = parseJson(jsonString)
 
@@ -288,32 +286,48 @@ export class ContextBroker {
         //############### END Validate input ###############
 
 
-        let result = new BatchOperationResult()
+        const entity_ids_created = Array<string>()
+        const entity_ids_updated = Array<string>()        
+
+        const result = new BatchOperationResult()
 
 
         //######## BEGIN Iterate over list of uploaded entities and try to upsert them ########
         for (const entity_expanded of entities_expanded) {
 
+            // Try to fetch entity metadata to check whether or not the entity already exists:
+            const existingEntityMetadata = await this.psql.getEntityMetadata(entity_expanded['@id'], false)
 
-            // ############## BEGIN Create the Entity if it does not exist ###############            
-            if (!this.psql.getEntityMetadata(entity_expanded['@id'], false)) {
 
-                let creationResultCode = await this.psql.createEntity(entity_expanded, false).catch((errorCode) => {
+            // ############## BEGIN CREATE the Entity if it does not exist ###############            
+            if (!existingEntityMetadata) {
+
+                const creationResultCode = await this.psql.createEntity(entity_expanded, false).catch((errorCode) => {
 
                     if (errorCode == "23505") {
                         result.errors.push(new BatchEntityError(entity_expanded['@id'], new ProblemDetails("", "Entity creation failed.", "An entity with the same ID already exists.", 409)))
                     }
                 })
+                
+                if (creationResultCode == 1) {
+                    entity_ids_created.push(entity_expanded['@id'])                    
+                }               
             }
-            // ############## END Create the Entity if it does not exist ###############
+            // ############## END CREATE the Entity if it does not exist ###############
 
-            // ############## BEGIN Otherwise, update existing entity ###############
+
+            // ############## BEGIN Otherwise, UPDATE existing entity ###############
             else {
-                //############ BEGIN "replace" mode (delete existing and create new) ##############
+                
+                // "If there were an existing Entity with the same Entity Id, 
+                // it shall be completely replaced by the new Entity content provided, 
+                // if the requested update mode is 'replace'.":
+
                 if (options == "replace") {
+                    console.log("REPLACE mode")
 
                     // First delete the existing entity:
-                    let deleteResult = await this.psql.deleteEntity(entity_expanded['@id']).catch((e) => {
+                    const deleteResult = await this.psql.deleteEntity(entity_expanded['@id']).catch((e) => {
                         // NOTE: If the entity does not exist, deleteEntity() throws an exception.
                         // We can and must ignore this exception. Non-existence of an entity
                         // with the same ID is not a problem here, since this is an UPSERT.
@@ -327,25 +341,50 @@ export class ContextBroker {
                     const creationResultCode = await this.psql.createEntity(entity_expanded, false).catch((errorCode) => {
 
                         if (errorCode == "23505") {
-                            result.errors.push(new BatchEntityError(entity_expanded['@id'], new ProblemDetails("", "Entity creation failed.", "An entity with the same ID already exists.", 409)))
+                            result.errors.push(new BatchEntityError(entity_expanded['@id'], new ProblemDetails("", "Entity replace failed.", "An entity with the same ID already exists.", 409)))
                         }
                     })
+
+                    if (creationResultCode == 1) {
+                        entity_ids_updated.push(entity_expanded['@id'])
+                    }
+                    
                 }
-                //############ END "replace" mode (delete existing and create new) ##############
+                
+                // "If there were an existing Entity with the same Entity Id, it shall be executed the 
+                // behaviour defined by clause 5.6.3, if the requested update mode is 'update'.":
 
-
-                //############ BEGIN "update" mode (update existing) ##############
                 else if (options == "update") {
+                    console.log("UPDATE mode")
 
-                    // NOTE: No need to process return value
-                    const updateResult = await this.api_5_6_3_appendEntityAttributes(entity_expanded['@id'], jsonString, contextUrl, true)
-                }
-                //############ END "update" mode (update existing) ##############
+                    const updateResult = await this.psql.appendEntityAttributes(entity_expanded['@id'], entity_expanded, true)
+
+                    // TODO: 3 Add information about failed updates to result?
+                    if (updateResult.notUpdated.length == 0) {
+                        entity_ids_updated.push(entity_expanded['@id'])
+                    }
+                    else {
+                        // TODO: Add to error message the list of attributes that could not be appended
+                        result.errors.push(new BatchEntityError(entity_expanded['@id'], new ProblemDetails("", "Entity update failed.", "Some attributes could not be appended", 409)))
+                    }                    
+                }      
+                else {
+                    // Invalid mode. Must be either "replace" or "update"
+                }          
             }
-            // ############## END Otherwise, update existing entity ###############
+            // ############## END Otherwise, UPDATE existing entity ###############
         }
         //######## END Iterate over list of uploaded entities and try to upsert them ########
 
+
+        if (result.errors.length == 0) {
+            result.success = entity_ids_created
+        }
+        else {
+            result.success == entity_ids_created.concat(entity_ids_updated)
+        }
+
+        console.log(result)
 
         return new Promise<BatchOperationResult>((resolve, reject) => {
             resolve(result)
@@ -511,7 +550,7 @@ export class ContextBroker {
 
 
     // Spec 5.6.14
-    async api_5_6_14_updateAttributeInstanceOfTemporalEntity(entityId: string, attributeId_compacted: string, 
+    async api_5_6_14_updateAttributeInstanceOfTemporalEntity(entityId: string, attributeId_compacted: string,
         instanceId_compacted: string, fragmentString_compacted: string, contextUrl: string | undefined) {
 
         // TODO: 2 What if there are multiple attributes in the fragment?
@@ -558,9 +597,9 @@ export class ContextBroker {
             attribute = [attribute]
         }
 
-        for(const instance of attribute) {
+        for (const instance of attribute) {
             if (instance["https://uri.etsi.org/ngsi-ld/instanceId"] == instanceId_expanded) {
-                await this.psql.updateAttributeInstanceOfTemporalEntity(entityId, attributeId_expanded, instanceId_expanded, instance)        
+                await this.psql.updateAttributeInstanceOfTemporalEntity(entityId, attributeId_expanded, instanceId_expanded, instance)
                 return
             }
         }
@@ -708,7 +747,7 @@ export class ContextBroker {
 
             const geometryProperty_expanded = expandObject(query.geometryProperty, context)
 
-            
+
             for (const entity_expanded of entities_expanded) {
 
                 const entity_compacted = compactObject(entity_expanded, context)
@@ -718,7 +757,7 @@ export class ContextBroker {
                 result.features.push(feature)
             }
         }
-        
+
         return result
     }
 
@@ -835,13 +874,13 @@ export class ContextBroker {
 
 
     // Spec 5.7.10
-    async api_5_7_10_retrieveAvailableAttributeInformation(attrType_compacted: string, contextUrl : string|undefined) {
-        
+    async api_5_7_10_retrieveAvailableAttributeInformation(attrType_compacted: string, contextUrl: string | undefined) {
+
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
 
         const attrType_expanded = expandObject(attrType_compacted, context)
-        
+
         return await this.psql.getAttributeInfo(attrType_expanded)
     }
 
@@ -849,6 +888,26 @@ export class ContextBroker {
     // TODO: 4 Implement 5.8 - 5.11
 
     //################################# END Official API methods ######################################
+
+
+
+    //############################ BEGIN Inofficial API methods ############################
+    async inofficial_deleteAllEntities() {
+        this.psql.deleteAllEntities()
+    }
+
+
+    async inofficial_temporalEntityOperationsUpsert(jsonString: any, contextUrl: string | undefined) {
+
+
+        const entities_compacted = parseJson(jsonString)
+
+        for (const ec of entities_compacted) {
+            console.log("GOOO")
+            this.api_5_6_11_createOrUpdateTemporalEntity(JSON.stringify(ec), contextUrl)
+        }
+    }
+    //############################ END Inofficial API methods ############################
 
 
 
@@ -885,7 +944,4 @@ export class ContextBroker {
     }
 
 
-    async inofficial_deleteAllEntities() {
-        this.psql.deleteAllEntities()
-    }
 }
