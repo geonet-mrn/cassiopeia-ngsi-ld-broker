@@ -41,6 +41,8 @@ describe('POST entityOperations/upsert', function () {
         }
 
 
+        // TODO: 3 Run test with "options=update" and without (default is "options=replace")
+
         const url_upsert = testConfig.base_url + "entityOperations/upsert?options=update"
 
         const entitiesToUpload = JSON.parse(fs.readFileSync("tests/trafficObstacles.ngsi-ld.json").toString())
@@ -62,7 +64,8 @@ describe('POST entityOperations/upsert', function () {
         //################################# END STEP 1 ##################################
 
 
-
+        
+        
         //################################# BEGIN STEP 2 ##################################
         // Now, upsert entities for the SECOND time, i.e. ALL ENTITIES ALREADY EXIST AND ARE UPDATED:
         const secondUpsertResponse = await axios.post(url_upsert, entitiesToUpload, config_POST).catch((e) => {            
@@ -70,12 +73,12 @@ describe('POST entityOperations/upsert', function () {
         }) as AxiosResponse
 
         // Since all entities were successfully updated, the reponse body should now be empty:
-        expect(secondUpsertResponse.data).equal("")
+        expect(secondUpsertResponse.data).equals("")
 
         // The responst status code should now be 204:
         expect(secondUpsertResponse.status).equals(204)
         //################################# END STEP 2 ##################################
-
+        
         
 
         //################################# BEGIN STEP 3 ##################################
