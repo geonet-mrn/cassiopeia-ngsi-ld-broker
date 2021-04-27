@@ -15,7 +15,7 @@ import { InsertQueryBuilder } from './InsertQueryBuilder'
 import { PsqlTableConfig } from './PsqlTableConfig'
 import { makeGeoQueryCondition } from './makeGeoQueryCondition'
 import { makeTemporalQueryCondition } from './makeTemporalQueryCondition'
-import { appendCoreContext, compactObject, expandObject, getNormalizedContext } from '../jsonld'
+import { compactObject, expandObject, getNormalizedContext } from '../jsonld'
 import { JsonLdContextNormalized } from 'jsonld-context-parser'
 import { UpdateResult } from '../dataTypes/UpdateResult'
 import { NotUpdatedDetails } from '../dataTypes/NotUpdatedDetails'
@@ -876,31 +876,11 @@ export class PsqlBackend {
 
             const geojson_expanded = instance['https://uri.etsi.org/ngsi-ld/hasValue']
 
-            // NOTE: The following is a bit ugly. We do a hard-coded "compaction" of the
-            // expanded GeoJSON object here, since we don't have access to the original @context of
-            // the data any more at this point. This only works if the expanded GeoJSON object's "@type"
-            // attribute really has a value in the form of 'https://purl.org/geojson/vocab#<geometry type name>'
-            // and the expanded key of the coordinates really is 'https://purl.org/geojson/vocab#coordinates'.            
+            const geojson_compacted = compactObject(geojson_expanded, this.ngsiLdCoreContext)
 
-            const split = geojson_expanded['@type'].split("#")
-
-            if (split.length == 2) {
-                const geomType = split[1]
-
-                const coordinates = geojson_expanded['https://purl.org/geojson/vocab#coordinates']
-
-                const geojson_compacted = {
-                    "type" : geomType,
-                    "coordinates" : coordinates
-                }
-
-                const geojson_string = JSON.stringify(geojson_compacted)
-                
-                sql += `, geom = ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`
-            }
-            else {
-                throw errorTypes.InternalError.withDetail("PsqlBackend::makeUpdateAttributeInstanceQuery: Failed to determine geometry type")
-            }
+            const geojson_compacted_string = JSON.stringify(geojson_compacted)
+            
+            sql += `, geom = ST_SetSRID(ST_GeomFromGeoJSON('${geojson_compacted_string}'), 4326)`
         }
 
         // Write 'modified_at' column:        
@@ -1036,9 +1016,7 @@ export class PsqlBackend {
 
 
         if (query.attrs != undefined && query.attrs.length > 0) {
-
-            console.log(JSON.stringify(context))
-
+            
             const attrs_expanded = expandObject(query.attrs, context)
 
             sql_where += ` AND t2.${this.tableCfg.COL_ATTR_NAME} IN ('${attrs_expanded.join("','")}')`
