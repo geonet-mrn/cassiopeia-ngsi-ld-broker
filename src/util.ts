@@ -67,7 +67,7 @@ export function getSimplifiedRepresentation(entity : any) : any {
 
         let attribute = (entity as any)[attributeId]
 
-        if (!isReifiedAttribute(attribute)) {
+        if (!isReifiedAttribute(attribute, attributeId)) {
             result[attributeId] = entity[attributeId]
             continue
         }

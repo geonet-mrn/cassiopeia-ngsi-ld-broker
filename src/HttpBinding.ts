@@ -42,6 +42,7 @@ import { getNormalizedContext, NGSI_LD_CORE_CONTEXT_URL } from "./jsonld"
 import { PsqlBackend } from "./psqlBackend/PsqlBackend"
 import * as fs from 'fs'
 import * as auth from 'basic-auth'
+import { POINT_CONVERSION_COMPRESSED } from "node:constants"
 
 export class HttpBinding {
 
@@ -56,7 +57,7 @@ export class HttpBinding {
 
     private readonly ERROR_MSG_NOT_IMPLEMENTED_YET = "This operation is not implemented yet."
 
-    private readonly catchExceptions = true
+    private readonly catchExceptions = false
 
     // NOTE: The HTTP handler methods must be defined as arrow functions in order to work!
 
@@ -202,6 +203,7 @@ export class HttpBinding {
     // Binding for spec 5.6.3
     http_6_6_3_1_appendEntityAttributes = async (ctx: any, next: any) => {
 
+       
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
             return
@@ -211,9 +213,12 @@ export class HttpBinding {
 
         const options = (typeof (ctx.request.query.options) == "string") ? (ctx.request.query.options as string).split(",") : []
 
-        let overwrite = !options.includes("noOverwrite")
+        const overwrite = !options.includes("noOverwrite")
 
+        //console.log(ctx.request.rawBody)
         let result = await this.broker.api_5_6_3_appendEntityAttributes(ctx.params.entityId, ctx.request.rawBody, contextUrl, overwrite)
+
+        console.log(result)
 
         if (result.notUpdated.length == 0) {
             ctx.status = 204
@@ -423,7 +428,7 @@ export class HttpBinding {
         }
 
         const result = await this.broker.api_5_6_8_batchEntityUpsert(ctx.request.rawBody, options, contextUrl)
-                
+
 
         if (result.errors.length == 0) {
 

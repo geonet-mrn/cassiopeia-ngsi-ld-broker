@@ -445,8 +445,8 @@ export function checkQuery(query: Query): Array<string> {
 }
 
 
-export function isReifiedAttribute(attribute: any): boolean {
-    return (checkReifiedAttribute(attribute, "", undefined, false).length == 0)
+export function isReifiedAttribute(attribute: any, attributeName : string): boolean {
+    return (checkReifiedAttribute(attribute, attributeName, undefined, false).length == 0)
 }
 
 

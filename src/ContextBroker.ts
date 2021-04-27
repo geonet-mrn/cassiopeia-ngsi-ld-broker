@@ -23,7 +23,7 @@ export class ContextBroker {
 
     // Spec 5.6.1
     async api_5_6_1_createEntity(entityJson_compacted: string, contextUrl: string | undefined) {
-
+        
         const entity_from_payload = parseJson(entityJson_compacted)
 
 
@@ -278,7 +278,7 @@ export class ContextBroker {
             entities_expanded.push(expandObject(ec, context))
         }
 
-        let checkResult = checkArrayOfEntities(entities_expanded, true, true)
+        const checkResult = checkArrayOfEntities(entities_expanded, true, true)
 
         if (checkResult.length > 0) {
             throw errorTypes.BadRequestData.withDetail(checkResult.join("\n"))
@@ -324,8 +324,7 @@ export class ContextBroker {
                 // if the requested update mode is 'replace'.":
 
                 if (options == "replace") {
-                    console.log("REPLACE mode")
-
+                  
                     // First delete the existing entity:
                     const deleteResult = await this.psql.deleteEntity(entity_expanded['@id']).catch((e) => {
                         // NOTE: If the entity does not exist, deleteEntity() throws an exception.
@@ -355,8 +354,7 @@ export class ContextBroker {
                 // behaviour defined by clause 5.6.3, if the requested update mode is 'update'.":
 
                 else if (options == "update") {
-                    console.log("UPDATE mode")
-
+                  
                     const updateResult = await this.psql.appendEntityAttributes(entity_expanded['@id'], entity_expanded, true)
 
                     // TODO: 3 Add information about failed updates to result?
@@ -383,8 +381,7 @@ export class ContextBroker {
         else {
             result.success == entity_ids_created.concat(entity_ids_updated)
         }
-
-        console.log(result)
+        
 
         return new Promise<BatchOperationResult>((resolve, reject) => {
             resolve(result)

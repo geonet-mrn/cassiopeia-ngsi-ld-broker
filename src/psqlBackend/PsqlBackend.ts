@@ -15,7 +15,7 @@ import { InsertQueryBuilder } from './InsertQueryBuilder'
 import { PsqlTableConfig } from './PsqlTableConfig'
 import { makeGeoQueryCondition } from './makeGeoQueryCondition'
 import { makeTemporalQueryCondition } from './makeTemporalQueryCondition'
-import { compactObject, expandObject } from '../jsonld'
+import { appendCoreContext, compactObject, expandObject, getNormalizedContext } from '../jsonld'
 import { JsonLdContextNormalized } from 'jsonld-context-parser'
 import { UpdateResult } from '../dataTypes/UpdateResult'
 import { NotUpdatedDetails } from '../dataTypes/NotUpdatedDetails'
@@ -61,7 +61,7 @@ export class PsqlBackend {
 
             let attribute = (fragment_expanded as any)[attributeId]
 
-            if (!isReifiedAttribute(attribute)) {
+            if (!isReifiedAttribute(attribute, attributeId)) {
                 continue
             }
 
@@ -216,7 +216,7 @@ export class PsqlBackend {
 
             let attribute = (entity_expanded as any)[attributeId]
 
-            if (!isReifiedAttribute(attribute)) {
+            if (!isReifiedAttribute(attribute, attributeId)) {
                 continue
             }
 
@@ -876,12 +876,31 @@ export class PsqlBackend {
 
             const geojson_expanded = instance['https://uri.etsi.org/ngsi-ld/hasValue']
 
-            // TODO: 1 Is it okay to simply use the NGSI-LD core context here?
-            const geojson_compacted = this.ngsiLdCoreContext.compactIri(geojson_expanded, true)
+            // NOTE: The following is a bit ugly. We do a hard-coded "compaction" of the
+            // expanded GeoJSON object here, since we don't have access to the original @context of
+            // the data any more at this point. This only works if the expanded GeoJSON object's "@type"
+            // attribute really has a value in the form of 'https://purl.org/geojson/vocab#<geometry type name>'
+            // and the expanded key of the coordinates really is 'https://purl.org/geojson/vocab#coordinates'.            
 
-            const geojson_string = JSON.stringify(geojson_compacted)
+            const split = geojson_expanded['@type'].split("#")
 
-            sql += `, geom = ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`
+            if (split.length == 2) {
+                const geomType = split[1]
+
+                const coordinates = geojson_expanded['https://purl.org/geojson/vocab#coordinates']
+
+                const geojson_compacted = {
+                    "type" : geomType,
+                    "coordinates" : coordinates
+                }
+
+                const geojson_string = JSON.stringify(geojson_compacted)
+                
+                sql += `, geom = ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`
+            }
+            else {
+                throw errorTypes.InternalError.withDetail("PsqlBackend::makeUpdateAttributeInstanceQuery: Failed to determine geometry type")
+            }
         }
 
         // Write 'modified_at' column:        
@@ -940,7 +959,7 @@ export class PsqlBackend {
             throw errorTypes.BadRequestData.withDetail("Invalid query: " + queryCheckResult.join(". "))
         }
 
-        if (query.geoQ != undefined) {          
+        if (query.geoQ != undefined) {
 
             const geoQueryCheckResult = checkGeoQuery(query.geoQ)
 
@@ -1017,9 +1036,9 @@ export class PsqlBackend {
 
 
         if (query.attrs != undefined && query.attrs.length > 0) {
-            
+
             console.log(JSON.stringify(context))
-            
+
             const attrs_expanded = expandObject(query.attrs, context)
 
             sql_where += ` AND t2.${this.tableCfg.COL_ATTR_NAME} IN ('${attrs_expanded.join("','")}')`
@@ -1141,7 +1160,7 @@ export class PsqlBackend {
     }
 
 
-    async updateAttributeInstanceOfTemporalEntity(entityId: string, attributeId_expanded : string, instanceId_expanded : string, instance: any) {
+    async updateAttributeInstanceOfTemporalEntity(entityId: string, attributeId_expanded: string, instanceId_expanded: string, instance: any) {
 
         //####################### BEGIN Try to fetch existing entity ###########################
         const entityMetadata = await this.getEntityMetadata(entityId, true)
@@ -1162,6 +1181,7 @@ export class PsqlBackend {
     }
 
 
+
     async appendEntityAttributes(entityId: any, fragment_expanded: any, overwrite: boolean) {
 
         let result = new UpdateResult()
@@ -1179,14 +1199,33 @@ export class PsqlBackend {
 
         // "For each Attribute included by the Entity Fragment at root level":
 
+        const ignoreAttributes = ["@id", "@type", "@context"]
+
         //####################### BEGIN Iterate over attributes #############################
         for (const attributeId in fragment_expanded) {
 
             let attribute = (fragment_expanded as any)[attributeId]
 
-            if (!isReifiedAttribute(attribute)) {
+            //#################### BEGIN Validate attribute ####################
+            const reifiedAttributeCheck = checkReifiedAttribute(attribute, attributeId, undefined, false)
+
+            if (reifiedAttributeCheck.length > 0) {
+
+                if (ignoreAttributes.includes(attributeId)) {
+                    continue
+                }
+
+                let errorMsg = ""
+
+                for (const msg of reifiedAttributeCheck) {
+                    errorMsg += msg + "\n"
+                }
+
+                result.notUpdated.push(new NotUpdatedDetails(attributeId, "Not a valid reified attribute: \n" + errorMsg))
+
                 continue
             }
+            //#################### END Validate attribute ####################
 
 
             if (!(attribute instanceof Array)) {
@@ -1209,14 +1248,14 @@ export class PsqlBackend {
                 let numExistingInstancesWithSameDatasetId = await this.countAttributeInstances(entityInternalId, attributeId, instance['https://uri.etsi.org/ngsi-ld/datasetId'])
 
                 if (numExistingInstancesWithSameDatasetId == 0) {
-                    //await this.psql.runSqlQuery(this.psql.makeCreateAttributeQuery(entityInternalId, attributeId, instance))
+
                     sql_transaction += this.makeCreateAttributeQuery(entityInternalId, attributeId, instance)
 
                     updated = true
                 }
                 else {
                     if (overwrite) {
-                        //await this.psql.updateAttributeInstance(entityInternalId, attributeId, undefined, instance, true)
+
                         sql_transaction += this.makeUpdateAttributeInstanceQuery(entityInternalId, attributeId, undefined, instance, true)
 
                         updated = true
@@ -1321,7 +1360,7 @@ export class PsqlBackend {
                 attribute_expanded = [attribute_expanded]
             }
 
-            if (!isReifiedAttribute(attribute_expanded)) {
+            if (!isReifiedAttribute(attribute_expanded, attributeId_expanded)) {
                 // NOTE: This check is primarily meant to filter out attributes like "id" and "type",
                 // and not for actual validation. This happens earlier.
                 continue
