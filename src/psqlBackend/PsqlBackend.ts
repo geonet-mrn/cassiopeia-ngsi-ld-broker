@@ -803,6 +803,9 @@ export class PsqlBackend {
             const geojson_compacted = compactObject(geojson_expanded, this.ngsiLdCoreContext)
 
             const geojson_string = JSON.stringify(geojson_compacted)
+            //const geojson_string = JSON.stringify(geojson_expanded)
+
+           // console.log(geojson_string)
 
             queryBuilder.add("geom", `ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`, true)
         }
@@ -878,9 +881,10 @@ export class PsqlBackend {
 
             const geojson_compacted = compactObject(geojson_expanded, this.ngsiLdCoreContext)
 
-            const geojson_compacted_string = JSON.stringify(geojson_compacted)
+            //const geojson_string = JSON.stringify(geojson_expanded)
+            const geojson_string = JSON.stringify(geojson_compacted)
             
-            sql += `, geom = ST_SetSRID(ST_GeomFromGeoJSON('${geojson_compacted_string}'), 4326)`
+            sql += `, geom = ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`
         }
 
         // Write 'modified_at' column:        
@@ -1120,7 +1124,7 @@ export class PsqlBackend {
 
     private async runSqlQuery(sql: string): Promise<pg.QueryResult> {
 
-        //console.log(sql)
+       // console.log(sql)
         console.log("-------------------------")
 
         const result = this.pool.query(sql)

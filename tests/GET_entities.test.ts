@@ -32,9 +32,9 @@ describe('GET entities/<entity_id>', function () {
         }
 
         // Retrieve created entity again:
-        let response = await axios.get(url, config)
+        const response = await axios.get(url, config)
 
-
+       
 
         expect(response.data.id).equal(entityId)
 

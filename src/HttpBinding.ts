@@ -42,7 +42,7 @@ import { getNormalizedContext, NGSI_LD_CORE_CONTEXT_URL } from "./jsonld"
 import { PsqlBackend } from "./psqlBackend/PsqlBackend"
 import * as fs from 'fs'
 import * as auth from 'basic-auth'
-import { POINT_CONVERSION_COMPRESSED } from "node:constants"
+
 
 export class HttpBinding {
 
@@ -186,14 +186,11 @@ export class HttpBinding {
     http_6_5_3_2_deleteEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
-
 
         ctx.body = await this.broker.api_5_6_6_deleteEntity(ctx.params.entityId)
         ctx.status = 204
-
 
         await next()
     }
@@ -205,8 +202,7 @@ export class HttpBinding {
 
        
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -237,8 +233,7 @@ export class HttpBinding {
     http_6_6_3_2_updateEntityAttributes = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -262,8 +257,7 @@ export class HttpBinding {
     http_6_7_3_1_partialAttributeUpdate = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -280,8 +274,7 @@ export class HttpBinding {
     http_6_7_3_2_deleteEntityAttribute = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -299,8 +292,7 @@ export class HttpBinding {
     http_6_8_3_1_registerContextSource = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
         throw errorTypes.OperationNotSupported.withDetail(this.ERROR_MSG_NOT_IMPLEMENTED_YET)
@@ -331,8 +323,7 @@ export class HttpBinding {
     http_6_9_3_2_updateContextSourceRegistration = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
         throw errorTypes.OperationNotSupported.withDetail(this.ERROR_MSG_NOT_IMPLEMENTED_YET)
@@ -344,8 +335,7 @@ export class HttpBinding {
     http_6_9_3_3_deleteContextSourceRegistration = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
         throw errorTypes.OperationNotSupported.withDetail(this.ERROR_MSG_NOT_IMPLEMENTED_YET)
@@ -358,8 +348,7 @@ export class HttpBinding {
     http_6_10_3_1_createSubscription = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")      
         }
 
         throw errorTypes.OperationNotSupported.withDetail(this.ERROR_MSG_NOT_IMPLEMENTED_YET)
@@ -372,8 +361,7 @@ export class HttpBinding {
     http_6_10_3_2_querySubscriptions = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
         throw errorTypes.OperationNotSupported.withDetail(this.ERROR_MSG_NOT_IMPLEMENTED_YET)
@@ -386,8 +374,7 @@ export class HttpBinding {
     http_6_14_3_1_batchEntityCreation = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -413,8 +400,7 @@ export class HttpBinding {
     http_6_15_3_1_POST_batchEntityUpsert = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -456,8 +442,7 @@ export class HttpBinding {
     http_6_16_3_1_batchEntityUpdate = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -484,8 +469,7 @@ export class HttpBinding {
     http_6_17_3_1_batchEntityDelete = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
         const result = await this.broker.api_5_6_10_batchEntityDelete(ctx.request.rawBody)
@@ -507,8 +491,7 @@ export class HttpBinding {
     http_6_18_3_1_createOrUpdateTemporalEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -621,7 +604,6 @@ export class HttpBinding {
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
 
-
         const attrs = (ctx.request.query.attrs) ? ctx.request.query.attrs.split(",") : undefined
 
         // NOTE: The parameters 'geometryProperty' and 'datasetId' are defined in spec 6.3.15:
@@ -657,8 +639,7 @@ export class HttpBinding {
     http_6_19_3_2_deleteTemporalEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
         await this.broker.api_5_6_16_deleteTemporalEntity(ctx.params.entityId)
@@ -673,8 +654,7 @@ export class HttpBinding {
     http_6_20_3_1_addAttributesToTemporalEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
         // TODO: 2 Implement
@@ -690,8 +670,7 @@ export class HttpBinding {
     http_6_21_3_1_deleteAttributeFromTemporalEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
@@ -710,8 +689,7 @@ export class HttpBinding {
     http_6_22_3_1_modifyAttributeInstanceOfTemporalEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -729,7 +707,6 @@ export class HttpBinding {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
@@ -899,8 +876,7 @@ export class HttpBinding {
     http_inofficial_deleteAllEntities = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
 
@@ -913,15 +889,10 @@ export class HttpBinding {
     http_inofficial_temporalEntityOperationsUpsert = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
 
-
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
-
-
-
 
         ctx.body = await this.broker.inofficial_temporalEntityOperationsUpsert(ctx.request.rawBody, contextUrl)
 

@@ -308,14 +308,18 @@ export function checkReifiedAttribute(attribute: any, key: string, expectedType:
                 result.push(key + ": Attribute instance value is null or undefined.")
             }
             else {
+                // ATTENTION: We disabled this because JSON members with key "value" are no longer expanded
+                /*
                 if (!geometryTypes_expanded.includes(value_expanded['@type'])) {
                     result.push(key + ": Invalid GeoProperty value type: " + value_expanded['@type'])
                 }
+                
 
                 // TODO: 4 More strict check of GeoJSON coordinates structure
                 if (!(value_expanded["https://purl.org/geojson/vocab#coordinates"] instanceof Array)) {
                     result.push(key + ": Invalid GeoProperty value coordinates: " + JSON.stringify(value_expanded.coordinates))
                 }
+                */
             }
 
             result = result.concat(checkInstanceMembers(instance, defaultGeoPropertyMembers))

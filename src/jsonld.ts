@@ -61,6 +61,7 @@ export function compactObject(obj: any, normalizedContext: ldcp.JsonLdContextNor
 
         let result: any = {}
 
+
         //############ BEGIN Compact values ###########
         for (const key in clone) {
             clone[key] = compactObject(clone[key], normalizedContext)
@@ -90,7 +91,7 @@ export function expandObject(obj: any, normalizedContext: ldcp.JsonLdContextNorm
         return null
     }
 
-    else if (typeof (obj) === 'string') {
+    else if (typeof (obj) === 'string') {        
         return normalizedContext.expandTerm(obj, true)
     }
 
@@ -134,7 +135,11 @@ export function expandObject(obj: any, normalizedContext: ldcp.JsonLdContextNorm
         //############ BEGIN Iterate over all keys ###########
         for (const key in result) {
 
-            result[key] = expandObject(result[key], normalizedContext)
+            // TODO: 1 Is this correct?
+            if (key != "value" && key != "https://uri.etsi.org/ngsi-ld/hasValue") {
+
+                result[key] = expandObject(result[key], normalizedContext)
+            }          
         }
         //############ END Iterate over all keys ###########
 
@@ -143,7 +148,6 @@ export function expandObject(obj: any, normalizedContext: ldcp.JsonLdContextNorm
 
     //############## END If member is an object ##############   
 }
-
 
 
 export async function getNormalizedContext(nonNormalizedContext: any): Promise<ldcp.JsonLdContextNormalized> {
@@ -164,11 +168,10 @@ export async function httpFetchContexts(context: any): Promise<Array<any>> {
         context = [context]
     }
 
-    
-    if (!fs.existsSync(contextCacheDir)){
+
+    if (!fs.existsSync(contextCacheDir)) {
         fs.mkdirSync(contextCacheDir);
     }
-
 
 
     for (let entry of context) {
