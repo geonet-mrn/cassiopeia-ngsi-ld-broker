@@ -4,11 +4,8 @@ import * as uuid from 'uuid'
 import * as prep from "./testPreparation"
 import { testConfig } from './testConfig'
 
-const entityId = "urn:xdatatogo:TrafficRestriction:" + uuid.v4()
 
-
-
-async function createEntity(entityId: string) {
+async function createEntity() {
 
 
 
@@ -73,10 +70,9 @@ async function createEntity(entityId: string) {
         console.log(e)
     })
 
-    if (response) {
-        console.log(response.status)
-    }
-
+    return new Promise<void>((resolve, reject) => {
+        resolve()
+    })
 }
 
 
@@ -85,7 +81,7 @@ describe('POST entityOperations/query', function () {
     before(async () => {
         await prep.deleteAllEntities()
 
-        createEntity(entityId)
+        await createEntity()
 
         return new Promise<void>((resolve, reject) => {
             resolve()
@@ -108,6 +104,7 @@ describe('POST entityOperations/query', function () {
     it("should return the entities that match the property query", async function () {
 
         const query = {
+            "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.3.jsonld",
             "q": "maxSpeed==123",
             "type": "Query"
 
@@ -125,7 +122,7 @@ describe('POST entityOperations/query', function () {
         }) as AxiosResponse
 
 
-        
+
         expect(response.data.length).equals(1)
         //console.log(response.data)
 
@@ -140,6 +137,7 @@ describe('POST entityOperations/query', function () {
 
     it("should return an empty array because no existing entities match the query", async function () {
         const query = {
+            "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.3.jsonld",
 
             geoQ: {
                 "georel": "near;maxDistance==1000",
@@ -179,6 +177,7 @@ describe('POST entityOperations/query', function () {
     it("should return and array with one existing entity that matches the geo query", async function () {
 
         const query = {
+            "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.3.jsonld",
 
             geoQ: {
                 "georel": "near;maxDistance==0",
