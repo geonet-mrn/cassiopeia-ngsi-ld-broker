@@ -19,11 +19,6 @@ const originalEntity = {
             "type": "Property",
             "value": "07337059"
         }
-    ],
-
-    "@context": [
-        "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.3.jsonld",
-        "https://uri.geonet-mrn.de/mrn/mrn-context.jsonld"
     ]
 }
 
@@ -38,16 +33,11 @@ const appendAttributesFragment = {
             "type": "Property",
             "value": "appendedValue"
         }
-    ],
-
-    "@context": [
-        "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.3.jsonld",
-        "https://uri.geonet-mrn.de/mrn/mrn-context.jsonld"
     ]
 }
 
 
-describe('POST entities/{entityId}/attrs/', function () {
+describe('6.6.3.1 POST entities/{entityId}/attrs/', function () {
 
     before(async () => {
         await prep.deleteAllEntities()
@@ -116,5 +106,9 @@ describe('POST entities/{entityId}/attrs/', function () {
 
         expect(modifiedEntity['appendedAttribute']).instanceOf(Object)
         //###################### END Step 3 ######################
+
+        return new Promise<void>((resolve, reject) => {
+            resolve()
+        })
     })
 });

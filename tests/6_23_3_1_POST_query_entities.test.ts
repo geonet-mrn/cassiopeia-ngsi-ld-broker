@@ -1,10 +1,83 @@
 import { expect, assert } from "chai";
-import axios, { AxiosResponse } from 'axios'
+import axios, { AxiosRequestConfig, AxiosResponse } from 'axios'
 import * as uuid from 'uuid'
 import * as prep from "./testPreparation"
-import {testConfig} from './testConfig'
+import { testConfig } from './testConfig'
 
 const entityId = "urn:xdatatogo:TrafficRestriction:" + uuid.v4()
+
+
+
+async function createEntity(entityId: string) {
+
+
+
+    const entity = {
+
+
+        "id": "urn:xdatatogo:TrafficRestriction:test",
+        "type": "TrafficRestriction",
+
+        "dateValidFrom": {
+            "type": "Property",
+            "value": {
+                "@type": "DateTime",
+                "@value": "2021-02-08T06:00:00.000Z"
+            }
+        },
+        "dateValidUntil": {
+            "type": "Property",
+            "value": {
+                "@type": "DateTime",
+                "@value": "2021-02-08T06:00:00.000Z"
+            }
+        },
+        "location": {
+            "type": "GeoProperty",
+            "value": {
+                "type": "Point",
+                "coordinates": [50, 50]
+            }
+        },
+        "maxSpeed": {
+            "type": "Property",
+            "value": 123
+        },
+        "maxVehicleAxleLoad": {
+            "type": "Property",
+            "value": 123
+        },
+        "maxVehicleHeight": {
+            "type": "Property",
+            "value": 123
+        },
+        "maxVehicleWeight": {
+            "type": "Property",
+            "value": 123
+        },
+        "maxVehicleWidth": {
+            "type": "Property",
+            "value": 123
+        }
+    }
+
+    let config: AxiosRequestConfig = {
+        headers: { "content-type": "application/ld+json" },
+        auth: testConfig.auth
+    }
+
+    // Create entity:
+
+
+    let response = await axios.post(testConfig.base_url + "entities/", entity, config).catch((e) => {
+        console.log(e)
+    })
+
+    if (response) {
+        console.log(response.status)
+    }
+
+}
 
 
 describe('POST entityOperations/query', function () {
@@ -12,8 +85,8 @@ describe('POST entityOperations/query', function () {
     before(async () => {
         await prep.deleteAllEntities()
 
-        await prep.createEntity(entityId)
-        
+        createEntity(entityId)
+
         return new Promise<void>((resolve, reject) => {
             resolve()
         })
@@ -22,7 +95,7 @@ describe('POST entityOperations/query', function () {
 
     after(async () => {
         await prep.deleteAllEntities()
-        
+
         return new Promise<void>((resolve, reject) => {
             resolve()
         })
@@ -35,7 +108,6 @@ describe('POST entityOperations/query', function () {
     it("should return the entities that match the property query", async function () {
 
         const query = {
-            "@context": "https://uri.geonet-mrn.de/xdatatogo/xdatatogo-context.jsonld",
             "q": "maxSpeed==123",
             "type": "Query"
 
@@ -43,9 +115,6 @@ describe('POST entityOperations/query', function () {
 
         let config = {
             headers: {
-                // ATTENTION: If content-type is "application/ld+json", 
-                // no context "link" header must be sent! (Spec 6.3.5)
-                //"link": '<https://uri.geonet-mrn.de/xdatatogo/xdatatogo-context.jsonld>; rel="http://www.w3.org/ns/json-ld%23context";type="application/ld+json"',
                 "content-type": "application/ld+json"
             }
         }
@@ -55,8 +124,13 @@ describe('POST entityOperations/query', function () {
             console.log(e)
         }) as AxiosResponse
 
-        expect(response.data[0].id).equals(entityId)
+
         
+        expect(response.data.length).equals(1)
+        //console.log(response.data)
+
+        expect(response.data[0].id).equals("urn:xdatatogo:TrafficRestriction:test")
+
         return new Promise<void>((resolve, reject) => {
             resolve()
         })
@@ -66,7 +140,6 @@ describe('POST entityOperations/query', function () {
 
     it("should return an empty array because no existing entities match the query", async function () {
         const query = {
-            "@context": "https://uri.geonet-mrn.de/xdatatogo/xdatatogo-context.jsonld",
 
             geoQ: {
                 "georel": "near;maxDistance==1000",
@@ -80,9 +153,7 @@ describe('POST entityOperations/query', function () {
 
         let config = {
             headers: {
-                // ATTENTION: If content-type is "application/ld+json", 
-                // no context "link" header must be sent! (Spec 6.3.5)
-                //"link": '<https://uri.geonet-mrn.de/xdatatogo/xdatatogo-context.jsonld>; rel="http://www.w3.org/ns/json-ld%23context";type="application/ld+json"',
+
                 "content-type": "application/ld+json"
             },
             auth: testConfig.auth
@@ -108,7 +179,7 @@ describe('POST entityOperations/query', function () {
     it("should return and array with one existing entity that matches the geo query", async function () {
 
         const query = {
-            "@context": "https://uri.geonet-mrn.de/xdatatogo/xdatatogo-context.jsonld",
+
             geoQ: {
                 "georel": "near;maxDistance==0",
                 "geometry": "Point",
@@ -121,9 +192,6 @@ describe('POST entityOperations/query', function () {
 
         let config = {
             headers: {
-                // ATTENTION: If content-type is "application/ld+json", 
-                // no context "link" header must be sent! (Spec 6.3.5)
-                //"link": '<https://uri.geonet-mrn.de/xdatatogo/xdatatogo-context.jsonld>; rel="http://www.w3.org/ns/json-ld%23context";type="application/ld+json"',
                 "content-type": "application/ld+json"
             },
             auth: testConfig.auth
@@ -136,7 +204,7 @@ describe('POST entityOperations/query', function () {
 
         expect(response.data).instanceOf(Array)
 
-        expect(response.data[0].id).equals(entityId)
+        expect(response.data[0].id).equals("urn:xdatatogo:TrafficRestriction:test")
 
 
         return new Promise<void>((resolve, reject) => {
