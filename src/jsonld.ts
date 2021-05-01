@@ -134,8 +134,13 @@ export function expandObject(obj: any, normalizedContext: ldcp.JsonLdContextNorm
 
         //############ BEGIN Iterate over all keys ###########
         for (const key in result) {
+            
+            // ATTENTION: Excluding Property values from expansion IS correct, but hard-coding it this way probably
+            // isn't the best solution. We should try to implement this according to the JSON-LD + NGSI-LD specifications
+            // and take into account rules defined in context definitions.
+            
+            // TODO: 2 Properly decide what is expanded and what not.
 
-            // TODO: 1 Is this correct?
             if (key != "value" && key != "https://uri.etsi.org/ngsi-ld/hasValue") {
 
                 result[key] = expandObject(result[key], normalizedContext)
@@ -145,6 +150,8 @@ export function expandObject(obj: any, normalizedContext: ldcp.JsonLdContextNorm
 
         return result
     }
+
+    
 
     //############## END If member is an object ##############   
 }

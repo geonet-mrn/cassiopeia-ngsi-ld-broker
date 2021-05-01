@@ -1,14 +1,12 @@
 // NGSI-LD Version 1.3.1
 // https://www.etsi.org/deliver/etsi_gs/CIM/001_099/009/01.03.01_60/gs_CIM009v010301p.pdf
 
-
-
 // TODO: 3 Automatically add "createdAt" and "modifiedAt" to all Attributes in JSON 
 // so that these fields can be queried with the query language. Remove them from output if not explicitly requested.
 
 // TODO: 1 Spec 6.3.5 (Extract context from request)
 // TODO: 1 Spec 6.3.6 (Response context representation)
-// TODO: 2 Print context parse errors in response
+// TODO: 3 Correct implementation for what to expand and what not
 // TODO: 3 What about querying of instanceId?
 // TODO: 3 Support GeoJSON for GeoProperty as string
 // TODO: 3 Spec 6.3.4 vervollständigen (v.a. check von Accept Headers)
@@ -16,10 +14,12 @@
 // TODO: 3 5.7.2.4 Match ID patterns
 // TODO: 4 Complete criteria in Spec 5.5.4 (context and null)
 // TODO: 4 Spec 4.5.9
+// TODO: 4 Print context parse errors in response
+// TODO: 4 Spec 5.7.2.4 Context header in GeoJSON response?
 // TODO: Spec 5.5.5
 // TODO: Spec 5.5.6
 // TODO: 5 Spec 5.5.9 (pagination)
-// TODO: 3 Spec 5.7.2.4 Context header in GeoJSON response?
+
 
 // TODO: Implement "limit" / pagination (spec 6.3.10)
 
@@ -210,8 +210,7 @@ export class HttpBinding {
         const options = (typeof (ctx.request.query.options) == "string") ? (ctx.request.query.options as string).split(",") : []
 
         const overwrite = !options.includes("noOverwrite")
-
-        //console.log(ctx.request.rawBody)
+        
         let result = await this.broker.api_5_6_3_appendEntityAttributes(ctx.params.entityId, ctx.request.rawBody, contextUrl, overwrite)
 
         console.log(result)
@@ -276,7 +275,7 @@ export class HttpBinding {
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
-
+        
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
 
         const deleteAll = (ctx.request.query.deleteAll == "true")
