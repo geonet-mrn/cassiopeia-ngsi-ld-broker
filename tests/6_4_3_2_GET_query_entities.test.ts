@@ -1,6 +1,6 @@
 import { expect, assert } from "chai";
 import axios, { AxiosResponse } from 'axios'
-import * as prep from "./testPreparation"
+import * as prep from "./testUtil"
 import { testConfig } from './testConfig'
 
 
@@ -82,24 +82,16 @@ const entities = [
 
 describe('6.4.3.2 GET Query Entities', function () {
 
-    before(async () => {
+    beforeEach(async () => {
         await prep.deleteAllEntities()
 
-        return new Promise<void>((resolve, reject) => {
-            resolve()
-        })
     })
 
 
-    after(async () => {
+    afterEach(async () => {
         await prep.deleteAllEntities()
 
-        return new Promise<void>((resolve, reject) => {
-            resolve()
-        })
     })
-
-
 
 
 
@@ -112,8 +104,7 @@ describe('6.4.3.2 GET Query Entities', function () {
             auth: testConfig.auth
         }
 
-        
-
+    
 
         //###################### BEGIN Create entities for test ######################
         const createUrl = testConfig.base_url + "entityOperations/upsert"
@@ -146,10 +137,5 @@ describe('6.4.3.2 GET Query Entities', function () {
 
         const queryResponse5 = await axios.get(testConfig.base_url + 'entities/?q=name=="Mannheim";verwaltungsgemeinschaft=="Deidesheim"')
         expect(queryResponse5.data.length).equals(0)
-
-        
-        return new Promise<void>((resolve, reject) => {
-            resolve()
-        })
     })
 });

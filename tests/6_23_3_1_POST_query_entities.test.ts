@@ -1,7 +1,6 @@
 import { expect, assert } from "chai";
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios'
-import * as uuid from 'uuid'
-import * as prep from "./testPreparation"
+import * as prep from "./testUtil"
 import { testConfig } from './testConfig'
 
 
@@ -70,31 +69,24 @@ async function createEntity() {
         console.log(e)
     })
 
-    return new Promise<void>((resolve, reject) => {
-        resolve()
-    })
+  
 }
 
 
 describe('POST entityOperations/query', function () {
 
-    before(async () => {
+    beforeEach(async () => {
         await prep.deleteAllEntities()
 
         await createEntity()
 
-        return new Promise<void>((resolve, reject) => {
-            resolve()
-        })
     })
 
 
-    after(async () => {
+    afterEach(async () => {
         await prep.deleteAllEntities()
 
-        return new Promise<void>((resolve, reject) => {
-            resolve()
-        })
+       
     })
 
 
@@ -128,9 +120,7 @@ describe('POST entityOperations/query', function () {
 
         expect(response.data[0].id).equals("urn:xdatatogo:TrafficRestriction:test")
 
-        return new Promise<void>((resolve, reject) => {
-            resolve()
-        })
+     
     })
 
 
@@ -206,9 +196,7 @@ describe('POST entityOperations/query', function () {
         expect(response.data[0].id).equals("urn:xdatatogo:TrafficRestriction:test")
 
 
-        return new Promise<void>((resolve, reject) => {
-            resolve()
-        })
+     
     })
 });
 

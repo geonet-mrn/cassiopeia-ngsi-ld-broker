@@ -1,6 +1,6 @@
 import { expect, assert } from "chai";
 import axios, { AxiosResponse } from 'axios'
-import * as prep from "./testPreparation"
+import * as prep from "./testUtil"
 import { testConfig } from './testConfig'
 
 
@@ -39,21 +39,15 @@ const appendAttributesFragment = {
 
 describe('6.6.3.1 POST entities/{entityId}/attrs/', function () {
 
-    before(async () => {
+    beforeEach(async () => {
         await prep.deleteAllEntities()
 
-        return new Promise<void>((resolve, reject) => {
-            resolve()
-        })
     })
 
 
-    after(async () => {
+    afterEach(async () => {
         await prep.deleteAllEntities()
 
-        return new Promise<void>((resolve, reject) => {
-            resolve()
-        })
     })
 
 
@@ -107,8 +101,5 @@ describe('6.6.3.1 POST entities/{entityId}/attrs/', function () {
         expect(modifiedEntity['appendedAttribute']).instanceOf(Object)
         //###################### END Step 3 ######################
 
-        return new Promise<void>((resolve, reject) => {
-            resolve()
-        })
     })
 });

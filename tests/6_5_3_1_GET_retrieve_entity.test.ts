@@ -1,7 +1,6 @@
 import { expect, assert } from "chai";
 import axios, { AxiosResponse } from 'axios'
-import * as uuid from 'uuid'
-import * as prep from "./testPreparation"
+import * as prep from "./testUtil"
 import { testConfig } from './testConfig'
 
 
@@ -84,21 +83,15 @@ const entities = [
 
 describe('GET entities/<entity_id>', function () {
 
-    before(async () => {
+    beforeEach(async () => {
         await prep.deleteAllEntities()
 
-        return new Promise<void>((resolve, reject) => {
-            resolve()
-        })
     })
 
 
-    after(async () => {
+    afterEach(async () => {
         await prep.deleteAllEntities()
 
-        return new Promise<void>((resolve, reject) => {
-            resolve()
-        })
     })
 
 
@@ -136,10 +129,6 @@ describe('GET entities/<entity_id>', function () {
 
         expect(response.data.id).equal("urn:ngsi-ld:Municipality:07332009")
 
-
-        return new Promise<void>((resolve, reject) => {
-            resolve()
-        })
 
     });
 });
