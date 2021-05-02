@@ -280,7 +280,7 @@ export class HttpBinding {
 
         const deleteAll = (ctx.request.query.deleteAll == "true")
 
-        ctx.body = this.broker.api_5_6_5_deleteEntityAttribute(ctx.params.entityId, ctx.params.attrId, ctx.request.query.datasetId, contextUrl, deleteAll)
+        ctx.body = await this.broker.api_5_6_5_deleteEntityAttribute(ctx.params.entityId, ctx.params.attrId, ctx.request.query.datasetId, contextUrl, deleteAll)
         ctx.status = 204
         await next()
     }

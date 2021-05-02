@@ -1129,10 +1129,10 @@ export class PsqlBackend {
        // console.log(sql)
         console.log("-------------------------")
 
-        const result = this.pool.query(sql)
+        const resultPromise = this.pool.query(sql)
 
         // Print error, but still continue with the normal promise chain:
-        result.then(null, (e) => {
+        resultPromise.then(null, (e) => {
             console.log()
             console.log("Something went wrong:")
             console.log("------------------------------")
@@ -1140,7 +1140,7 @@ export class PsqlBackend {
             console.log("------------------------------")
         })
 
-        return result
+        return resultPromise
     }
 
 

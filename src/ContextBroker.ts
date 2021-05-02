@@ -13,7 +13,6 @@ import { appendCoreContext, compactObject, expandObject, getNormalizedContext } 
 import { parseJson, compactedEntityToGeoJsonFeature as compactedEntityToGeoJsonFeature } from "./util"
 
 
-
 export class ContextBroker {
 
     constructor(private readonly psql: PsqlBackend) { }
