@@ -136,28 +136,28 @@ export class ContextBroker {
             throw errorTypes.BadRequestData.withDetail("Passed attribute ID is not a valid URI: " + attributeId_expanded)
         }
 
-        const entityCheckResults = checkEntity(fragment_compacted, true)
+        const entityCheckResults = checkEntity(fragment_expanded, true)
 
         if (entityCheckResults.length > 0) {
             throw errorTypes.InvalidRequest.withDetail("The submitted data is not a valid NGSI-LD entity: " + entityCheckResults.join(" "))
         }
 
 
-        let attribute_expanded = fragment_expanded[attributeId_expanded]
+        let fragment_attribute_expanded = fragment_expanded[attributeId_expanded]
 
         // Convert attribute to array representation if it isn't yet:
-        if (!(attribute_expanded instanceof Array)) {
-            attribute_expanded = [attribute_expanded]
+        if (!(fragment_attribute_expanded instanceof Array)) {
+            fragment_attribute_expanded = [fragment_attribute_expanded]
         }
 
-        const attributeCheckResults = checkReifiedAttribute(attribute_expanded, attributeId_expanded, undefined, true)
+        const attributeCheckResults = checkReifiedAttribute(fragment_attribute_expanded, attributeId_expanded, undefined, true)
 
         if (attributeCheckResults.length != 0) {
             throw errorTypes.BadRequestData.withDetail(`The field '${attributeId_expanded}' in the uploaded entity fragment is not a valid NGSI-LD attribute: ${attributeCheckResults.join("\n")}`)
         }
         //################### END Input validation ##################
 
-        this.psql.partialAttributeUpdate(entityId, attributeId_expanded, attribute_expanded)
+        await this.psql.partialAttributeUpdate(entityId, attributeId_expanded, fragment_attribute_expanded)
 
     }
 

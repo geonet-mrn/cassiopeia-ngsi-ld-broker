@@ -49,8 +49,6 @@ describe('6.7.3.2 DELETE entities/<entity_id>/attrs/<attr_id>', function () {
 
     before(async () => {
 
-
-        console.log("BEFORE")
         await prep.deleteAllEntities()
 
         //###################### BEGIN Create entities for test ######################
@@ -67,17 +65,13 @@ describe('6.7.3.2 DELETE entities/<entity_id>/attrs/<attr_id>', function () {
 
 
     after(async () => {
-        console.log("AFTER")
         await prep.deleteAllEntities()
     })
 
 
-
-
-
     it('should delete the specified attribute (that has only one instance) from the specified entity', async () => {
 
-        console.log("TEST 1")
+
         // Step 1: Check whether entity exists:
         let getUrl = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009"
 
@@ -91,28 +85,20 @@ describe('6.7.3.2 DELETE entities/<entity_id>/attrs/<attr_id>', function () {
         let deleteUrl = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009/attrs/name"
         const deleteResponse = await axios.delete(deleteUrl, config)
 
-        console.log("MADE DELETE CALL")
 
         expect(deleteResponse.status == 204)
 
-        console.log("MAKING CHECK CALL")
 
         // Step 3: Check whether attribute "name" was really deleted:
         const getResponse2 = await axios.get(getUrl, config)
 
         expect(getResponse2.data.id).equal("urn:ngsi-ld:Municipality:07332009")
         expect(getResponse2.data.name).to.equal(undefined)
-
-
-
-
     });
-
 
 
     it('should delete only the specified instance from the specified attribute of the specified entity', async () => {
 
-        console.log("TEST 2")
         // Step 1: Check whether entity exists:
         let getUrl = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009"
 
@@ -128,7 +114,7 @@ describe('6.7.3.2 DELETE entities/<entity_id>/attrs/<attr_id>', function () {
 
         expect(deleteResponse.status == 204)
 
-     
+
 
         // Step 3: Check whether instance "dataset1" was really deleted:
         const getResponse2 = await axios.get(getUrl, config)
@@ -146,15 +132,9 @@ describe('6.7.3.2 DELETE entities/<entity_id>/attrs/<attr_id>', function () {
 
         expect(attr.length).greaterThan(0)
 
-        console.log(attr)
         for (const instance of attr) {
             expect(instance.datasetId).not.equal("dataset1")
         }
-
-
-
     });
-
-
 });
 

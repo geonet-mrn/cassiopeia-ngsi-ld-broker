@@ -94,11 +94,11 @@ export class PsqlBackend {
         sql += ` AND ${this.tableCfg.COL_ATTR_NAME} = '${attributeName}'`
 
 
-        if (datasetId != undefined) {
+        
             sql += ` AND ${this.makeSqlCondition_datasetId(datasetId)}`
-        }
+        
 
-
+        console.log(sql)
 
         const sqlResult = await this.runSqlQuery(sql)
 
@@ -837,9 +837,9 @@ export class PsqlBackend {
     }
 
 
-    makeSqlCondition_datasetId(datasetId: string | null): string {
+    makeSqlCondition_datasetId(datasetId: string | null|undefined): string {
 
-        if (datasetId == null) {
+        if (!datasetId) {
             return `${this.tableCfg.COL_DATASET_ID} is null`
         }
         else {
@@ -1284,7 +1284,7 @@ export class PsqlBackend {
         let sql_transaction = "BEGIN;"
 
         for (const instance of attribute_expanded) {
-
+            
             // ATTENTION: Since we use a SQL transaction for this, it is not (easily) possible to determine the
             // number of affected rows. This means that we can't tell whether the target attribute exists in
             // the database.
@@ -1302,7 +1302,7 @@ export class PsqlBackend {
 
             // Throw error if more than one attribute instance with same datasetId is found (should never happen!):
             if (numRowsAffected > 1) {
-                throw errorTypes.InternalError.withDetail(`Multiple attribute instances were updated in an operation that should affect one attribute instance at most. This is sign of invalid database content and should never happen. Entity ID: '${entityId}', Attribute ID: '${attributeId_expanded}', Dataset ID: '${instance['https://uri.etsi.org/ngsi-ld/datasetId']}'.`)
+                throw errorTypes.InternalError.withDetail(`Multiple attribute instances (${numRowsAffected}) were updated in an operation that should affect one attribute instance at most. This is sign of invalid database content and should never happen. Entity ID: '${entityId}', Attribute ID: '${attributeId_expanded}', Dataset ID: '${instance['https://uri.etsi.org/ngsi-ld/datasetId']}'.`)
             }
 
             // If *exactly one* attribute instance with same datasetId is found, update it:
@@ -1315,7 +1315,7 @@ export class PsqlBackend {
 
         sql_transaction += "COMMIT;"
 
-        this.runSqlQuery(sql_transaction)
+        await this.runSqlQuery(sql_transaction)
     }
 
 
@@ -1378,7 +1378,7 @@ export class PsqlBackend {
 
         sql_transaction += "COMMIT;"
 
-        this.runSqlQuery(sql_transaction)
+        await this.runSqlQuery(sql_transaction)
 
 
         return new Promise<UpdateResult>((resolve, reject) => {

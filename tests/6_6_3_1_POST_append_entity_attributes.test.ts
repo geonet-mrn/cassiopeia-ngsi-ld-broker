@@ -82,8 +82,7 @@ describe('6.6.3.1 POST entities/{entityId}/attrs/', function () {
             console.log(e)
         }) as AxiosResponse
 
-        console.log(appendAttributesResponse.status)
-
+      
         // TODO: 1 Why 204? When should we expect 207?
         expect(appendAttributesResponse.status).equals(204)
         //###################### END Step 2 ######################
