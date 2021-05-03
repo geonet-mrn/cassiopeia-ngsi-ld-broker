@@ -80,7 +80,7 @@ const entities = [
 
 
 
-describe('6.4.3.2 GET Query Entities', function () {
+describe('6.4.3.2 GET /entities/', function () {
 
     beforeEach(async () => {
         await prep.deleteAllEntities()

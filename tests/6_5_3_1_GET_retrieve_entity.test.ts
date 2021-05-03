@@ -81,7 +81,7 @@ const entities = [
 
 
 
-describe('GET entities/<entity_id>', function () {
+describe('6.5.3.1 GET entities/<entity_id>', function () {
 
     beforeEach(async () => {
         await prep.deleteAllEntities()
@@ -121,9 +121,9 @@ describe('GET entities/<entity_id>', function () {
         //###################### END Create entities for test ######################
 
 
-        let url = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009"
+        let getUrl = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009"
 
-        const response = await axios.get(url, config)
+        const response = await axios.get(getUrl, config)
 
 
 

@@ -194,7 +194,7 @@ async function createEntities() {
 }
 
 
-describe('6.23.3.1 POST query entities with GeoQuery', function () {
+describe('6.23.3.1 POST /entityOperations/query with GeoQuery', function () {
 
 
 

@@ -73,7 +73,7 @@ async function createEntity() {
 }
 
 
-describe('POST entityOperations/query', function () {
+describe('6.23.3.1 POST entityOperations/query', function () {
 
     beforeEach(async () => {
         await prep.deleteAllEntities()
