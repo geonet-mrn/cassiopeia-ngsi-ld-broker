@@ -749,13 +749,14 @@ export class ContextBroker {
 
             const geometryProperty_expanded = expandObject(query.geometryProperty, context)
 
+            const geometryProperty_compacted = query.geometryProperty
 
             for (const entity_expanded of entities_expanded) {
 
                 const entity_compacted = compactObject(entity_expanded, context)
                 entity_compacted['@context'] = actualContext
 
-                const feature = compactedEntityToGeoJsonFeature(entity_compacted, query.geometryProperty, query.datasetId)
+                const feature = compactedEntityToGeoJsonFeature(entity_compacted, geometryProperty_compacted, query.datasetId)
                 result.features.push(feature)
             }
         }

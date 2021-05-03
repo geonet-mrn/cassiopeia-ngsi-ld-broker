@@ -4,6 +4,8 @@ import * as prep from "./testUtil"
 import { testConfig } from './testConfig'
 
 
+
+
 const entities = [
     {
         "id": "urn:ngsi-ld:Municipality:07332009",
@@ -82,20 +84,13 @@ const entities = [
 
 describe('6.4.3.2 GET /entities/', function () {
 
-    beforeEach(async () => {
+    before(async () => {
         await prep.deleteAllEntities()
 
-    })
 
+        //###################### BEGIN Create entities for test ######################
+        const createUrl = testConfig.base_url + "entityOperations/upsert"
 
-    afterEach(async () => {
-        await prep.deleteAllEntities()
-
-    })
-
-
-
-    it("Should return all expected entities", async function () {
 
         const config = {
             headers: {
@@ -104,29 +99,35 @@ describe('6.4.3.2 GET /entities/', function () {
             auth: testConfig.auth
         }
 
-    
 
-        //###################### BEGIN Create entities for test ######################
-        const createUrl = testConfig.base_url + "entityOperations/upsert"
 
         let createEntitiesResponse = await axios.post(createUrl, entities, config).catch((e) => {
-            //console.log(e)
+
 
         }) as AxiosResponse
 
         expect(createEntitiesResponse.status).equals(201)
         //###################### END Create entities for test ######################
+    })
 
 
-        
+    after(async () => {
+        await prep.deleteAllEntities()
+
+    })
+
+
+
+    it("Should return all expected entities", async function () {
+
         const queryResponse = await axios.get(testConfig.base_url + 'entities/?q=name=="Meckenheim"')
         expect(queryResponse.data.length).equals(1)
         expect(queryResponse.data[0].name[0].value == "Meckenheim")
-        
+
 
         const queryResponse2 = await axios.get(testConfig.base_url + 'entities/?q=verwaltungsgemeinschaft')
         expect(queryResponse2.data.length).equals(4)
-        
+
 
         const queryResponse3 = await axios.get(testConfig.base_url + 'entities/?q=verwaltungsgemeinschaft=="Deidesheim"')
         expect(queryResponse3.data.length).equals(3)
@@ -137,5 +138,66 @@ describe('6.4.3.2 GET /entities/', function () {
 
         const queryResponse5 = await axios.get(testConfig.base_url + 'entities/?q=name=="Mannheim";verwaltungsgemeinschaft=="Deidesheim"')
         expect(queryResponse5.data.length).equals(0)
+    })
+
+
+    it("Should return the requested entities as GeoJSON if the accept header 'application/geo+json' is set", async function () {
+
+
+        const config = {
+            headers: {
+                "content-type": "application/ld+json",
+                "accept": "application/geo+json"
+            },
+            auth: testConfig.auth
+        }
+
+
+        let queryResponse = undefined
+
+        try {
+            queryResponse = await axios.get(testConfig.base_url + 'entities/?geometryProperty=name', config)          
+        }
+        catch (e) {
+            console.log(e)
+        }
+
+        if (queryResponse == undefined) {
+            return
+        }
+
+        
+        expect(queryResponse.data.type).equals("FeatureCollection")
+
+    })
+
+
+
+    it("NOT OFFICIALLY PART OF NGSI-LD: Should return the requested entities as GeoJSON if the GET parameter 'geometryProperty' is set", async function () {
+
+
+        const config = {
+            headers: {
+                "content-type": "application/ld+json",              
+            },
+            auth: testConfig.auth
+        }
+
+
+        let queryResponse = undefined
+
+        try {
+            queryResponse = await axios.get(testConfig.base_url + 'entities/?geometryProperty=location', config)            
+        }
+        catch (e) {
+            console.log(e)
+        }
+
+        if (queryResponse == undefined) {
+            return
+        }
+
+        expect(queryResponse.data.type).equals("FeatureCollection")
+
     })
 });

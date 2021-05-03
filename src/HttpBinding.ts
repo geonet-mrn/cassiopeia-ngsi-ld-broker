@@ -149,8 +149,14 @@ export class HttpBinding {
         const csf = ctx.request.query.csf
 
         // NOTE: The parameters 'geometryProperty' and 'datasetId' are defined in spec 6.3.15:
-        const geometryProperty = ctx.request.query.geometryProperty
+        
         const datasetId = ctx.request.query.datasetId
+
+        let geometryProperty = ctx.request.query.geometryProperty
+
+        if (ctx.request.headers["accept"] == "application/geo+json" && geometryProperty == undefined) {
+            geometryProperty = "location"
+        }
 
         // Create main Query object:        
         const query = new Query(entities, attrs, q, geoQ, csf, undefined, geometryProperty, datasetId, options)

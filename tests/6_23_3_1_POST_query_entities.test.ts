@@ -75,7 +75,7 @@ async function createEntity() {
 
 describe('6.23.3.1 POST entityOperations/query', function () {
 
-    beforeEach(async () => {
+    before(async () => {
         await prep.deleteAllEntities()
 
         await createEntity()
@@ -83,7 +83,7 @@ describe('6.23.3.1 POST entityOperations/query', function () {
     })
 
 
-    afterEach(async () => {
+    after(async () => {
         await prep.deleteAllEntities()
 
        

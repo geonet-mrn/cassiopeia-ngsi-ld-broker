@@ -16,43 +16,60 @@ export function parseJson(jsonString: string): any {
 }
 
 
-export function compactedEntityToGeoJsonFeature(entity_compacted: any, geometryProperty: string | undefined = "location", datasetId: string | undefined): Feature {
+export function compactedEntityToGeoJsonFeature(entity_compacted: any, geometryProperty_compacted: string | undefined = "location", datasetId: string | undefined): Feature {
 
     // TODO: 2 Is it correct to work with compacted entities here? How about uniqueness of the attribute keys?
 
-    const attribute = entity_compacted[geometryProperty]
+    let geometry = undefined
 
-    // NOTE that we also check against the value "undefined" here,
-    // which represents the default instance!
-    let instanceToUse: any = undefined
 
-    //######### BEGIN Iterate over instances to find the one with the provided datasetId ########
-    for (const instance of attribute) {
-        if (instance['datasetId'] == datasetId) {
-            instanceToUse = instance
-            break
+    let geometryAttribute = entity_compacted[geometryProperty_compacted]
+
+    if (geometryAttribute instanceof Array) {
+
+
+        // NOTE that we also check against the value "undefined" here,
+        // which represents the default instance!
+        let instanceToUse: any = undefined
+
+        //######### BEGIN Iterate over instances to find the one with the provided datasetId ########
+        for (const instance of geometryAttribute) {
+            if (instance['datasetId'] == datasetId) {
+                instanceToUse = instance
+                break
+            }
         }
-    }
-    //######### END Find the GeoProperty instance which has the provided datasetId ########
+        //######### END Find the GeoProperty instance which has the provided datasetId ########
 
-    if (instanceToUse == undefined) {
-        throw errorTypes.ResourceNotFound.withDetail("No GeoProperty attribute instance with the requested dataset ID could be found: '" + datasetId + "'.")
+        if (instanceToUse == undefined) {
+            throw errorTypes.ResourceNotFound.withDetail("No GeoProperty attribute instance with the requested dataset ID could be found: '" + datasetId + "'.")
+        }
+
+
+        if (instanceToUse.type == "GeoProperty") {
+            geometry = instanceToUse['value']
+        }
+
+
     }
+
+
+
 
     // ATTENTION: For now, we just put the entire entity as "properties" here.
     // If we strictly follow the spec, "properties" should only contain the entity 
     // type and the attributes (see spec 5.2.31).
     const properties = JSON.parse(JSON.stringify(entity_compacted))
 
-    return new Feature(entity_compacted['@id'], instanceToUse['value'], properties)
+    return new Feature(entity_compacted['@id'], geometry, properties)
 }
 
 
 // Spec 4.5.4:
-export function getSimplifiedRepresentation(entity : any) : any {
+export function getSimplifiedRepresentation(entity: any): any {
     // NOTE: This expects an expanded entity
 
-    let result : any = {}
+    let result: any = {}
 
     if (entity["@context"] != undefined) {
         result["@context"] = entity["@context"]
@@ -61,7 +78,7 @@ export function getSimplifiedRepresentation(entity : any) : any {
     result["@id"] = entity["@id"]
     result["@type"] = entity["@type"]
 
-    
+
 
     for (const attributeId in entity) {
 
@@ -77,12 +94,12 @@ export function getSimplifiedRepresentation(entity : any) : any {
             if (entity[attributeId] instanceof Array) {
 
                 if (entity[attributeId].length == 1) {
-                    result[attributeId] = entity[attributeId][0].value        
+                    result[attributeId] = entity[attributeId][0].value
                 }
                 else {
                     let valuesArray = []
 
-                    for(const instance of entity[attributeId]) {
+                    for (const instance of entity[attributeId]) {
                         valuesArray.push(instance.value)
                     }
 
@@ -94,16 +111,16 @@ export function getSimplifiedRepresentation(entity : any) : any {
             }
         }
         else if (attribute.type == "Relationship") {
-            
+
             if (entity[attributeId] instanceof Array) {
 
                 if (entity[attributeId].length == 1) {
-                    result[attributeId] = entity[attributeId][0].object        
+                    result[attributeId] = entity[attributeId][0].object
                 }
                 else {
                     let valuesArray = []
 
-                    for(const instance of entity[attributeId]) {
+                    for (const instance of entity[attributeId]) {
                         valuesArray.push(instance.object)
                     }
 
@@ -114,7 +131,7 @@ export function getSimplifiedRepresentation(entity : any) : any {
                 result[attributeId] = entity[attributeId].object
             }
         }
-        
+
     }
-    
+
 }
