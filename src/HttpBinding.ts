@@ -178,8 +178,16 @@ export class HttpBinding {
         const options = (typeof (ctx.request.query.options) == "string") ? (ctx.request.query.options as string).split(",") : []
 
         // NOTE: The parameters 'geometryProperty' and 'datasetId' are defined in spec 6.3.15:
-        const geometryProperty = ctx.request.query.geometryProperty
+
         const datasetId = ctx.request.query.datasetId
+
+
+        let geometryProperty = ctx.request.query.geometryProperty
+
+        if (ctx.request.headers["accept"] == "application/geo+json" && geometryProperty == undefined) {
+            geometryProperty = "location"
+        }
+
 
         ctx.body = await this.broker.api_5_7_1_retrieveEntity(ctx.params.entityId, attrs, geometryProperty, datasetId, options, contextUrl)
         ctx.status = 200

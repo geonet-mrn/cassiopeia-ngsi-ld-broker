@@ -83,19 +83,8 @@ const entities = [
 
 describe('6.5.3.1 GET entities/<entity_id>', function () {
 
-    beforeEach(async () => {
+    before(async () => {
         await prep.deleteAllEntities()
-
-    })
-
-
-    afterEach(async () => {
-        await prep.deleteAllEntities()
-
-    })
-
-
-    it('should return the Entity with the ID specified in the URL', async function () {
 
 
         const config = {
@@ -119,17 +108,62 @@ describe('6.5.3.1 GET entities/<entity_id>', function () {
 
         expect(createEntitiesResponse.status).equals(201)
         //###################### END Create entities for test ######################
+    })
+
+
+    after(async () => {
+        await prep.deleteAllEntities()
+
+    })
+
+
+    it('should return the Entity with the ID specified in the URL', async function () {
+
+
+        const config = {
+            headers: {
+                "content-type": "application/ld+json"
+            },
+            auth: testConfig.auth
+        }
+
 
 
         let getUrl = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009"
 
         const response = await axios.get(getUrl, config)
 
-
-
         expect(response.data.id).equal("urn:ngsi-ld:Municipality:07332009")
-
-
     });
+
+
+
+
+    it("should return the requested entity as a GeoJSON Feature if the accept header 'application/geo+json' is set (spec 6.3.15)", async function () {
+
+
+        const config = {
+            headers: {
+                "content-type": "application/ld+json",
+                "accept": "application/geo+json"
+            },
+            auth: testConfig.auth
+        }
+
+
+
+        let getUrl = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009"
+
+        const response = await axios.get(getUrl, config)
+
+        
+        expect(response.data.type).equal("Feature")
+    });
+
+
+
+
+
+
 });
 

@@ -141,7 +141,7 @@ describe('6.4.3.2 GET /entities/', function () {
     })
 
 
-    it("Should return the requested entities as GeoJSON if the accept header 'application/geo+json' is set", async function () {
+    it("should return the requested entities as a GeoJSON FeatureCollection if the accept header 'application/geo+json' is set (spec 6.3.15)", async function () {
 
 
         const config = {
