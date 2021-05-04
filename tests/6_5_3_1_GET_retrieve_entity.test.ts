@@ -5,6 +5,11 @@ import { testConfig } from './testConfig'
 
 
 
+let config = {
+    headers: { "content-type": "application/ld+json" },
+    auth: testConfig.auth
+}
+
 const entities = [
     {
         "id": "urn:ngsi-ld:Municipality:07332009",
@@ -120,13 +125,6 @@ describe('6.5.3.1 GET entities/<entity_id>', function () {
     it('should return the Entity with the ID specified in the URL', async function () {
 
 
-        const config = {
-            headers: {
-                "content-type": "application/ld+json"
-            },
-            auth: testConfig.auth
-        }
-
 
 
         let getUrl = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009"
@@ -142,7 +140,7 @@ describe('6.5.3.1 GET entities/<entity_id>', function () {
     it("should return the requested entity as a GeoJSON Feature if the accept header 'application/geo+json' is set (spec 6.3.15)", async function () {
 
 
-        const config = {
+        const geoJsonRequestConfig = {
             headers: {
                 "content-type": "application/ld+json",
                 "accept": "application/geo+json"
@@ -154,16 +152,11 @@ describe('6.5.3.1 GET entities/<entity_id>', function () {
 
         let getUrl = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009"
 
-        const response = await axios.get(getUrl, config)
+        const response = await axios.get(getUrl, geoJsonRequestConfig)
 
         
         expect(response.data.type).equal("Feature")
     });
-
-
-
-
-
 
 });
 

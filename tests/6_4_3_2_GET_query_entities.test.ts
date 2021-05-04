@@ -5,6 +5,10 @@ import { testConfig } from './testConfig'
 
 
 
+let config = {
+    headers: { "content-type": "application/ld+json" },
+    auth: testConfig.auth
+}
 
 const entities = [
     {
@@ -92,19 +96,10 @@ describe('6.4.3.2 GET /entities/', function () {
         const createUrl = testConfig.base_url + "entityOperations/upsert"
 
 
-        const config = {
-            headers: {
-                "content-type": "application/ld+json"
-            },
-            auth: testConfig.auth
-        }
+      
 
 
-
-        let createEntitiesResponse = await axios.post(createUrl, entities, config).catch((e) => {
-
-
-        }) as AxiosResponse
+        let createEntitiesResponse = await axios.post(createUrl, entities, config)
 
         expect(createEntitiesResponse.status).equals(201)
         //###################### END Create entities for test ######################
@@ -144,14 +139,6 @@ describe('6.4.3.2 GET /entities/', function () {
     it("should return the requested entities as a GeoJSON FeatureCollection if the accept header 'application/geo+json' is set (spec 6.3.15)", async function () {
 
 
-        const config = {
-            headers: {
-                "content-type": "application/ld+json",
-                "accept": "application/geo+json"
-            },
-            auth: testConfig.auth
-        }
-
 
         let queryResponse = undefined
 
@@ -174,14 +161,6 @@ describe('6.4.3.2 GET /entities/', function () {
 
 
     it("NOT OFFICIALLY PART OF NGSI-LD: Should return the requested entities as GeoJSON if the GET parameter 'geometryProperty' is set", async function () {
-
-
-        const config = {
-            headers: {
-                "content-type": "application/ld+json",              
-            },
-            auth: testConfig.auth
-        }
 
 
         let queryResponse = undefined

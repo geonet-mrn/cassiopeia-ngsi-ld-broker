@@ -4,6 +4,12 @@ import * as prep from "./testUtil"
 import { testConfig } from './testConfig'
 
 
+
+let config = {
+    headers: { "content-type": "application/ld+json" },
+    auth: testConfig.auth
+}
+
 async function createEntity() {
 
 
@@ -57,10 +63,7 @@ async function createEntity() {
         }
     }
 
-    let config: AxiosRequestConfig = {
-        headers: { "content-type": "application/ld+json" },
-        auth: testConfig.auth
-    }
+ 
 
     // Create entity:
 
@@ -102,12 +105,7 @@ describe('6.23.3.1 POST entityOperations/query', function () {
 
         }
 
-        let config = {
-            headers: {
-                "content-type": "application/ld+json"
-            }
-        }
-
+      
 
         let response = await axios.post(testConfig.base_url + "entityOperations/query", query, config).catch((e) => {
             console.log(e)
@@ -139,13 +137,7 @@ describe('6.23.3.1 POST entityOperations/query', function () {
             "type": "Query"
         }
 
-        let config = {
-            headers: {
-
-                "content-type": "application/ld+json"
-            },
-            auth: testConfig.auth
-        }
+        
 
 
         let response = await axios.post(testConfig.base_url + "entityOperations/query/", query, config).catch((e) => {
@@ -179,14 +171,7 @@ describe('6.23.3.1 POST entityOperations/query', function () {
             "type": "Query"
         }
 
-        let config = {
-            headers: {
-                "content-type": "application/ld+json"
-            },
-            auth: testConfig.auth
-        }
-
-
+       
         let response = await axios.post(testConfig.base_url + "entityOperations/query/", query, config).catch((e) => {
             console.log(e)
         }) as AxiosResponse

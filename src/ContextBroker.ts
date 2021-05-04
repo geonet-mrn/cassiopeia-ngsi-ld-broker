@@ -11,7 +11,6 @@ import { PsqlBackend } from "./psqlBackend/PsqlBackend"
 import { checkArrayOfEntities, checkArrayOfUris, checkReifiedAttribute, checkEntity, isUri } from "./validate"
 import { appendCoreContext, compactObject, expandObject, getNormalizedContext } from "./jsonld"
 import { parseJson, compactedEntityToGeoJsonFeature as compactedEntityToGeoJsonFeature } from "./util"
-import * as validate from './validate'
 import * as util from './util'
 
 
@@ -931,7 +930,7 @@ export class ContextBroker {
 
     //############################ BEGIN Inofficial API methods ############################
     async inofficial_deleteAllEntities() {
-        this.psql.deleteAllEntities()
+        await this.psql.deleteAllEntities()
     }
 
 
@@ -941,7 +940,7 @@ export class ContextBroker {
         const entities_compacted = parseJson(jsonString)
 
         for (const ec of entities_compacted) {
-            this.api_5_6_11_createOrUpdateTemporalEntity(JSON.stringify(ec), contextUrl)
+            await this.api_5_6_11_createOrUpdateTemporalEntity(JSON.stringify(ec), contextUrl)
         }
     }
     //############################ END Inofficial API methods ############################

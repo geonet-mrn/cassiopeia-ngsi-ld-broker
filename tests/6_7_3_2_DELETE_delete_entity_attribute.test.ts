@@ -54,12 +54,13 @@ describe('6.7.3.2 DELETE entities/<entity_id>/attrs/<attr_id>', function () {
         //###################### BEGIN Create entities for test ######################
         const createUrl = testConfig.base_url + "entityOperations/upsert"
 
-        let createEntitiesResponse = await axios.post(createUrl, entities, config).catch((e) => {
+        let response = await axios.post(createUrl, entities, config).catch((e) => {
             //console.log(e)
 
         }) as AxiosResponse
 
-        expect(createEntitiesResponse.status).equals(201)
+        
+        expect(response.status).equals(201)
         //###################### END Create entities for test ######################
     })
 
