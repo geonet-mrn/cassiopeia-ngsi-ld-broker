@@ -11,6 +11,8 @@ import { PsqlBackend } from "./psqlBackend/PsqlBackend"
 import { checkArrayOfEntities, checkArrayOfUris, checkReifiedAttribute, checkEntity, isUri } from "./validate"
 import { appendCoreContext, compactObject, expandObject, getNormalizedContext } from "./jsonld"
 import { parseJson, compactedEntityToGeoJsonFeature as compactedEntityToGeoJsonFeature } from "./util"
+import * as validate from './validate'
+import * as util from './util'
 
 
 export class ContextBroker {
@@ -22,7 +24,7 @@ export class ContextBroker {
 
     // Spec 5.6.1
     async api_5_6_1_createEntity(entityJson_compacted: string, contextUrl: string | undefined) {
-        
+
         const entity_from_payload = parseJson(entityJson_compacted)
 
 
@@ -185,7 +187,7 @@ export class ContextBroker {
             useDatasetId_compacted = null
         }
 
-       
+
         const datasetId_expanded = expandObject(useDatasetId_compacted, context)
 
         await this.deleteAttribute(entityId, false, attributeId_expanded, datasetId_expanded)
@@ -289,7 +291,7 @@ export class ContextBroker {
 
 
         const entity_ids_created = Array<string>()
-        const entity_ids_updated = Array<string>()        
+        const entity_ids_updated = Array<string>()
 
         const result = new BatchOperationResult()
 
@@ -310,23 +312,23 @@ export class ContextBroker {
                         result.errors.push(new BatchEntityError(entity_expanded['@id'], new ProblemDetails("", "Entity creation failed.", "An entity with the same ID already exists.", 409)))
                     }
                 })
-                
+
                 if (creationResultCode == 1) {
-                    entity_ids_created.push(entity_expanded['@id'])                    
-                }               
+                    entity_ids_created.push(entity_expanded['@id'])
+                }
             }
             // ############## END CREATE the Entity if it does not exist ###############
 
 
             // ############## BEGIN Otherwise, UPDATE existing entity ###############
             else {
-                
+
                 // "If there were an existing Entity with the same Entity Id, 
                 // it shall be completely replaced by the new Entity content provided, 
                 // if the requested update mode is 'replace'.":
 
                 if (options == "replace") {
-                  
+
                     // First delete the existing entity:
                     const deleteResult = await this.psql.deleteEntity(entity_expanded['@id']).catch((e) => {
                         // NOTE: If the entity does not exist, deleteEntity() throws an exception.
@@ -349,14 +351,14 @@ export class ContextBroker {
                     if (creationResultCode == 1) {
                         entity_ids_updated.push(entity_expanded['@id'])
                     }
-                    
+
                 }
-                
+
                 // "If there were an existing Entity with the same Entity Id, it shall be executed the 
                 // behaviour defined by clause 5.6.3, if the requested update mode is 'update'.":
 
                 else if (options == "update") {
-                  
+
                     const updateResult = await this.psql.appendEntityAttributes(entity_expanded['@id'], entity_expanded, true)
 
                     // TODO: 3 Add information about failed updates to result?
@@ -366,11 +368,11 @@ export class ContextBroker {
                     else {
                         // TODO: Add to error message the list of attributes that could not be appended
                         result.errors.push(new BatchEntityError(entity_expanded['@id'], new ProblemDetails("", "Entity update failed.", "Some attributes could not be appended", 409)))
-                    }                    
-                }      
+                    }
+                }
                 else {
                     // Invalid mode. Must be either "replace" or "update"
-                }          
+                }
             }
             // ############## END Otherwise, UPDATE existing entity ###############
         }
@@ -383,7 +385,7 @@ export class ContextBroker {
         else {
             result.success == entity_ids_created.concat(entity_ids_updated)
         }
-        
+
 
         return new Promise<BatchOperationResult>((resolve, reject) => {
             resolve(result)
@@ -680,8 +682,10 @@ export class ContextBroker {
         const attrs_expanded = expandObject(attrs_compacted, context)
 
         let includeSysAttrs = false
+        let keyValues = false
 
         if (options instanceof Array) {
+            keyValues = options.includes("keyValues")
             includeSysAttrs = options.includes("sysAttrs")
         }
 
@@ -696,12 +700,16 @@ export class ContextBroker {
 
         let result = entity_expanded
 
+        if (keyValues) {
+            result = util.simplifyEntity(result)
+        }
+
         // Return GeoJSON representation if requested:
         if (geometryProperty_compacted != undefined) {
 
             const geometryProperty_expanded = expandObject(geometryProperty_compacted, context)
 
-            result = compactedEntityToGeoJsonFeature(entity_expanded, geometryProperty_expanded, datasetId)
+            result = compactedEntityToGeoJsonFeature(result, geometryProperty_expanded, datasetId)
         }
 
 
@@ -717,13 +725,40 @@ export class ContextBroker {
     // Spec 5.7.2
     async api_5_7_2_queryEntities(query: Query, contextUrl: string | undefined): Promise<Array<any> | FeatureCollection> {
 
-        const includeSysAttrs = (query.options instanceof Array) ? query.options.includes("sysAttrs") : false
+        let includeSysAttrs = false
+        let keyValues = false
+
+        if (query.options instanceof Array) {
+            includeSysAttrs = query.options.includes("sysAttrs")
+            keyValues = query.options.includes("keyValues")
+        }
+
 
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
 
         // Fetch entities
-        const entities_expanded = await this.psql.queryEntities(query, false, includeSysAttrs, context)
+        let entities_expanded = await this.psql.queryEntities(query, false, includeSysAttrs, context)
+
+
+        if (keyValues) {
+
+            //#################### BEGIN Create simplified representation ##################
+
+            let result = []
+
+            // TODO: Move to helper function
+            for (const entity of entities_expanded) {
+
+               
+
+                result.push(util.simplifyEntity(entity))
+            }
+
+            entities_expanded = result
+            //#################### END Create simplified representation ##################
+        }
+
 
 
         // NOTE: Here, we enable GeoJSON output if the query parameter 'geometryProperty' is defined.
@@ -747,7 +782,7 @@ export class ContextBroker {
             // Otherwise, return GeoJSON:
             result = new FeatureCollection()
 
-            const geometryProperty_expanded = expandObject(query.geometryProperty, context)
+            //const geometryProperty_expanded = expandObject(query.geometryProperty, context)
 
             const geometryProperty_compacted = query.geometryProperty
 
@@ -906,7 +941,6 @@ export class ContextBroker {
         const entities_compacted = parseJson(jsonString)
 
         for (const ec of entities_compacted) {
-            console.log("GOOO")
             this.api_5_6_11_createOrUpdateTemporalEntity(JSON.stringify(ec), contextUrl)
         }
     }
@@ -940,7 +974,7 @@ export class ContextBroker {
 
         const entityInternalId = metadata.id
 
-        let rowCount = await this.psql.deleteAttribute(entityInternalId, attributeId_expanded, undefined, datasetId_expanded)        
+        let rowCount = await this.psql.deleteAttribute(entityInternalId, attributeId_expanded, undefined, datasetId_expanded)
 
         if (rowCount == 0) {
             throw errorTypes.ResourceNotFound.withDetail(`The target entity '${entityId} does not contain an attribute with ID '${attributeId_expanded}.`)

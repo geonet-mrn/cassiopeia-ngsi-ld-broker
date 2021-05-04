@@ -4,6 +4,8 @@ import { GeoQuery } from "./dataTypes/GeoQuery"
 import { Query } from "./dataTypes/Query"
 
 
+export const attributeTypes = ["https://uri.etsi.org/ngsi-ld/Property", "https://uri.etsi.org/ngsi-ld/GeoProperty", "https://uri.etsi.org/ngsi-ld/Relationship"]
+
 // These are all members that are common for Property, GeoProperty and Relationship:
 const defaultAttributeMembers = ["@type", "https://uri.etsi.org/ngsi-ld/createdAt", "https://uri.etsi.org/ngsi-ld/modifiedAt", "https://uri.etsi.org/ngsi-ld/observedAt", 'https://uri.etsi.org/ngsi-ld/datasetId']
 
@@ -39,7 +41,7 @@ const geometryTypes_expanded = ['https://purl.org/geojson/vocab#Point',
     'https://purl.org/geojson/vocab#MultiPolygon']
 
 
-const geometryTypes_compacted = ['Point',
+export const geometryTypes_compacted = ['Point',
     'MultiPoint',
     'LineString',
     'MultiLineString',

@@ -1,9 +1,8 @@
-// NOTE: Other than the built-in method JSON.parse(), 
-
 import { Feature } from "./dataTypes/Feature"
-import { errorTypes } from "./errorTypes"
-import { isReifiedAttribute } from "./validate"
+import * as validate from "./validate"
 
+
+// NOTE: Other than the built-in method JSON.parse(), 
 // this one does not throw an exception if parsing fails:
 export function parseJson(jsonString: string): any {
 
@@ -18,14 +17,16 @@ export function parseJson(jsonString: string): any {
 
 export function compactedEntityToGeoJsonFeature(entity_compacted: any, geometryProperty_compacted: string | undefined = "location", datasetId: string | undefined): Feature {
 
-    // TODO: 2 Is it correct to work with compacted entities here? How about uniqueness of the attribute keys?
-
     let geometry = undefined
 
 
     let geometryAttribute = entity_compacted[geometryProperty_compacted]
 
-    if (geometryAttribute instanceof Array) {
+    if (geometryAttribute != undefined) {
+
+        if (!(geometryAttribute instanceof Array)) {
+            geometryAttribute = [geometryAttribute]
+        }
 
 
         // NOTE that we also check against the value "undefined" here,
@@ -41,20 +42,20 @@ export function compactedEntityToGeoJsonFeature(entity_compacted: any, geometryP
         }
         //######### END Find the GeoProperty instance which has the provided datasetId ########
 
-        if (instanceToUse == undefined) {
-            throw errorTypes.ResourceNotFound.withDetail("No GeoProperty attribute instance with the requested dataset ID could be found: '" + datasetId + "'.")
+        if (instanceToUse != undefined) {
+            //throw errorTypes.ResourceNotFound.withDetail("No GeoProperty attribute instance with the requested dataset ID could be found: '" + datasetId + "'.")
+
+            if (instanceToUse.type == "GeoProperty") {
+                geometry = instanceToUse['value']
+            }
+
+            // ATTENTION: This is somewhat ugly. We need it to handle simplified entity representations.
+            // This should probably be solved in a different way.
+            else if (validate.geometryTypes_compacted.includes(instanceToUse.type)) {
+                geometry = instanceToUse
+            }
         }
-
-
-        if (instanceToUse.type == "GeoProperty") {
-            geometry = instanceToUse['value']
-        }
-
-
     }
-
-
-
 
     // ATTENTION: For now, we just put the entire entity as "properties" here.
     // If we strictly follow the spec, "properties" should only contain the entity 
@@ -65,73 +66,39 @@ export function compactedEntityToGeoJsonFeature(entity_compacted: any, geometryP
 }
 
 
-// Spec 4.5.4:
-export function getSimplifiedRepresentation(entity: any): any {
-    // NOTE: This expects an expanded entity
+export function simplifyEntity(entity: any): any {
 
     let result: any = {}
 
-    if (entity["@context"] != undefined) {
-        result["@context"] = entity["@context"]
+    for (const key in entity) {
+
+        let attribute = entity[key]
+
+        let simplifiedValues = []
+
+        if (attribute instanceof Array) {
+            for (let instance of attribute) {
+
+                if (instance["@type"] == "https://uri.etsi.org/ngsi-ld/Property" || instance["@type"] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
+                    simplifiedValues.push(instance["https://uri.etsi.org/ngsi-ld/hasValue"])
+                }
+                else if (instance["@type"] == "https://uri.etsi.org/ngsi-ld/Relationship") {
+                    simplifiedValues.push(instance["https://uri.etsi.org/ngsi-ld/hasObject"])
+                }
+            }
+
+            if (simplifiedValues.length > 1) {
+                result[key] = simplifiedValues
+            }
+            else if (simplifiedValues.length == 1) {
+                result[key] = simplifiedValues[0]
+            }
+        }
+
+        else {
+            result[key] = attribute
+        }
     }
 
-    result["@id"] = entity["@id"]
-    result["@type"] = entity["@type"]
-
-
-
-    for (const attributeId in entity) {
-
-        let attribute = (entity as any)[attributeId]
-
-        if (!isReifiedAttribute(attribute, attributeId)) {
-            result[attributeId] = entity[attributeId]
-            continue
-        }
-
-        if (attribute.type == "Property" || attribute.type == "GeoProperty") {
-
-            if (entity[attributeId] instanceof Array) {
-
-                if (entity[attributeId].length == 1) {
-                    result[attributeId] = entity[attributeId][0].value
-                }
-                else {
-                    let valuesArray = []
-
-                    for (const instance of entity[attributeId]) {
-                        valuesArray.push(instance.value)
-                    }
-
-                    result[attributeId] = valuesArray
-                }
-            }
-            else {
-                result[attributeId] = entity[attributeId].value
-            }
-        }
-        else if (attribute.type == "Relationship") {
-
-            if (entity[attributeId] instanceof Array) {
-
-                if (entity[attributeId].length == 1) {
-                    result[attributeId] = entity[attributeId][0].object
-                }
-                else {
-                    let valuesArray = []
-
-                    for (const instance of entity[attributeId]) {
-                        valuesArray.push(instance.object)
-                    }
-
-                    result[attributeId] = valuesArray
-                }
-            }
-            else {
-                result[attributeId] = entity[attributeId].object
-            }
-        }
-
-    }
-
+    return result
 }
