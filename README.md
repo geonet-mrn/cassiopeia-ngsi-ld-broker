@@ -18,6 +18,7 @@ An ongoing project to implement a light-weight and fast NGSI-LD broker in TypeSc
     - 6.7.) [Modify Cassiopeia's configuration file](#67-modify-cassiopeias-configuration-file)
       - 6.7.1.) [Settings under "psql":](#671-settings-under-psql)
       - 6.7.2.) [Settings under "users":](#672-settings-under-users)
+      - 6.7.3.) [Setting "port:](#673-setting-port)
     - 6.8.) [Starting the broker](#68-starting-the-broker)
     - 6.9.) [Unit Tests](#69-unit-tests)
 
@@ -210,6 +211,10 @@ The pairs of username and password specified here represent the HTTP Basic Authe
 Currently, Cassiopeia's user rights management system is extremely limited. NGSI-LD itself does not specify anything about how user rights should be defined and checked. Since this is not practical for most "real world" use cases, we have decided to implement our own solution for this. Currently, it only distinguishes between two types of actions: Full read and full write. It is currently not possible to specify more fine-grained access rules, like allowing/disallowing the use of different API operations or read/write access to individual entities on a per-user basis. 
 
 As far as access control is currently implemented, reading is open for everybody, including anonymous users. Any write operation (i.e. creating, modifying or deleting entities and attributes) requires the user to provide one of the username/password pairs specified in the cassiopeia_config.json file as a HTTP Basic Authentication header in the HTTP request.
+
+### 6.7.3. Setting "port:
+
+This setting defines the network port on which Cassiopeia is listening. The default value is 3000.
 
 
 ## 6.8. Starting the broker

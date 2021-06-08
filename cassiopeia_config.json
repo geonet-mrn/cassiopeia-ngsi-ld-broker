@@ -2,10 +2,12 @@
     "psql": {        
         "host": "localhost",
         "database": "cassiopeia",
-        "user": "cassiopeia",
+        "user": "postgres",
         "password": "",
         "port": 5432
     },
+
+    "port": 3000,
 
     "users": [
         {

@@ -757,9 +757,15 @@ export class HttpBinding {
         }
 
 
+
+        
+
+        if (ctx.request.headers["accept"] == "application/geo+json" && query.geometryProperty == undefined) {
+            query.geometryProperty = "location"
+        }
+
+
         //##################### BEGIN Resolve context ##################
-
-
         let contextUrl = this.resolveRequestJsonLdContext(ctx.request)
 
         if (ctx.request.headers["content-type"] == "application/ld+json") {
@@ -771,7 +777,7 @@ export class HttpBinding {
         }
         //##################### END Resolve context ##################
 
-        //console.log(JSON.stringify(query))
+        console.log(JSON.stringify(query))
 
         ctx.body = await this.broker.api_5_7_2_queryEntities(query, contextUrl)
         ctx.status = 200
@@ -916,6 +922,7 @@ export class HttpBinding {
     async init() {
 
         const config_string = fs.readFileSync("./cassiopeia_config.json").toString()
+
         this.config = JSON.parse(config_string)
 
         const ngsiLdCoreContext = await getNormalizedContext([NGSI_LD_CORE_CONTEXT_URL])
@@ -968,8 +975,9 @@ export class HttpBinding {
         this.app.use(this.router.routes()).use(this.router.allowedMethods())
 
         // Start broker:
-        this.app.listen(3000, () => {
-            console.log("Cassiopeia NGSI-LD Context Broker started. NGSI-LD version 1.3.1.")
+        this.app.listen(this.config.port, () => {
+            console.log("Cassiopeia NGSI-LD Context Broker started. Listening on port " + this.config.port + ".")
+            console.log("NGSI-LD version 1.3.1. (partial implementation)")
         })
     }
 

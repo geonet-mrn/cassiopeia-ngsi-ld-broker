@@ -94,9 +94,9 @@ export class PsqlBackend {
         sql += ` AND ${this.tableCfg.COL_ATTR_NAME} = '${attributeName}'`
 
 
-        
-            sql += ` AND ${this.makeSqlCondition_datasetId(datasetId)}`
-        
+
+        sql += ` AND ${this.makeSqlCondition_datasetId(datasetId)}`
+
 
         console.log(sql)
 
@@ -807,7 +807,7 @@ export class PsqlBackend {
             const geojson_string = JSON.stringify(geojson_compacted)
             //const geojson_string = JSON.stringify(geojson_expanded)
 
-           // console.log(geojson_string)
+            // console.log(geojson_string)
 
             queryBuilder.add("geom", `ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`, true)
         }
@@ -837,7 +837,7 @@ export class PsqlBackend {
     }
 
 
-    makeSqlCondition_datasetId(datasetId: string | null|undefined): string {
+    makeSqlCondition_datasetId(datasetId: string | null | undefined): string {
 
         if (!datasetId) {
             return `${this.tableCfg.COL_DATASET_ID} is null`
@@ -885,7 +885,7 @@ export class PsqlBackend {
 
             //const geojson_string = JSON.stringify(geojson_expanded)
             const geojson_string = JSON.stringify(geojson_compacted)
-            
+
             sql += `, geom = ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`
         }
 
@@ -1021,8 +1021,8 @@ export class PsqlBackend {
         // parameter shall be included."
 
 
-        if (query.attrs != undefined && query.attrs.length > 0) {
-            
+        if (query.attrs instanceof Array && query.attrs.length > 0) {
+
             const attrs_expanded = expandObject(query.attrs, context)
 
             sql_where += ` AND t2.${this.tableCfg.COL_ATTR_NAME} IN ('${attrs_expanded.join("','")}')`
@@ -1083,13 +1083,13 @@ export class PsqlBackend {
         //################### BEGIN Match temporal query ######################
         if (query.temporalQ != undefined) {
 
-
             sql_where += makeTemporalQueryCondition(query.temporalQ, this.tableCfg)
 
             orderBySql = this.getTemporalTableColumn(query.temporalQ.timeproperty) + " DESC"
             lastN = query.temporalQ.lastN
         }
         //################### END Match temporal query ######################
+
 
 
         // Run query and return result:
@@ -1101,20 +1101,26 @@ export class PsqlBackend {
 
             const entity_expanded = ex as any
 
+
             //############# BEGIN Add empty arrays for requested attributes with no matching instances #############
 
             // "For the avoidance of doubt, if for a requested Attribute no instance fulfils the temporal query, 
             // then an empty Array of instances shall be provided as the representation for such Attribute.":
 
-            if (query.attrs instanceof Array) {
+            if (query.attrs instanceof Array && query.attrs.length > 0) {
 
-                const attrs_expanded = expandObject(query.attrs, context)
 
+                const attrs_expanded = expandObject(query.attrs, context) as Array<string>
+
+                // Add empty arrays for attributes that are specified in the "attrs" list, but not
+                // part of the entity:
                 for (const attrName_expanded of attrs_expanded) {
+
                     if (entity_expanded[attrName_expanded] == undefined) {
                         entity_expanded[attrName_expanded] = []
                     }
                 }
+
             }
             //############# END Add empty arrays for requested attributes with no matching instances #############
         }
@@ -1126,7 +1132,7 @@ export class PsqlBackend {
 
     private async runSqlQuery(sql: string): Promise<pg.QueryResult> {
 
-       // console.log(sql)
+        // console.log(sql)
         console.log("-------------------------")
 
         const resultPromise = this.pool.query(sql)
@@ -1284,7 +1290,7 @@ export class PsqlBackend {
         let sql_transaction = "BEGIN;"
 
         for (const instance of attribute_expanded) {
-            
+
             // ATTENTION: Since we use a SQL transaction for this, it is not (easily) possible to determine the
             // number of affected rows. This means that we can't tell whether the target attribute exists in
             // the database.
