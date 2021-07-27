@@ -285,16 +285,24 @@ export class PsqlBackend {
             sql += ` AND ${this.tableCfg.COL_INSTANCE_ID} = ${instanceId_number}`
         }
 
+        // Possible cases:
+        // datasetId_expanded == null -> delete default instance(s) (i.e. instances without datasetId)
+        // datasetId_expanded == undefined -> delete all instances
+        // datasetId_expanded == something else -> delete instance(s) with the specified dataset id
+             
 
         // Match dataset ID if provided:
-        if (datasetId != undefined) {
+        // ATTENTION: It is REQUIRED to compare with a "!==" here! We must NOT use a "!="!
+        if (datasetId !== undefined) {            
             sql += ` AND ${this.makeSqlCondition_datasetId(datasetId)}`
         }
 
-        console.log(sql)
+        console.log("delete query: " + sql)
 
         const queryResult = await this.runSqlQuery(sql)
 
+        console.log("# rows delete: " + queryResult.rowCount)
+        
         // Return number of deleted rows as promise:
         return new Promise((resolve, reject) => {
             resolve(queryResult.rowCount)

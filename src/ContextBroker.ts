@@ -12,6 +12,7 @@ import { checkArrayOfEntities, checkArrayOfUris, checkReifiedAttribute, checkEnt
 import { appendCoreContext, compactObject, expandObject, getNormalizedContext } from "./jsonld"
 import { parseJson, compactedEntityToGeoJsonFeature as compactedEntityToGeoJsonFeature } from "./util"
 import * as util from './util'
+import { POINT_CONVERSION_COMPRESSED } from "constants"
 
 
 export class ContextBroker {
@@ -550,23 +551,35 @@ export class ContextBroker {
 
 
     // Spec 5.6.13
-    async api_5_6_13_deleteAttributeFromTemporalEntity(entityId: string, attributeId_compacted: string, datasetId: string | undefined, contextUrl: string | undefined, deleteAll: boolean) {
+    async api_5_6_13_deleteAttributeFromTemporalEntity(entityId: string, attributeId_compacted: string, datasetId_compacted: string | undefined, contextUrl: string | undefined, deleteAll: boolean) {
 
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
 
         const attributeId_expanded = expandObject(attributeId_compacted, context)
 
-        let useDatasetId: string | null | undefined = datasetId
+        let useDatasetId_compacted: string | null | undefined = datasetId_compacted
 
         // If datasetId is undefined, but 'deleteAll' is not set, this means that the default instance
         // should be deleted, which is characterized by having datasetId = null:
 
-        if (datasetId == undefined && !deleteAll) {
-            useDatasetId = null
+        if (datasetId_compacted == undefined) {
+            useDatasetId_compacted = null
         }
 
-        await this.deleteAttribute(entityId, true, attributeId_expanded, useDatasetId)
+        if (deleteAll) {
+            useDatasetId_compacted = undefined
+        }
+
+        // TODO: 2 Implement 5.6.13.4 " If the target Entity does not contain the target Attribute then an error of type ResourceNotFound shall be raised."
+
+        // Possible cases:
+        // useDatasetId == null -> delete default instance(s) (i.e. instances without datasetId)
+        // useDatasetId == undefined -> delete all instances
+        // useDetasetId == something else -> delete instance(s) with the specified dataset id
+        
+     
+        await this.deleteAttribute(entityId, true, attributeId_expanded, useDatasetId_compacted)
     }
 
 
@@ -979,7 +992,7 @@ export class ContextBroker {
 
     async deleteAttribute(entityId: string, temporal: boolean, attributeId_expanded: string, datasetId_expanded: string | null | undefined) {
 
-        // TODO: 4 Is there a difference between this and api_5_6_15_deleteAttributeInstanceOfTemporalEntity?
+        // TODO: 3 Is there a difference between this and api_5_6_15_deleteAttributeInstanceOfTemporalEntity?
         // Probably we can share most code.
 
         //######################## BEGIN Input validation ##############################
@@ -1004,6 +1017,8 @@ export class ContextBroker {
         const entityInternalId = metadata.id
 
         let rowCount = await this.psql.deleteAttribute(entityInternalId, attributeId_expanded, undefined, datasetId_expanded)
+
+        console.log("Row count: " + rowCount)
 
         if (rowCount == 0) {
             throw errorTypes.ResourceNotFound.withDetail(`The target entity '${entityId} does not contain an attribute with ID '${attributeId_expanded}.`)
