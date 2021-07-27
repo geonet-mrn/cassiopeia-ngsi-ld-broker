@@ -212,6 +212,11 @@ export class ContextBroker {
         const entities_compacted = parseJson(jsonString)
 
         //############### BEGIN Validate input ###############
+
+        if(!(entities_compacted instanceof Array)) {
+            throw errorTypes.BadRequestData.withDetail("The provided payload is not a JSON array")
+        }
+
         const entities_expanded = []
 
         for (const ec of entities_compacted) {
@@ -271,6 +276,11 @@ export class ContextBroker {
         const entities_compacted = parseJson(jsonString)
 
         //############### BEGIN Validate input ###############
+
+        if(!(entities_compacted instanceof Array)) {
+            throw errorTypes.BadRequestData.withDetail("The provided payload is not a JSON array")
+        }
+
         const entities_expanded = []
 
         for (const ec of entities_compacted) {
@@ -399,6 +409,9 @@ export class ContextBroker {
 
         const entities_compacted = parseJson(jsonString)
 
+        if(!(entities_compacted instanceof Array)) {
+            throw errorTypes.BadRequestData.withDetail("The provided payload is not a JSON array")
+        }
 
         const entities_expanded = []
 
@@ -411,6 +424,8 @@ export class ContextBroker {
         }
 
         //############### BEGIN Validate input ###############
+
+        
         const checkResult = checkArrayOfEntities(entities_expanded, true, true)
 
         if (checkResult.length > 0) {
@@ -453,6 +468,11 @@ export class ContextBroker {
         const entityIds = parseJson(jsonString)
 
         //############### BEGIN Validate input ###############
+
+        if(!(entityIds instanceof Array)) {
+            throw errorTypes.BadRequestData.withDetail("The provided payload is not a JSON array")
+        }
+
         const checkResult = checkArrayOfUris(entityIds, true)
 
         if (checkResult.length > 0) {

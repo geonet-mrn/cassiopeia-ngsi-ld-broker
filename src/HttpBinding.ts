@@ -6,6 +6,7 @@
 
 // TODO: 1 Spec 6.3.5 (Extract context from request)
 // TODO: 1 Spec 6.3.6 (Response context representation)
+// TODO: 2 Return error response if invalid JSON (e.g. something other than an array of entities) is passed to entityOperations/upsert. Currently, this throws a "500 server error"
 // TODO: 3 Correct implementation for what to expand and what not
 // TODO: 3 What about querying of instanceId?
 // TODO: 3 Support GeoJSON for GeoProperty as string
@@ -425,6 +426,8 @@ export class HttpBinding {
         if (options != "update") {
             options = "replace"
         }
+
+        
 
         const result = await this.broker.api_5_6_8_batchEntityUpsert(ctx.request.rawBody, options, contextUrl)
 
