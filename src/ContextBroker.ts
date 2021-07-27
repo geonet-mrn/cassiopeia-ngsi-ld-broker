@@ -522,6 +522,7 @@ export class ContextBroker {
         }
         //################# END Validate input ##################
 
+        // NOTE: This currently returns a HTTP status code. This is perhaps not ideal.
         return await this.psql.createOrUpdateTemporalEntity(entity_expanded)
     }
 
@@ -823,21 +824,30 @@ export class ContextBroker {
     async api_5_7_3_retrieveTemporalEntity(
         entityId: string,
         attrs_compacted: Array<string> | undefined,
+        // NOTE: The parameter "lastN" is part of TemporalQuery
         temporalQ: TemporalQuery | undefined,
         contextUrl: string | undefined) {
 
+        // TODO: Which request option enables system attributes?
         const includeSysAttrs = false
 
+        //#################### BEGIN Validation ###################
         if (!isUri(entityId)) {
             throw errorTypes.BadRequestData.withDetail(`'${entityId}' is not a valid NGSI-LD entity ID.`)
         }
+        //#################### END Validation ###################
 
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
 
         const attrs_expanded = expandObject(attrs_compacted, context)
 
-        return await this.psql.getEntity(entityId, false, attrs_expanded, temporalQ, includeSysAttrs)
+        const returnedEntity_expanded = await this.psql.getEntity(entityId, true, attrs_expanded, temporalQ, includeSysAttrs)
+
+        
+        const returnedEntity_compacted = compactObject(returnedEntity_expanded, context)
+        
+        return returnedEntity_compacted
     }
 
 

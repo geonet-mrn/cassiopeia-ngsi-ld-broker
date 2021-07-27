@@ -512,6 +512,8 @@ export class HttpBinding {
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
 
+        // TODO 2: If entity is newly created, return HTTP location header
+
         ctx.status = await this.broker.api_5_6_11_createOrUpdateTemporalEntity(ctx.request.rawBody, contextUrl)
 
         await next()

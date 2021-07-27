@@ -187,7 +187,7 @@ describe('6.15.3.1 POST entityOperations/upsert', function () {
 
 
         if (err != undefined) {
-            console.log(err)
+        
             expect(response).to.be.undefined
 
             expect(err).to.not.be.undefined
