@@ -674,12 +674,12 @@ export class HttpBinding {
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
         }
-
-        // TODO: 2 Implement
-        throw errorTypes.OperationNotSupported.withDetail("This feature is not implemented yet.")
+        
+        const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
+        
+        ctx.body = await this.broker.api_5_6_12_addAttributesToTemporalEntity(ctx.params.entityId, ctx.request.rawBody, contextUrl)
 
         await next()
-        //ctx.body = await this.broker.addAttributesToTemporalEntity(ctx.params.entityId, ctx.request.rawBody)
     }
 
 
