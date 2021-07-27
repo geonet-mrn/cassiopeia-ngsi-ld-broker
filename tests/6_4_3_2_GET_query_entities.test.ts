@@ -115,7 +115,9 @@ describe('6.4.3.2 GET /entities/', function () {
 
     it("Should return all expected entities", async function () {
 
+        
         const queryResponse = await axios.get(testConfig.base_url + 'entities/?q=name=="Meckenheim"')
+           
         expect(queryResponse.data.length).equals(1)
         expect(queryResponse.data[0].name[0].value == "Meckenheim")
 
