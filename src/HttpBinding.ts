@@ -66,7 +66,7 @@ export class HttpBinding {
 
     // Spec 6.4.3.1
     // Binding for spec 5.6.1
-    http_6_4_3_1_createEntity = async (ctx: any, next: any) => {
+    http_6_4_3_1_POST_createEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
@@ -198,7 +198,7 @@ export class HttpBinding {
 
     // Spec 6.5.3.2
     // Binding for spec 5.6.6
-    http_6_5_3_2_deleteEntity = async (ctx: any, next: any) => {
+    http_6_5_3_2_DELETE_deleteEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
@@ -213,7 +213,7 @@ export class HttpBinding {
 
     // Spec 6.6.3.1
     // Binding for spec 5.6.3
-    http_6_6_3_1_appendEntityAttributes = async (ctx: any, next: any) => {
+    http_6_6_3_1_POST_appendEntityAttributes = async (ctx: any, next: any) => {
 
        
         if (this.getUser(auth(ctx.request)) == null) {
@@ -244,7 +244,7 @@ export class HttpBinding {
 
     // Spec 6.6.3.2
     // Binding for spec 5.6.2
-    http_6_6_3_2_updateEntityAttributes = async (ctx: any, next: any) => {
+    http_6_6_3_2_PATCH_updateEntityAttributes = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
@@ -268,7 +268,7 @@ export class HttpBinding {
 
     // Spec 6.7.3.1
     // Binding for spec 5.6.4
-    http_6_7_3_1_partialAttributeUpdate = async (ctx: any, next: any) => {
+    http_6_7_3_1_PATCH_partialAttributeUpdate = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
@@ -285,7 +285,7 @@ export class HttpBinding {
 
     // Spec 6.7.3.2
     // Binding for spec 5.6.5
-    http_6_7_3_2_deleteEntityAttribute = async (ctx: any, next: any) => {
+    http_6_7_3_2_DELETE_deleteEntityAttribute = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
@@ -385,7 +385,7 @@ export class HttpBinding {
 
     // Spec 6.14.3.1
     // Binding for spec 5.6.7
-    http_6_14_3_1_batchEntityCreation = async (ctx: any, next: any) => {
+    http_6_14_3_1_POST_batchEntityCreation = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
@@ -455,7 +455,7 @@ export class HttpBinding {
 
     // Spec 6.16.3.1
     // Binding for spec 5.6.9
-    http_6_16_3_1_batchEntityUpdate = async (ctx: any, next: any) => {
+    http_6_16_3_1_POST_batchEntityUpdate = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
@@ -482,7 +482,7 @@ export class HttpBinding {
 
     // Spec 6.17.3.1
     // Binding for spec 5.6.10
-    http_6_17_3_1_batchEntityDelete = async (ctx: any, next: any) => {
+    http_6_17_3_1_POST_batchEntityDelete = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
@@ -504,7 +504,7 @@ export class HttpBinding {
 
     // Spec 6.18.3.1
     // Binding for spec 5.6.11
-    http_6_18_3_1_createOrUpdateTemporalEntity = async (ctx: any, next: any) => {
+    http_6_18_3_1_POST_createOrUpdateTemporalEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
@@ -520,7 +520,7 @@ export class HttpBinding {
 
     // Spec 6.18.3.2
     // Binding for spec 5.7.4
-    http_6_18_3_2_queryTemporalEntities = async (ctx: any, next: any) => {
+    http_6_18_3_2_GET_queryTemporalEntities = async (ctx: any, next: any) => {
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
 
@@ -616,7 +616,7 @@ export class HttpBinding {
 
     // Spec 6.19.3.1
     // Binding for spec 5.7.3
-    http_6_19_3_1_retrieveTemporalEntity = async (ctx: any, next: any) => {
+    http_6_19_3_1_GET_retrieveTemporalEntity = async (ctx: any, next: any) => {
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
 
@@ -652,7 +652,7 @@ export class HttpBinding {
 
     // Spec 6.19.3.2
     // Binding for spec 5.6.16
-    http_6_19_3_2_deleteTemporalEntity = async (ctx: any, next: any) => {
+    http_6_19_3_2_DELETE_deleteTemporalEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
@@ -667,7 +667,7 @@ export class HttpBinding {
 
     // Spec 6.20.3.1
     // Binding for spec 5.6.12
-    http_6_20_3_1_addAttributesToTemporalEntity = async (ctx: any, next: any) => {
+    http_6_20_3_1_POST_addAttributesToTemporalEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
@@ -683,7 +683,7 @@ export class HttpBinding {
 
     // Spec 6.21.3.1
     // Binding for spec 5.6.13
-    http_6_21_3_1_deleteAttributeFromTemporalEntity = async (ctx: any, next: any) => {
+    http_6_21_3_1_DELETE_deleteAttributeFromTemporalEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
@@ -702,7 +702,7 @@ export class HttpBinding {
 
     // Spec 6.22.3.1
     // Binding for spec 5.6.14
-    http_6_22_3_1_modifyAttributeInstanceOfTemporalEntity = async (ctx: any, next: any) => {
+    http_6_22_3_1_PATCH_modifyAttributeInstanceOfTemporalEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
@@ -719,7 +719,7 @@ export class HttpBinding {
 
     // Spec 6.22.3.2
     // Binding for spec 5.6.15
-    http_6_22_3_2_deleteAttributeInstanceOfTemporalEntity = async (ctx: any, next: any) => {
+    http_6_22_3_2_DELETE_deleteAttributeInstanceOfTemporalEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
@@ -790,7 +790,7 @@ export class HttpBinding {
 
     // Spec 6.24.3.1
     // Binding for spec 5.7.4
-    http_6_24_3_1_temporalEntityOperationsQuery = async (ctx: any, next: any) => {
+    http_6_24_3_1_POST_temporalEntityOperationsQuery = async (ctx: any, next: any) => {
 
         // NOTE: This is the POST version of the "query tempooral entities" operation.
 
@@ -839,7 +839,7 @@ export class HttpBinding {
 
     // Spec 6.25.3.1
     // Binding for spec 5.7.5 and 5.7.6
-    http_6_25_3_1_retrieveAvailableEntityTypes = async (ctx: any, next: any) => {
+    http_6_25_3_1_GET_retrieveAvailableEntityTypes = async (ctx: any, next: any) => {
 
         if (ctx.request.query.details == "true") {
             ctx.body = await this.broker.api_5_7_5_retrieveAvailableEntityTypes()
@@ -856,7 +856,7 @@ export class HttpBinding {
 
     // Spec 6.26.3.1
     // Binding for spec 5.7.7
-    http_6_26_3_1_retrieveAvailableEntityTypeInformation = async (ctx: any, next: any) => {
+    http_6_26_3_1_GET_retrieveAvailableEntityTypeInformation = async (ctx: any, next: any) => {
 
         ctx.body = await this.broker.api_5_7_7_retrieveAvailableEntityTypeInformation(ctx.params.type)
         ctx.status = 200
@@ -867,7 +867,7 @@ export class HttpBinding {
 
     // Spec 6.27.3.1
     // Binding for spec 5.7.8 and 5.7.9
-    http_6_27_3_1_retrieveAvailableAttributes = async (ctx: any, next: any) => {
+    http_6_27_3_1_GET_retrieveAvailableAttributes = async (ctx: any, next: any) => {
 
         if (ctx.request.query.details == "true") {
             ctx.body = await this.broker.api_5_7_8_retrieveAvailableAttributes()
@@ -884,7 +884,7 @@ export class HttpBinding {
 
     // Spec 6.28.3.1
     // Binding for spec 5.7.10
-    http_6_28_3_1_retrieveAvailableAttributeInformation = async (ctx: any, next: any) => {
+    http_6_28_3_1_GET_retrieveAvailableAttributeInformation = async (ctx: any, next: any) => {
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
 
@@ -895,7 +895,7 @@ export class HttpBinding {
     }
 
 
-    http_inofficial_deleteAllEntities = async (ctx: any, next: any) => {
+    http_inofficial_DELETE_deleteAllEntities = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
@@ -908,7 +908,7 @@ export class HttpBinding {
     }
 
 
-    http_inofficial_temporalEntityOperationsUpsert = async (ctx: any, next: any) => {
+    http_inofficial_POST_temporalEntityOperationsUpsert = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
@@ -989,20 +989,20 @@ export class HttpBinding {
 
         //##################### BEGIN "entities" endpoints #############################
         {
-            this.router.post(this.apiBase + "entities/", this.http_6_4_3_1_createEntity)
+            this.router.post(this.apiBase + "entities/", this.http_6_4_3_1_POST_createEntity)
             this.router.get(this.apiBase + "entities/", this.http_6_4_3_2_GET_queryEntities)
 
             // Inofficial:
-            this.router.delete(this.apiBase + "entities/", this.http_inofficial_deleteAllEntities)
+            this.router.delete(this.apiBase + "entities/", this.http_inofficial_DELETE_deleteAllEntities)
 
             this.router.get(this.apiBase + "entities/:entityId", this.http_6_5_3_1_GET_retrieveEntity)
-            this.router.delete(this.apiBase + "entities/:entityId", this.http_6_5_3_2_deleteEntity)
+            this.router.delete(this.apiBase + "entities/:entityId", this.http_6_5_3_2_DELETE_deleteEntity)
 
-            this.router.post(this.apiBase + "entities/:entityId/attrs/", this.http_6_6_3_1_appendEntityAttributes)
-            this.router.patch(this.apiBase + "entities/:entityId/attrs/", this.http_6_6_3_2_updateEntityAttributes)
+            this.router.post(this.apiBase + "entities/:entityId/attrs/", this.http_6_6_3_1_POST_appendEntityAttributes)
+            this.router.patch(this.apiBase + "entities/:entityId/attrs/", this.http_6_6_3_2_PATCH_updateEntityAttributes)
 
-            this.router.patch(this.apiBase + "entities/:entityId/attrs/:attrId", this.http_6_7_3_1_partialAttributeUpdate)
-            this.router.delete(this.apiBase + "entities/:entityId/attrs/:attrId", this.http_6_7_3_2_deleteEntityAttribute)
+            this.router.patch(this.apiBase + "entities/:entityId/attrs/:attrId", this.http_6_7_3_1_PATCH_partialAttributeUpdate)
+            this.router.delete(this.apiBase + "entities/:entityId/attrs/:attrId", this.http_6_7_3_2_DELETE_deleteEntityAttribute)
         }
         //##################### END "entities" endpoints #############################
 
@@ -1012,7 +1012,6 @@ export class HttpBinding {
         {
             this.router.post(this.apiBase + "csourceRegistrations/:registrationId", this.http_6_8_3_1_registerContextSource)
             this.router.get(this.apiBase + "csourceRegistrations/:registrationId", this.http_6_8_3_2_queryContextSourceRegistrations)
-
             this.router.get(this.apiBase + "csourceRegistrations/:registrationId", this.http_6_9_3_1_retrieveContextSourceRegistration)
             this.router.patch(this.apiBase + "csourceRegistrations/:registrationId", this.http_6_9_3_2_updateContextSourceRegistration)
             this.router.delete(this.apiBase + "csourceRegistrations/:registrationId", this.http_6_9_3_3_deleteContextSourceRegistration)
@@ -1032,10 +1031,10 @@ export class HttpBinding {
 
         //################ BEGIN "entityOperations" endpoints #######################
         {
-            this.router.post(this.apiBase + "entityOperations/create", this.http_6_14_3_1_batchEntityCreation)
+            this.router.post(this.apiBase + "entityOperations/create", this.http_6_14_3_1_POST_batchEntityCreation)
             this.router.post(this.apiBase + "entityOperations/upsert", this.http_6_15_3_1_POST_batchEntityUpsert)
-            this.router.post(this.apiBase + "entityOperations/update", this.http_6_16_3_1_batchEntityUpdate)
-            this.router.post(this.apiBase + "entityOperations/delete", this.http_6_17_3_1_batchEntityDelete)
+            this.router.post(this.apiBase + "entityOperations/update", this.http_6_16_3_1_POST_batchEntityUpdate)
+            this.router.post(this.apiBase + "entityOperations/delete", this.http_6_17_3_1_POST_batchEntityDelete)
         }
         //################ END "entityOperations" endpoints #######################
 
@@ -1043,18 +1042,18 @@ export class HttpBinding {
 
         // ##################### BEGIN Temporal endpoints ######################
         {
-            this.router.post(this.apiBase + "temporal/entities/", this.http_6_18_3_1_createOrUpdateTemporalEntity)
-            this.router.get(this.apiBase + "temporal/entities/", this.http_6_18_3_2_queryTemporalEntities)
+            this.router.post(this.apiBase + "temporal/entities/", this.http_6_18_3_1_POST_createOrUpdateTemporalEntity)
+            this.router.get(this.apiBase + "temporal/entities/", this.http_6_18_3_2_GET_queryTemporalEntities)
 
-            this.router.get(this.apiBase + "temporal/entities/:entityId", this.http_6_19_3_1_retrieveTemporalEntity)
-            this.router.delete(this.apiBase + "temporal/entities/:entityId", this.http_6_19_3_2_deleteTemporalEntity)
+            this.router.get(this.apiBase + "temporal/entities/:entityId", this.http_6_19_3_1_GET_retrieveTemporalEntity)
+            this.router.delete(this.apiBase + "temporal/entities/:entityId", this.http_6_19_3_2_DELETE_deleteTemporalEntity)
 
-            this.router.post(this.apiBase + "temporal/entities/:entityId/attrs/", this.http_6_20_3_1_addAttributesToTemporalEntity)
+            this.router.post(this.apiBase + "temporal/entities/:entityId/attrs/", this.http_6_20_3_1_POST_addAttributesToTemporalEntity)
 
-            this.router.delete(this.apiBase + "temporal/entities/:entityId/attrs/:attrId", this.http_6_21_3_1_deleteAttributeFromTemporalEntity)
+            this.router.delete(this.apiBase + "temporal/entities/:entityId/attrs/:attrId", this.http_6_21_3_1_DELETE_deleteAttributeFromTemporalEntity)
 
-            this.router.patch(this.apiBase + "temporal/entities/:entityId/attrs/:attrId/:instanceId", this.http_6_22_3_1_modifyAttributeInstanceOfTemporalEntity)
-            this.router.delete(this.apiBase + "temporal/entities/:entityId/attrs/:attrId/:instanceId", this.http_6_22_3_2_deleteAttributeInstanceOfTemporalEntity)
+            this.router.patch(this.apiBase + "temporal/entities/:entityId/attrs/:attrId/:instanceId", this.http_6_22_3_1_PATCH_modifyAttributeInstanceOfTemporalEntity)
+            this.router.delete(this.apiBase + "temporal/entities/:entityId/attrs/:attrId/:instanceId", this.http_6_22_3_2_DELETE_deleteAttributeInstanceOfTemporalEntity)
         }
         // ##################### END Temporal endpoints ######################
 
@@ -1063,9 +1062,9 @@ export class HttpBinding {
         //#################### BEGIN entityOperations query endpoints ##################
         {
             this.router.post(this.apiBase + "entityOperations/query", this.http_6_23_3_1_POST_entityOperationsQuery)
-            this.router.post(this.apiBase + "temporal/entityOperations/query", this.http_6_24_3_1_temporalEntityOperationsQuery)
+            this.router.post(this.apiBase + "temporal/entityOperations/query", this.http_6_24_3_1_POST_temporalEntityOperationsQuery)
             // ATTENTION: The following endpoint is not officially part of the NGSI-LD specification:
-            this.router.post(this.apiBase + "temporal/entityOperations/upsert", this.http_inofficial_temporalEntityOperationsUpsert)
+            this.router.post(this.apiBase + "temporal/entityOperations/upsert", this.http_inofficial_POST_temporalEntityOperationsUpsert)
         }
         //#################### END entityOperations query endpoints ##################
 
@@ -1073,8 +1072,8 @@ export class HttpBinding {
 
         //################ BEGIN Entity type information endpoints #######################
         {
-            this.router.get(this.apiBase + "types/", this.http_6_25_3_1_retrieveAvailableEntityTypes)
-            this.router.get(this.apiBase + "types/:type", this.http_6_26_3_1_retrieveAvailableEntityTypeInformation)
+            this.router.get(this.apiBase + "types/", this.http_6_25_3_1_GET_retrieveAvailableEntityTypes)
+            this.router.get(this.apiBase + "types/:type", this.http_6_26_3_1_GET_retrieveAvailableEntityTypeInformation)
         }
         //################ END Entity type information endpoints #######################
 
@@ -1082,8 +1081,8 @@ export class HttpBinding {
 
         //################ BEGIN Attribute type information endpoints #######################
         {
-            this.router.get(this.apiBase + "attributes/", this.http_6_27_3_1_retrieveAvailableAttributes)
-            this.router.get(this.apiBase + "attributes/:attrId", this.http_6_28_3_1_retrieveAvailableAttributeInformation)
+            this.router.get(this.apiBase + "attributes/", this.http_6_27_3_1_GET_retrieveAvailableAttributes)
+            this.router.get(this.apiBase + "attributes/:attrId", this.http_6_28_3_1_GET_retrieveAvailableAttributeInformation)
         }
         //################ END Attribute type information endpoints #######################
     }
