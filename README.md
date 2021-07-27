@@ -49,7 +49,7 @@ The Cassiopeia project currently aims to implement version 1.3.1 of the NGSI-LD 
 
 # 3. A Note About Current Limitations
 
-Please not that Cassiopeia is still in a very early stage of development. It does currently not implement the full NGSI-LD specification. However, it does already implement what we think are the most important parts of it, including support for spatial (NGSI-LD Geo-query language) and temporal (NGSI-LD Temporal Query Language) queries. If you need a more stable and complete NGSI-LD broker, consider using **Scorpio** (https://github.com/ScorpioBroker/ScorpioBroker), **Stellio** (https://github.com/stellio-hub/stellio-context-broker) or **Orion-LD** (https://github.com/FIWARE/context.Orion-LD).
+Please note that Cassiopeia is still in a very early stage of development. It does currently not implement the full NGSI-LD specification. However, it does already implement what we think are the most important parts of it, including support for spatial (NGSI-LD Geo-query language) and temporal (NGSI-LD Temporal Query Language) queries. If you need a more stable and complete NGSI-LD broker, consider using **Scorpio** (https://github.com/ScorpioBroker/ScorpioBroker), **Stellio** (https://github.com/stellio-hub/stellio-context-broker) or **Orion-LD** (https://github.com/FIWARE/context.Orion-LD).
 
 **PLEASE DO NOT RUN CASSIOPEIA IN A PRODUCTION ENVIRONMENT! EXPECT BUGS, SECURITY ISSUES AND DEVIATIONS FROM THE NGSI-LD SPECIFICATION! ALSO, READ THE LICENSE INFORMATION CAREFULLY!**
 
@@ -124,7 +124,7 @@ postgres=#
 ```
 
 Now, create a database for Cassiopeia with the following command:
-
+ 
 ```               
 create database cassiopeia;
 ```
