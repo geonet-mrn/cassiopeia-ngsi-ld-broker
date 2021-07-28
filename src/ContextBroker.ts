@@ -167,17 +167,7 @@ export class ContextBroker {
     // Spec 5.6.5
     async api_5_6_5_deleteEntityAttribute(entityId: string, attributeId_compacted: string, datasetId_compacted: string | undefined, contextUrl: string | undefined, deleteAll: boolean) {
 
-        const actualContext = appendCoreContext(contextUrl)
-        const context = await getNormalizedContext(actualContext)
-
-
-        const attributeId_expanded = expandObject(attributeId_compacted, context)
-
-
-        if (!isUri(attributeId_expanded)) {
-            throw errorTypes.BadRequestData.withDetail("Attribute ID is not a valid URI: " + attributeId_expanded)
-        }
-
+        //######## BEGIN Determine actual datasetId value to use ########
         let useDatasetId_compacted: string | null | undefined = datasetId_compacted
 
         // If datasetId is undefined, but 'deleteAll' is not set, this means that the default instance
@@ -186,11 +176,16 @@ export class ContextBroker {
         if (datasetId_compacted == undefined && !deleteAll) {
             useDatasetId_compacted = null
         }
+        //######## END Determine actual datasetId value to use ########
 
 
+        const actualContext = appendCoreContext(contextUrl)
+        const context = await getNormalizedContext(actualContext)
+
+        const attributeId_expanded = expandObject(attributeId_compacted, context)
         const datasetId_expanded = expandObject(useDatasetId_compacted, context)
 
-        await this.deleteAttribute(entityId, false, attributeId_expanded, datasetId_expanded)
+        await this.deleteAttribute(entityId, false, attributeId_expanded, datasetId_expanded, undefined)
     }
 
 
@@ -553,11 +548,7 @@ export class ContextBroker {
     // Spec 5.6.13
     async api_5_6_13_deleteAttributeFromTemporalEntity(entityId: string, attributeId_compacted: string, datasetId_compacted: string | undefined, contextUrl: string | undefined, deleteAll: boolean) {
 
-        const actualContext = appendCoreContext(contextUrl)
-        const context = await getNormalizedContext(actualContext)
-
-        const attributeId_expanded = expandObject(attributeId_compacted, context)
-
+        //################## BEGIN Determine actual datasetId to use ################
         let useDatasetId_compacted: string | null | undefined = datasetId_compacted
 
         // If datasetId is undefined, but 'deleteAll' is not set, this means that the default instance
@@ -570,6 +561,14 @@ export class ContextBroker {
         if (deleteAll) {
             useDatasetId_compacted = undefined
         }
+        //################## END Determine actual datasetId to use ################
+
+        const actualContext = appendCoreContext(contextUrl)
+        const context = await getNormalizedContext(actualContext)
+
+        const attributeId_expanded = expandObject(attributeId_compacted, context)
+        const datasetId_expanded = expandObject(useDatasetId_compacted, context)
+      
 
         // TODO: 2 Implement 5.6.13.4 " If the target Entity does not contain the target Attribute then an error of type ResourceNotFound shall be raised."
 
@@ -579,7 +578,7 @@ export class ContextBroker {
         // useDetasetId == something else -> delete instance(s) with the specified dataset id
 
 
-        await this.deleteAttribute(entityId, true, attributeId_expanded, useDatasetId_compacted)
+        await this.deleteAttribute(entityId, true, attributeId_expanded, datasetId_expanded, undefined)
     }
 
 
@@ -647,41 +646,14 @@ export class ContextBroker {
     // Spec 5.6.15
     async api_5_6_15_deleteAttributeInstanceOfTemporalEntity(entityId: string, attributeId_compacted: string, instanceId_compacted: string, contextUrl: string | undefined) {
 
-        // TODO: Check how similar this method is to ContextBroker.deleteAttribute(). Perhaps we can share code here.
-
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
 
         const attributeId_expanded = expandObject(attributeId_compacted, context)
         const instanceId_expanded = expandObject(instanceId_compacted, context)
 
-        //########################### BEGIN Input validation #########################
-        if (!isUri(entityId)) {
-            throw errorTypes.BadRequestData.withDetail(`'${entityId}' is not a valid URI.`)
-        }
-
-        if (!isUri(attributeId_expanded)) {
-            throw errorTypes.BadRequestData.withDetail(`'${attributeId_expanded}' is not a valid URI.`)
-        }
-
-        if (!isUri(instanceId_expanded)) {
-            throw errorTypes.BadRequestData.withDetail(`'${instanceId_expanded}' is not a valid URI.`)
-        }
-        //########################### END Input validation #########################
-
-        const entityMetadata = await this.psql.getEntityMetadata(entityId, true)
-
-        if (entityMetadata == undefined) {
-            throw errorTypes.ResourceNotFound.withDetail(`No entity with ID '${entityId}' exists.`)
-        }
-
-
-        // TODO: Call this.deleteAttribute() here instead?
-        const numDeletedRows = await this.psql.deleteAttribute(entityMetadata.id, attributeId_expanded, instanceId_expanded, undefined)
-
-        if (numDeletedRows == 0) {
-            throw errorTypes.ResourceNotFound.withDetail("No attribute instance with the specified properties exists.")
-        }
+        // TODO 3: Ask: Can the attribute instances of temporal entities have a datasetId?
+        await this.deleteAttribute(entityId, true, attributeId_expanded, undefined, instanceId_expanded)
     }
 
 
@@ -768,8 +740,10 @@ export class ContextBroker {
 
 
         const actualContext = appendCoreContext(contextUrl)
+        
         const context = await getNormalizedContext(actualContext)
 
+        
         // Fetch entities
         let entities_expanded = await this.psql.queryEntities(query, false, includeSysAttrs, context)
 
@@ -782,9 +756,6 @@ export class ContextBroker {
 
             // TODO: Move to helper function
             for (const entity of entities_expanded) {
-
-
-
                 result.push(util.simplifyEntity(entity))
             }
 
@@ -850,8 +821,11 @@ export class ContextBroker {
         }
         //#################### END Validation ###################
 
+
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
+
+
 
         const attrs_expanded = expandObject(attrs_compacted, context)
 
@@ -870,6 +844,7 @@ export class ContextBroker {
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
 
+        
         if (query.temporalQ == undefined) {
             throw errorTypes.BadRequestData.withDetail("No temporal query provided in request.")
         }
@@ -928,14 +903,12 @@ export class ContextBroker {
 
     // Spec 5.7.6
     async api_5_7_6_retrieveAvailableEntityTypeDetails() {
-
         return await this.psql.getDetailsOfEntityTypes()
     }
 
 
     // Spec 5.7.7
     async api_5_7_7_retrieveAvailableEntityTypeInformation(type: string) {
-
         return await this.psql.getEntityTypeInformation(type)
     }
 
@@ -948,7 +921,6 @@ export class ContextBroker {
 
     // Spec 5.7.9
     async api_5_7_9_retrieveAvailableAttributeDetails() {
-
         return await this.psql.getAvailableAttributes()
     }
 
@@ -979,6 +951,8 @@ export class ContextBroker {
 
     async inofficial_temporalEntityOperationsUpsert(jsonString: any, contextUrl: string | undefined) {
 
+        // TODO: 3 "createOrUpdate" isn't really an upsert! 
+        // It only *adds* attributes, it doesn't replace the entire entity!
 
         const entities_compacted = parseJson(jsonString)
 
@@ -990,10 +964,7 @@ export class ContextBroker {
 
 
 
-    async deleteAttribute(entityId: string, temporal: boolean, attributeId_expanded: string, datasetId_expanded: string | null | undefined) {
-
-        // TODO: 3 Is there a difference between this and api_5_6_15_deleteAttributeInstanceOfTemporalEntity?
-        // Probably we can share most code.
+    async deleteAttribute(entityId: string, temporal: boolean, attributeId_expanded: string, datasetId_expanded: string | null | undefined, instanceId_expanded: string | undefined) {
 
         //######################## BEGIN Input validation ##############################
         if (!isUri(entityId)) {
@@ -1003,27 +974,31 @@ export class ContextBroker {
         if (!isUri(attributeId_expanded)) {
             throw errorTypes.BadRequestData.withDetail("Passed attribute ID is not a valid URI.")
         }
+
+        if (datasetId_expanded != undefined && datasetId_expanded != null && !isUri(datasetId_expanded)) {
+            throw errorTypes.BadRequestData.withDetail("Passed dataset ID is not a valid URI.")
+        }
+
+        if (instanceId_expanded != undefined && !isUri(instanceId_expanded)) {
+            throw errorTypes.BadRequestData.withDetail("Passed instance ID is not a valid URI.")
+        }
         //######################## END Input validation ##############################
 
 
-        //############# BEGIN Try to fetch target entity #################
-        const metadata = await this.psql.getEntityMetadata(entityId, temporal)
+        //######## BEGIN Read target entity from database to get its internal ID, which is required for the delete call ##########
+        const entityMetadata = await this.psql.getEntityMetadata(entityId, temporal)
 
-        if (!metadata) {
+        if (!entityMetadata) {
             throw errorTypes.ResourceNotFound.withDetail("No entity with the passed ID exists: " + entityId)
         }
-        //############# END Try to fetch target entity #################
+        
+        const entityInternalId = entityMetadata.id
+        //######## END Read target entity from database to get its internal ID, which is required for the delete call ##########
 
-        const entityInternalId = metadata.id
+        const rowCount = await this.psql.deleteAttribute(entityInternalId, attributeId_expanded, instanceId_expanded, datasetId_expanded)
 
-        let rowCount = await this.psql.deleteAttribute(entityInternalId, attributeId_expanded, undefined, datasetId_expanded)
-
-        console.log("Row count: " + rowCount)
-
-        if (rowCount == 0) {
-            throw errorTypes.ResourceNotFound.withDetail(`The target entity '${entityId} does not contain an attribute with ID '${attributeId_expanded}.`)
+        if (rowCount == 0) {        
+            throw errorTypes.ResourceNotFound.withDetail(`Failed to delete attribute instance. No attribute instance with the following properties exists: Entity ID = '${entityId}', Attribute ID ='${attributeId_expanded}', Instance ID = '${instanceId_expanded}'.`)
         }
     }
-
-
 }

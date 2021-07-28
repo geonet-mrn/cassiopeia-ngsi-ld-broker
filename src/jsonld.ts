@@ -151,10 +151,10 @@ export function expandObject(obj: any, normalizedContext: ldcp.JsonLdContextNorm
         return result
     }
 
-    
-
     //############## END If member is an object ##############   
 }
+
+
 
 
 export async function getNormalizedContext(nonNormalizedContext: any): Promise<ldcp.JsonLdContextNormalized> {

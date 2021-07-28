@@ -296,8 +296,7 @@ export class PsqlBackend {
         if (datasetId !== undefined) {            
             sql += ` AND ${this.makeSqlCondition_datasetId(datasetId)}`
         }
-
-        console.log(sql)
+        
         const queryResult = await this.runSqlQuery(sql)
 
         // Return number of deleted rows as promise:

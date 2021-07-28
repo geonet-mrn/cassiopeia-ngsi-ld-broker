@@ -982,7 +982,7 @@ export class HttpBinding {
         this.app.use(this.router.routes()).use(this.router.allowedMethods())
 
 
-
+        //################ BEGIN Enable response payload compression ################
         if (this.config.compressOutput) {
   
             this.app.use(compress({
@@ -1003,8 +1003,8 @@ export class HttpBinding {
                 br: false // disable brotli
                */
             }))
-
         }
+        //################ END Enable response payload compression ################
 
         // Start broker:
         this.app.listen(this.config.port, () => {
