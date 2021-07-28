@@ -214,7 +214,7 @@ export class ContextBroker {
 
         //############### BEGIN Validate input ###############
 
-        if(!(entities_compacted instanceof Array)) {
+        if (!(entities_compacted instanceof Array)) {
             throw errorTypes.BadRequestData.withDetail("The provided payload is not a JSON array")
         }
 
@@ -278,7 +278,7 @@ export class ContextBroker {
 
         //############### BEGIN Validate input ###############
 
-        if(!(entities_compacted instanceof Array)) {
+        if (!(entities_compacted instanceof Array)) {
             throw errorTypes.BadRequestData.withDetail("The provided payload is not a JSON array")
         }
 
@@ -410,7 +410,7 @@ export class ContextBroker {
 
         const entities_compacted = parseJson(jsonString)
 
-        if(!(entities_compacted instanceof Array)) {
+        if (!(entities_compacted instanceof Array)) {
             throw errorTypes.BadRequestData.withDetail("The provided payload is not a JSON array")
         }
 
@@ -426,7 +426,7 @@ export class ContextBroker {
 
         //############### BEGIN Validate input ###############
 
-        
+
         const checkResult = checkArrayOfEntities(entities_expanded, true, true)
 
         if (checkResult.length > 0) {
@@ -470,7 +470,7 @@ export class ContextBroker {
 
         //############### BEGIN Validate input ###############
 
-        if(!(entityIds instanceof Array)) {
+        if (!(entityIds instanceof Array)) {
             throw errorTypes.BadRequestData.withDetail("The provided payload is not a JSON array")
         }
 
@@ -577,8 +577,8 @@ export class ContextBroker {
         // useDatasetId == null -> delete default instance(s) (i.e. instances without datasetId)
         // useDatasetId == undefined -> delete all instances
         // useDetasetId == something else -> delete instance(s) with the specified dataset id
-        
-     
+
+
         await this.deleteAttribute(entityId, true, attributeId_expanded, useDatasetId_compacted)
     }
 
@@ -783,7 +783,7 @@ export class ContextBroker {
             // TODO: Move to helper function
             for (const entity of entities_expanded) {
 
-               
+
 
                 result.push(util.simplifyEntity(entity))
             }
@@ -857,9 +857,9 @@ export class ContextBroker {
 
         const returnedEntity_expanded = await this.psql.getEntity(entityId, true, attrs_expanded, temporalQ, includeSysAttrs)
 
-        
+
         const returnedEntity_compacted = compactObject(returnedEntity_expanded, context)
-        
+
         return returnedEntity_compacted
     }
 

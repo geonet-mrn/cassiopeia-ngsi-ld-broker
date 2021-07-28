@@ -86,7 +86,7 @@ const entities = [
 
 
 
-describe('6.5.3.1 GET entities/<entity_id>', function () {
+describe('6.5.3.1 GET entities/<entityId>', function () {
 
     before(async () => {
         await prep.deleteAllEntities()

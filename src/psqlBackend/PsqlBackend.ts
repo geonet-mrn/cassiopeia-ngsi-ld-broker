@@ -282,7 +282,7 @@ export class PsqlBackend {
             const instanceId_number = parseFloat(instanceId.split("_")[1])
 
             // TODO: 1 Make function to get instance number from instance ID string
-            sql += ` AND ${this.tableCfg.COL_INSTANCE_ID} = ${instanceId_number}`
+            sql += ` AND ${this.tableCfg.COL_INSTANCE_ID} = '${instanceId_number}'`
         }
 
         // Possible cases:
@@ -297,12 +297,9 @@ export class PsqlBackend {
             sql += ` AND ${this.makeSqlCondition_datasetId(datasetId)}`
         }
 
-        console.log("delete query: " + sql)
-
+        console.log(sql)
         const queryResult = await this.runSqlQuery(sql)
 
-        console.log("# rows delete: " + queryResult.rowCount)
-        
         // Return number of deleted rows as promise:
         return new Promise((resolve, reject) => {
             resolve(queryResult.rowCount)
@@ -319,7 +316,7 @@ export class PsqlBackend {
         // The internal ID is then used to find and delete the entity's rows in the attributes table.
         const sql_delete_entity_metadata = `DELETE FROM ${this.tableCfg.TBL_ENT} WHERE ${this.tableCfg.COL_ENT_ID} = '${entityId}' RETURNING id`
 
-        let queryResult1 = await this.runSqlQuery(sql_delete_entity_metadata)
+        const queryResult1 = await this.runSqlQuery(sql_delete_entity_metadata)
 
         if (queryResult1.rows.length == 0) {
             // Return number of deleted rows as promise:
@@ -343,7 +340,7 @@ export class PsqlBackend {
         sql_delete_attributes += "COMMIT;"
 
         // Run transaction query:        
-        let queryResult2 = await this.runSqlQuery(sql_delete_attributes)
+        const queryResult2 = await this.runSqlQuery(sql_delete_attributes)
         //############ END Build and run transaction query to delete all attribute rows ###########
 
 
@@ -370,11 +367,11 @@ export class PsqlBackend {
 
         // TODO: 2 Should default attributes like "createdAt" be included here?
 
-        let result = new AttributeList()
+        const result = new AttributeList()
 
-        let sql = `SELECT DISTINCT ${this.tableCfg.COL_ATTR_NAME} FROM ${this.tableCfg.TBL_ATTR}`
+        const sql = `SELECT DISTINCT ${this.tableCfg.COL_ATTR_NAME} FROM ${this.tableCfg.TBL_ATTR}`
 
-        let sqlResult = await this.runSqlQuery(sql)
+        const sqlResult = await this.runSqlQuery(sql)
 
         for (const row of sqlResult.rows) {
             result.attributeList.push(row[this.tableCfg.COL_ATTR_NAME])
@@ -518,11 +515,6 @@ export class PsqlBackend {
 
     async getEntitiesBySqlWhere(sql_where: string, includeSysAttrs: boolean, orderBySql: string | undefined, lastN: number | undefined): Promise<Array<any>> {
 
-
-        // TODO: 2 Hard-coded only for testing
-        //includeSysAttrs = true
-
-
         //############# BEGIN Build "ORDER BY" query part ############
         let orderBy = ""
 
@@ -556,10 +548,7 @@ export class PsqlBackend {
             sql = `SELECT * FROM (SELECT ROW_NUMBER() OVER (PARTITION BY ent_id, attr_name ${orderBy}) AS r, t.* FROM (${sql}) t) x WHERE x.r <= ${lastN};`
         }
 
-
         const queryResult = await this.runSqlQuery(sql)
-
-        //console.log(queryResult)
 
         const entitiesByNgsiId: any = {}
 
@@ -604,6 +593,13 @@ export class PsqlBackend {
 
             const instance = row[this.tableCfg.COL_INSTANCE_JSON]
 
+            // TODO: 1 Add method to create instance ID string from number
+            
+            // ATTENTION: The returned instance ID value string MUST contain an "_" (underscore) because we
+            // use it in PsqlBackend::deleteAttribute() as a string separator character to extract the
+            // actual instance id number from a passed instance id string.
+
+            instance["https://uri.etsi.org/ngsi-ld/instanceId"] = "urn:ngsi-ld:InstanceId:instance_" + row[this.tableCfg.COL_INSTANCE_ID]
 
             //####### BEGIN Restore JSON fields that have their own database column ##########
             if (includeSysAttrs) {
@@ -612,10 +608,7 @@ export class PsqlBackend {
 
                 if (row["attr_observed_at"] != null) {
                     instance["https://uri.etsi.org/ngsi-ld/observedAt"] = row["attr_observed_at"]
-                }
-
-                // TODO: 1 Add method to create instance ID string from number
-                instance["https://uri.etsi.org/ngsi-ld/instanceId"] = "urn:ngsi-ld:InstanceId:instance_" + row[this.tableCfg.COL_INSTANCE_ID]
+                }               
             }
             //####### END Restore JSON fields that have their own database column ##########
 
@@ -629,8 +622,6 @@ export class PsqlBackend {
         for (let key in entitiesByNgsiId) {
             result.push(entitiesByNgsiId[key])
         }
-
-        console.log("# returned entities: " + result.length)
 
         return new Promise((resolve, reject) => {
             resolve(result)

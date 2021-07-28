@@ -251,7 +251,7 @@ When you have everything set up, you can run the unit tests with the following c
 The tests might need a couple of seconds to run. If everything goes according to plan, you should see something similar to the following as the last line of output after the tests are completed:
 
 ```
-7 passing (354ms)
+26 passing (354ms)
 ```
 
 Note that the actual number might vary depending on whether additional tests have been added since this document was written. In any case, there should be no mentions of failed tests. If there are, please first check your test configuration. If you then still think that a failure is caused by a bug in Cassiopeia's source code, please tell us about it.

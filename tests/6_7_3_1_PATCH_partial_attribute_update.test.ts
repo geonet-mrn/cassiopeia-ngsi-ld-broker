@@ -62,7 +62,7 @@ const patchFragment = {
 
 
 
-describe('6.7.3.1 PATCH entities/<entity_id>/attrs/<attr_id>', function () {
+describe('6.7.3.1 PATCH entities/<entityId>/attrs/<attrId>', function () {
 
 
     beforeEach(async () => {

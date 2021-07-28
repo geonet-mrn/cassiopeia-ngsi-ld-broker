@@ -44,7 +44,7 @@ const entities = [
 
 
 
-describe('6.7.3.2 DELETE entities/<entity_id>/attrs/<attr_id>', function () {
+describe('6.7.3.2 DELETE entities/<entityId>/attrs/<attrId>', function () {
 
 
     before(async () => {

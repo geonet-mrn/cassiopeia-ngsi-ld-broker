@@ -37,7 +37,7 @@ const appendAttributesFragment = {
 }
 
 
-describe('6.6.3.1 POST entities/<entity_id>/attrs/', function () {
+describe('6.6.3.1 POST entities/<entityId>/attrs/', function () {
 
     beforeEach(async () => {
         await prep.deleteAllEntities()

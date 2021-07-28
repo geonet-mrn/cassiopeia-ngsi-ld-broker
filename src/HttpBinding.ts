@@ -723,13 +723,13 @@ export class HttpBinding {
     // Spec 6.22.3.2
     // Binding for spec 5.6.15
     http_6_22_3_2_DELETE_deleteAttributeInstanceOfTemporalEntity = async (ctx: any, next: any) => {
-
+        
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
-
+        
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
-
+     
         await this.broker.api_5_6_15_deleteAttributeInstanceOfTemporalEntity(ctx.params.entityId, ctx.params.attrId, ctx.params.instanceId, contextUrl)
         ctx.status = 204
 
