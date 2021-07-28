@@ -7,7 +7,7 @@ import { Query } from "./dataTypes/Query"
 export const attributeTypes = ["https://uri.etsi.org/ngsi-ld/Property", "https://uri.etsi.org/ngsi-ld/GeoProperty", "https://uri.etsi.org/ngsi-ld/Relationship"]
 
 // These are all members that are common for Property, GeoProperty and Relationship:
-const defaultAttributeMembers = ["@type", "https://uri.etsi.org/ngsi-ld/createdAt", "https://uri.etsi.org/ngsi-ld/modifiedAt", "https://uri.etsi.org/ngsi-ld/observedAt", 'https://uri.etsi.org/ngsi-ld/datasetId']
+const defaultAttributeMembers = ["@type", "https://uri.etsi.org/ngsi-ld/createdAt", "https://uri.etsi.org/ngsi-ld/modifiedAt", "https://uri.etsi.org/ngsi-ld/observedAt", 'https://uri.etsi.org/ngsi-ld/datasetId', 'https://uri.etsi.org/ngsi-ld/instanceId']
 
 // Additional special members for Property:
 const defaultPropertyMembers = ["https://uri.etsi.org/ngsi-ld/hasValue", "https://uri.etsi.org/ngsi-ld/unitCode"]
