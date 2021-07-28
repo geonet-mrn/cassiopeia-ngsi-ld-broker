@@ -30,6 +30,7 @@
 
 
 import * as Koa from "koa"
+import * as compress from "koa-compress"
 import * as Router from "koa-router"
 import * as klogger from "koa-logger"
 import * as kbodyparser from "koa-bodyparser"
@@ -150,7 +151,7 @@ export class HttpBinding {
         const csf = ctx.request.query.csf
 
         // NOTE: The parameters 'geometryProperty' and 'datasetId' are defined in spec 6.3.15:
-        
+
         const datasetId = ctx.request.query.datasetId
 
         let geometryProperty = ctx.request.query.geometryProperty
@@ -201,7 +202,7 @@ export class HttpBinding {
     http_6_5_3_2_DELETE_deleteEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         ctx.body = await this.broker.api_5_6_6_deleteEntity(ctx.params.entityId)
@@ -215,9 +216,9 @@ export class HttpBinding {
     // Binding for spec 5.6.3
     http_6_6_3_1_POST_appendEntityAttributes = async (ctx: any, next: any) => {
 
-       
+
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -225,7 +226,7 @@ export class HttpBinding {
         const options = (typeof (ctx.request.query.options) == "string") ? (ctx.request.query.options as string).split(",") : []
 
         const overwrite = !options.includes("noOverwrite")
-        
+
         let result = await this.broker.api_5_6_3_appendEntityAttributes(ctx.params.entityId, ctx.request.rawBody, contextUrl, overwrite)
 
         console.log(result)
@@ -247,7 +248,7 @@ export class HttpBinding {
     http_6_6_3_2_PATCH_updateEntityAttributes = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -271,7 +272,7 @@ export class HttpBinding {
     http_6_7_3_1_PATCH_partialAttributeUpdate = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -288,9 +289,9 @@ export class HttpBinding {
     http_6_7_3_2_DELETE_deleteEntityAttribute = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
-        
+
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
 
         const deleteAll = (ctx.request.query.deleteAll == "true")
@@ -306,7 +307,7 @@ export class HttpBinding {
     http_6_8_3_1_registerContextSource = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         throw errorTypes.OperationNotSupported.withDetail(this.ERROR_MSG_NOT_IMPLEMENTED_YET)
@@ -337,7 +338,7 @@ export class HttpBinding {
     http_6_9_3_2_updateContextSourceRegistration = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         throw errorTypes.OperationNotSupported.withDetail(this.ERROR_MSG_NOT_IMPLEMENTED_YET)
@@ -349,7 +350,7 @@ export class HttpBinding {
     http_6_9_3_3_deleteContextSourceRegistration = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         throw errorTypes.OperationNotSupported.withDetail(this.ERROR_MSG_NOT_IMPLEMENTED_YET)
@@ -362,7 +363,7 @@ export class HttpBinding {
     http_6_10_3_1_createSubscription = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")      
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         throw errorTypes.OperationNotSupported.withDetail(this.ERROR_MSG_NOT_IMPLEMENTED_YET)
@@ -375,7 +376,7 @@ export class HttpBinding {
     http_6_10_3_2_querySubscriptions = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         throw errorTypes.OperationNotSupported.withDetail(this.ERROR_MSG_NOT_IMPLEMENTED_YET)
@@ -388,7 +389,7 @@ export class HttpBinding {
     http_6_14_3_1_POST_batchEntityCreation = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -414,7 +415,7 @@ export class HttpBinding {
     http_6_15_3_1_POST_batchEntityUpsert = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -427,7 +428,7 @@ export class HttpBinding {
             options = "replace"
         }
 
-        
+
 
         const result = await this.broker.api_5_6_8_batchEntityUpsert(ctx.request.rawBody, options, contextUrl)
 
@@ -458,7 +459,7 @@ export class HttpBinding {
     http_6_16_3_1_POST_batchEntityUpdate = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -485,7 +486,7 @@ export class HttpBinding {
     http_6_17_3_1_POST_batchEntityDelete = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         const result = await this.broker.api_5_6_10_batchEntityDelete(ctx.request.rawBody)
@@ -507,7 +508,7 @@ export class HttpBinding {
     http_6_18_3_1_POST_createOrUpdateTemporalEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -657,7 +658,7 @@ export class HttpBinding {
     http_6_19_3_2_DELETE_deleteTemporalEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         await this.broker.api_5_6_16_deleteTemporalEntity(ctx.params.entityId)
@@ -672,11 +673,11 @@ export class HttpBinding {
     http_6_20_3_1_POST_addAttributesToTemporalEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
-        
+
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
-        
+
         ctx.body = await this.broker.api_5_6_12_addAttributesToTemporalEntity(ctx.params.entityId, ctx.request.rawBody, contextUrl)
 
         await next()
@@ -688,14 +689,14 @@ export class HttpBinding {
     http_6_21_3_1_DELETE_deleteAttributeFromTemporalEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
 
         const deleteAll = (ctx.request.query.deleteAll == "true")
-        
-        
+
+
         ctx.body = await this.broker.api_5_6_13_deleteAttributeFromTemporalEntity(ctx.params.entityId, ctx.params.attrId, ctx.request.query.datasetId, contextUrl, deleteAll)
         ctx.status = 204
 
@@ -708,7 +709,7 @@ export class HttpBinding {
     http_6_22_3_1_PATCH_modifyAttributeInstanceOfTemporalEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -723,13 +724,13 @@ export class HttpBinding {
     // Spec 6.22.3.2
     // Binding for spec 5.6.15
     http_6_22_3_2_DELETE_deleteAttributeInstanceOfTemporalEntity = async (ctx: any, next: any) => {
-        
+
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
-        
+
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
-     
+
         await this.broker.api_5_6_15_deleteAttributeInstanceOfTemporalEntity(ctx.params.entityId, ctx.params.attrId, ctx.params.instanceId, contextUrl)
         ctx.status = 204
 
@@ -764,7 +765,7 @@ export class HttpBinding {
 
 
 
-        
+
 
         if (ctx.request.headers["accept"] == "application/geo+json" && query.geometryProperty == undefined) {
             query.geometryProperty = "location"
@@ -901,7 +902,7 @@ export class HttpBinding {
     http_inofficial_DELETE_deleteAllEntities = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
 
@@ -914,7 +915,7 @@ export class HttpBinding {
     http_inofficial_POST_temporalEntityOperationsUpsert = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")            
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
@@ -979,6 +980,31 @@ export class HttpBinding {
         //############# END Set CORS Headers ###############
 
         this.app.use(this.router.routes()).use(this.router.allowedMethods())
+
+
+
+        if (this.config.compressOutput) {
+  
+            this.app.use(compress({
+                threshold: 2048,
+               
+                /*
+                filter(content_type: string) {
+                    return /text/i.test(content_type)
+                },
+                */
+                  /*         
+                gzip: {
+                    flush: require('zlib').constants.Z_SYNC_FLUSH
+                },
+                deflate: {
+                    flush: require('zlib').constants.Z_SYNC_FLUSH,
+                },
+                br: false // disable brotli
+               */
+            }))
+
+        }
 
         // Start broker:
         this.app.listen(this.config.port, () => {

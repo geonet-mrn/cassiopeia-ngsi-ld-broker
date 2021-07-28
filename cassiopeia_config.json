@@ -1,4 +1,8 @@
 {
+    "compressOutput" : false,
+
+    "port": 3000,
+
     "psql": {        
         "host": "localhost",
         "database": "cassiopeia",
@@ -6,8 +10,6 @@
         "password": "",
         "port": 5432
     },
-
-    "port": 3000,
 
     "users": [
         {

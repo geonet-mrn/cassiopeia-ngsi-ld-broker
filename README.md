@@ -16,9 +16,10 @@ An ongoing project to implement a light-weight and fast NGSI-LD broker in TypeSc
     - 6.5.) [Preparing the PostgreSQL Database](#65-preparing-the-postgresql-database)
     - 6.6.) [Installing required npm packages and compiling Cassiopeia's TypeScript code to JavaScript](#66-installing-required-npm-packages-and-compiling-cassiopeias-typescript-code-to-javascript)
     - 6.7.) [Modify Cassiopeia's configuration file](#67-modify-cassiopeias-configuration-file)
-      - 6.7.1.) [Settings under "psql":](#671-settings-under-psql)
-      - 6.7.2.) [Settings under "users":](#672-settings-under-users)
-      - 6.7.3.) [Setting "port:](#673-setting-port)
+      - 6.7.1.) [Setting "compressOutput":](#671-setting-compressoutput)
+      - 6.7.2.) [Setting "port":](#672-setting-port)
+      - 6.7.3.) [Settings under "psql":](#673-settings-under-psql)
+      - 6.7.4.) [Settings under "users":](#674-settings-under-users)
     - 6.8.) [Starting the broker](#68-starting-the-broker)
     - 6.9.) [Unit Tests](#69-unit-tests)
 
@@ -191,30 +192,36 @@ The file `cassiopeia_config.json` holds various settings that must be adjusted f
 
 Open `cassiopeia_config.json` with your text editor of choice and adjust its content as follows:
 
-### 6.7.1. Settings under "psql":
+### 6.7.1. Setting "compressOutput":
+
+This setting specified whether or not HTTP response payloads should be compressed. Allowed values are 'true' and 'false' (as JSON booleans, i.e. without the single quotes). Enabling response payload compression can significantly reduce the amount of transferred bytes, and thus, transfer time. *However*, it increases request/response processing time both on the server and on the client. If your server and/or your client machine(s) are not fast enough, enabling output compression might actually *increase* overall request/response times. The default setting is 'false'.
+
+### 6.7.2. Setting "port":
+
+This setting defines the network port on which Cassiopeia is listening. The default value is 3000.
+
+
+### 6.7.3. Settings under "psql":
+
+- "database" : The name of the PostgreSQL database you have created for Cassiopeia. Default is "cassiopeia".
 
 - "host" : The host name or IP address of the machine your PostgreSQL server runs on. Default is "localhost".
 
 - "port": The port your PostgreSQL server listens on. The default port for PostgreSQL is 5432.
 
-- "database" : The name of the PostgreSQL database you have created for Cassiopeia. Default is "cassiopeia".
+- "password": The password you have set for the PostgreSQL role "cassiopeia" (represented by the placeholder "MY_PASSWORD" in the instructions above)
 
 - "user" : The name of the PostgreSQL role for Cassiopeia which you have created earlier. Default is "cassiopeia".
 
-- "password": The password you have set for the PostgreSQL role "cassiopeia" (represented by the placeholder "MY_PASSWORD" in the instructions above)
 
 
-### 6.7.2. Settings under "users":
+### 6.7.4. Settings under "users":
 
 The pairs of username and password specified here represent the HTTP Basic Authentication credentials which can be used to perform write operations on the broker. 
 
 Currently, Cassiopeia's user rights management system is extremely limited. NGSI-LD itself does not specify anything about how user rights should be defined and checked. Since this is not practical for most "real world" use cases, we have decided to implement our own solution for this. Currently, it only distinguishes between two types of actions: Full read and full write. It is currently not possible to specify more fine-grained access rules, like allowing/disallowing the use of different API operations or read/write access to individual entities on a per-user basis. 
 
 As far as access control is currently implemented, reading is open for everybody, including anonymous users. Any write operation (i.e. creating, modifying or deleting entities and attributes) requires the user to provide one of the username/password pairs specified in the cassiopeia_config.json file as a HTTP Basic Authentication header in the HTTP request.
-
-### 6.7.3. Setting "port:
-
-This setting defines the network port on which Cassiopeia is listening. The default value is 3000.
 
 
 ## 6.8. Starting the broker
