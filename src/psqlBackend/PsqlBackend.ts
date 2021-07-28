@@ -19,6 +19,7 @@ import { compactObject, expandObject, getNormalizedContext } from '../jsonld'
 import { JsonLdContextNormalized } from 'jsonld-context-parser'
 import { UpdateResult } from '../dataTypes/UpdateResult'
 import { NotUpdatedDetails } from '../dataTypes/NotUpdatedDetails'
+import { execPath } from 'process'
 
 
 export class PsqlBackend {
@@ -43,20 +44,13 @@ export class PsqlBackend {
 
 
 
-    async addAttributesToTemporalEntity(entityId: string, fragment_expanded: any) {
+    async addAttributesToEntity(entityInternalId: number, fragment_expanded: any) {
 
-        //###################### BEGIN Try to fetch existing entity ########################
-        const entityMetadata = await this.getEntityMetadata(entityId, true)
-
-        if (!entityMetadata) {
-            throw errorTypes.ResourceNotFound.withDetail("No entity with the passed ID exists: " + entityId)
-        }
-        //###################### END Try to fetch existing entity ########################
-
-
-        // "For each Attribute included by the Entity Fragment at root level":
+        let sql_transaction = "BEGIN;"
 
         //####################### BEGIN Iterate over attributes #############################
+
+        // "For each Attribute included by the Entity Fragment at root level":
         for (const attributeId in fragment_expanded) {
 
             let attribute = (fragment_expanded as any)[attributeId]
@@ -69,20 +63,17 @@ export class PsqlBackend {
                 attribute = [attribute]
             }
 
-            //#################### BEGIN Iterate over attribute instances #####################
-
-            let sql_transaction = "BEGIN;"
-
+            //#################### BEGIN Iterate over attribute instances #####################          
             for (const instance of attribute) {
-                //await this.psql.runSqlQuery(this.psql.makeCreateAttributeQuery(entityMetadata.id, attributeId, instance))
-                sql_transaction += this.makeCreateAttributeQuery(entityMetadata.id, attributeId, instance)
+                sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId, instance)
             }
-
-            sql_transaction += "COMMIT;"
-
-            await this.runSqlQuery(sql_transaction)
+            //#################### END Iterate over attribute instances #####################          
         }
         //################## END Iterate over attributes #######################
+
+        sql_transaction += "COMMIT;"
+
+        await this.runSqlQuery(sql_transaction)
     }
 
 
@@ -121,68 +112,39 @@ export class PsqlBackend {
     }
 
 
-    async createEntity(entity: any, temporal: boolean): Promise<number> {
-
-
-        const now = new Date()
-
-        // Begin construction of transaction query:
-        let query_transaction = "BEGIN;"
-
+    async createEntity(entity_expanded: any, temporal: boolean): Promise<number> {
 
         //############## BEGIN Build INSERT query for entities table ###########
+        const now = new Date()
+
         const queryBuilder = new InsertQueryBuilder()
 
-        queryBuilder.add(this.tableCfg.COL_ENT_ID, entity['@id'])
-        queryBuilder.add(this.tableCfg.COL_ENT_TYPE, entity['@type'])
+        queryBuilder.add(this.tableCfg.COL_ENT_ID, entity_expanded['@id'])
+        queryBuilder.add(this.tableCfg.COL_ENT_TYPE, entity_expanded['@type'])
         queryBuilder.add(this.tableCfg.COL_ENT_CREATED_AT, now.toISOString())
         queryBuilder.add(this.tableCfg.COL_ENT_MODIFIED_AT, now.toISOString())
         queryBuilder.add(this.tableCfg.COL_ENT_TEMPORAL, temporal.toString())
         //############## END Build INSERT query for entities table ###########
 
-        // Create row in entity metadata table:     
-        query_transaction += queryBuilder.getStringForTable(this.tableCfg.TBL_ENT)
 
-        //################## BEGIN Create rows in attributes table ##################
-        for (const attributeId in entity) {
-
-            let attribute = (entity as any)[attributeId]
-
-            let checkResult = checkReifiedAttribute(attribute, attributeId, undefined, false)
+        
+        const queryResult = await this.runSqlQuery(queryBuilder.getStringForTable(this.tableCfg.TBL_ENT, "id"))
+        
+        .catch((error: any) => {})
 
 
-            if (checkResult.length > 0) {
-                continue
-            }
-
-
-            if (!(attribute instanceof Array)) {
-                attribute = [attribute]
-            }
-
-            for (const instance of attribute) {
-                query_transaction += this.makeCreateAttributeQuery(-1, attributeId, instance)
-            }
+        if (queryResult == undefined) {
+            
+            return new Promise<number>((resolve, reject) => {
+                resolve(-1)
+            })
         }
-        //################## END Create rows in attributes table ##################
 
+        
+        const insertId = queryResult.rows[0].id
 
-        // Finish construction of transaction query:
-        query_transaction += "COMMIT;"
-
-        // Run transaction query:
-
-        // TODO: 1 Don't catch SQL exception here
-        let transactionResult: any = await this.runSqlQuery(query_transaction).catch((error: any) => {
-
-            if (error.code == "23505") {
-                return new Promise<number>((resolve, reject) => {
-                    reject(error.code)
-                })
-            }
-        })
-
-
+        await this.addAttributesToEntity(insertId, entity_expanded)
+      
         return new Promise<number>((resolve, reject) => {
             resolve(1)
         })
@@ -205,53 +167,21 @@ export class PsqlBackend {
             })
         }
 
+        // If the entity already exists:
 
-        // Otherwise, update it (append attributes):
+        // 5.6.4.11: 
 
-        // Begin construction of transaction query:
-        let query_transaction = "BEGIN;"
+        // "If the NGSI-LD endpoint already knows about this Temporal Representation of an Entity, 
+        // because there is an existing Temporal Representation of an Entity whose id (URI) is the same, 
+        // then all the Attribute instances included by the Temporal Representation shall be added to 
+        // the existing Entity as mandated by clause 5.6.12.":
 
-        //####################### BEGIN Iterate over attributes #############################
-        for (const attributeId in entity_expanded) {
-
-            let attribute = (entity_expanded as any)[attributeId]
-
-            if (!isReifiedAttribute(attribute, attributeId)) {
-                continue
-            }
-
-            if (!(attribute instanceof Array)) {
-                attribute = [attribute]
-            }
-
-            //#################### BEGIN Iterate over attribute instances #####################
-            for (const instance of attribute) {
-                query_transaction += this.makeCreateAttributeQuery(entityMetadata.id, attributeId, instance)
-            }
-            //################## END Iterate over attribute instances #######################
-        }
-        //####################### END Iterate over attributes #############################
-
-        // Finish construction of transaction query:
-        query_transaction += "COMMIT;"
-
-
-        // Run transaction query:
-        const transactionResult: any = await this.runSqlQuery(query_transaction).catch((error: any) => {
-
-            // TODO: What errors can happen here?
-            /*
-            if (error.code == "23505") {
-                return new Promise<number>((resolve, reject) => {
-                    reject(error.code)
-                })
-            }
-            */
-        })
+        await this.addAttributesToEntity(entityMetadata.id, entity_expanded)
 
         return new Promise<number>((resolve, reject) => {
             resolve(204)
         })
+
     }
 
 
@@ -289,14 +219,14 @@ export class PsqlBackend {
         // datasetId_expanded == null -> delete default instance(s) (i.e. instances without datasetId)
         // datasetId_expanded == undefined -> delete all instances
         // datasetId_expanded == something else -> delete instance(s) with the specified dataset id
-             
+
 
         // Match dataset ID if provided:
         // ATTENTION: It is REQUIRED to compare with a "!==" here! We must NOT use a "!="!
-        if (datasetId !== undefined) {            
+        if (datasetId !== undefined) {
             sql += ` AND ${this.makeSqlCondition_datasetId(datasetId)}`
         }
-        
+
         const queryResult = await this.runSqlQuery(sql)
 
         // Return number of deleted rows as promise:
@@ -364,7 +294,7 @@ export class PsqlBackend {
 
     async getAvailableAttributes(): Promise<AttributeList> {
 
-        // TODO: 2 Should default attributes like "createdAt" be included here?
+        // TODO: 3 Ask: Should default attributes like "createdAt" be included here?
 
         const result = new AttributeList()
 
@@ -593,7 +523,7 @@ export class PsqlBackend {
             const instance = row[this.tableCfg.COL_INSTANCE_JSON]
 
             // TODO: 1 Add method to create instance ID string from number
-            
+
             // ATTENTION: The returned instance ID value string MUST contain an "_" (underscore) because we
             // use it in PsqlBackend::deleteAttribute() as a string separator character to extract the
             // actual instance id number from a passed instance id string.
@@ -607,7 +537,7 @@ export class PsqlBackend {
 
                 if (row["attr_observed_at"] != null) {
                     instance["https://uri.etsi.org/ngsi-ld/observedAt"] = row["attr_observed_at"]
-                }               
+                }
             }
             //####### END Restore JSON fields that have their own database column ##########
 
@@ -766,7 +696,41 @@ export class PsqlBackend {
     }
 
 
-    makeCreateAttributeQuery(entityInternalId: number, attributeId: string, instance: any): string {
+    makeAddAttributesToEntityTransactionPart(entityInternalId: number, fragment_expanded: any) {
+
+        //let sql_transaction = "BEGIN;"
+        let sql_transaction = ""
+
+        //####################### BEGIN Iterate over attributes #############################
+
+        // "For each Attribute included by the Entity Fragment at root level":
+        for (const attributeId in fragment_expanded) {
+
+            let attribute = (fragment_expanded as any)[attributeId]
+
+            if (!isReifiedAttribute(attribute, attributeId)) {
+                continue
+            }
+
+            if (!(attribute instanceof Array)) {
+                attribute = [attribute]
+            }
+
+            //#################### BEGIN Iterate over attribute instances #####################          
+            for (const instance of attribute) {
+                sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId, instance)
+            }
+            //#################### END Iterate over attribute instances #####################          
+        }
+        //################## END Iterate over attributes #######################
+
+        //sql_transaction += "COMMIT;"
+
+        //await this.runSqlQuery(sql_transaction)
+        return sql_transaction
+    }
+
+    makeCreateAttributeInstanceQuery(entityInternalId: number, attributeId: string, instance: any): string {
 
         // NOTE: This is implemented as a method that returns an SQL string instead of
         // a method which directly creates an attribute, because in some places, we want
@@ -1130,12 +1094,10 @@ export class PsqlBackend {
 
     private async runSqlQuery(sql: string): Promise<pg.QueryResult> {
 
-        // console.log(sql)
-        console.log("-------------------------")
-
         const resultPromise = this.pool.query(sql)
 
         // Print error, but still continue with the normal promise chain:
+        
         resultPromise.then(null, (e) => {
             console.log()
             console.log("Something went wrong:")
@@ -1143,7 +1105,7 @@ export class PsqlBackend {
             console.log(e)
             console.log("------------------------------")
         })
-
+        
         return resultPromise
     }
 
@@ -1160,6 +1122,7 @@ export class PsqlBackend {
 
 
         let sql_transaction = "BEGIN;"
+
         sql_transaction += this.makeUpdateAttributeInstanceQuery(entityMetadata.id, attributeId_expanded, instanceId_expanded, instance, false)
         sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityMetadata.id)
 
@@ -1237,7 +1200,7 @@ export class PsqlBackend {
 
                 if (numExistingInstancesWithSameDatasetId == 0) {
 
-                    sql_transaction += this.makeCreateAttributeQuery(entityInternalId, attributeId, instance)
+                    sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId, instance)
 
                     updated = true
                 }
@@ -1306,7 +1269,7 @@ export class PsqlBackend {
 
             // Throw error if more than one attribute instance with same datasetId is found (should never happen!):
             if (numRowsAffected > 1) {
-                throw errorTypes.InternalError.withDetail(`Multiple attribute instances (${numRowsAffected}) were updated in an operation that should affect one attribute instance at most. This is sign of invalid database content and should never happen. Entity ID: '${entityId}', Attribute ID: '${attributeId_expanded}', Dataset ID: '${instance['https://uri.etsi.org/ngsi-ld/datasetId']}'.`)
+                throw errorTypes.InternalError.withDetail(`Multiple attribute instances (${numRowsAffected}) were updated in an operation that should affect one attribute instance at most. This is a sign of invalid database content and should never happen. Entity ID: '${entityId}', Attribute ID: '${attributeId_expanded}', Dataset ID: '${instance['https://uri.etsi.org/ngsi-ld/datasetId']}'.`)
             }
 
             // If *exactly one* attribute instance with same datasetId is found, update it:

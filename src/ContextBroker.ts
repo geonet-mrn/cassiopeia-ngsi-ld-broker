@@ -46,12 +46,12 @@ export class ContextBroker {
         }
 
 
-        let resultCode = await this.psql.createEntity(entity_expanded, false).catch((errorCode) => {
+        const resultCode = await this.psql.createEntity(entity_expanded, false)
 
-            if (errorCode == "23505") {
-                throw errorTypes.AlreadyExists.withDetail(`An Entity with the ID '${entity_expanded['@id']}' already exists.`)
-            }
-        })
+        if (resultCode == -1) {             
+            throw errorTypes.AlreadyExists.withDetail(`An Entity with the ID '${entity_expanded['@id']}' already exists.`)
+        }
+
     }
 
 
@@ -121,12 +121,11 @@ export class ContextBroker {
         const fragment_compacted = parseJson(fragmentJsonString)
 
         const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : fragment_compacted['@context']
+
         const actualContext = appendCoreContext(nonNormalizedContext)
         const context = await getNormalizedContext(actualContext)
 
         const fragment_expanded = expandObject(fragment_compacted, context)
-
-
         const attributeId_expanded = expandObject(attributeId_compacted, context)
 
         //################### BEGIN Input validation ##################
@@ -167,25 +166,23 @@ export class ContextBroker {
     // Spec 5.6.5
     async api_5_6_5_deleteEntityAttribute(entityId: string, attributeId_compacted: string, datasetId_compacted: string | undefined, contextUrl: string | undefined, deleteAll: boolean) {
 
-        //######## BEGIN Determine actual datasetId value to use ########
+        //################## BEGIN Determine actual datasetId to use ################
         let useDatasetId_compacted: string | null | undefined = datasetId_compacted
 
         // If datasetId is undefined, but 'deleteAll' is not set, this means that the default instance
         // should be deleted, which is characterized by having datasetId = null:
 
-        if (datasetId_compacted == undefined && !deleteAll) {
+        if (datasetId_compacted == undefined) {
             useDatasetId_compacted = null
         }
-        //######## END Determine actual datasetId value to use ########
+
+        if (deleteAll) {
+            useDatasetId_compacted = undefined
+        }
+        //################## END Determine actual datasetId to use ################
 
 
-        const actualContext = appendCoreContext(contextUrl)
-        const context = await getNormalizedContext(actualContext)
-
-        const attributeId_expanded = expandObject(attributeId_compacted, context)
-        const datasetId_expanded = expandObject(useDatasetId_compacted, context)
-
-        await this.deleteAttribute(entityId, false, attributeId_expanded, datasetId_expanded, undefined)
+        await this.deleteAttribute(entityId, false, attributeId_compacted, useDatasetId_compacted, undefined, contextUrl)
     }
 
 
@@ -240,17 +237,17 @@ export class ContextBroker {
             const actualContext = appendCoreContext(nonNormalizedContext)
             const context = await getNormalizedContext(actualContext)
 
-            const entity = expandObject(ec, context)
+            const entity_expanded = expandObject(ec, context)
 
-            const creationResultCode = await this.psql.createEntity(entity, false).catch((errorCode) => {
+           
 
-                if (errorCode == "23505") {
-                    result.errors.push(new BatchEntityError(entity['@id'], new ProblemDetails("", "Entity creation failed.", "An entity with the same ID already exists.", 409)))
-                }
-            })
+            const resultCode = await this.psql.createEntity(entity_expanded, false)
 
-            if (creationResultCode == 1) {
-                result.success.push(entity['@id'])
+            if (resultCode == 1) {                
+                result.success.push(entity_expanded['@id'])
+            }
+            else {
+                result.errors.push(new BatchEntityError(entity_expanded['@id'], new ProblemDetails("", "Entity creation failed.", "An entity with the same ID already exists.", 409)))
             }
         }
         //######## END Iterate over list of uploaded entities and try to write them to the database ########
@@ -311,15 +308,13 @@ export class ContextBroker {
             // ############## BEGIN CREATE the Entity if it does not exist ###############            
             if (!existingEntityMetadata) {
 
-                const creationResultCode = await this.psql.createEntity(entity_expanded, false).catch((errorCode) => {
+                const resultCode = await this.psql.createEntity(entity_expanded, false)
 
-                    if (errorCode == "23505") {
-                        result.errors.push(new BatchEntityError(entity_expanded['@id'], new ProblemDetails("", "Entity creation failed.", "An entity with the same ID already exists.", 409)))
-                    }
-                })
-
-                if (creationResultCode == 1) {
+                if (resultCode == 1) {
                     entity_ids_created.push(entity_expanded['@id'])
+                }
+                else if (resultCode != 1) {                    
+                    result.errors.push(new BatchEntityError(entity_expanded['@id'], new ProblemDetails("", "Entity creation failed.", "An entity with the same ID already exists.", 409)))
                 }
             }
             // ############## END CREATE the Entity if it does not exist ###############
@@ -346,17 +341,15 @@ export class ContextBroker {
                     })
 
                     // NOTE: No need to process return value
-                    const creationResultCode = await this.psql.createEntity(entity_expanded, false).catch((errorCode) => {
 
-                        if (errorCode == "23505") {
-                            result.errors.push(new BatchEntityError(entity_expanded['@id'], new ProblemDetails("", "Entity replace failed.", "An entity with the same ID already exists.", 409)))
-                        }
-                    })
+                    const resultCode = await this.psql.createEntity(entity_expanded, false)
 
-                    if (creationResultCode == 1) {
+                    if (resultCode == 1) {
                         entity_ids_updated.push(entity_expanded['@id'])
                     }
-
+                    else {
+                        result.errors.push(new BatchEntityError(entity_expanded['@id'], new ProblemDetails("", "Entity replace failed.", "An entity with the same ID already exists.", 409)))
+                    }
                 }
 
                 // "If there were an existing Entity with the same Entity Id, it shall be executed the 
@@ -541,7 +534,17 @@ export class ContextBroker {
             throw errorTypes.InvalidRequest.withDetail("The submitted data is not a valid NGSI-LD entity: " + entityCheckResults.join(" "))
         }
 
-        return await this.psql.addAttributesToTemporalEntity(entityId, fragment_expanded)
+
+        //###################### BEGIN Try to fetch existing entity ########################
+        const entityMetadata = await this.psql.getEntityMetadata(entityId, true)
+
+        if (!entityMetadata) {
+            throw errorTypes.ResourceNotFound.withDetail("No entity with the passed ID exists: " + entityId)
+        }
+        //###################### END Try to fetch existing entity ########################
+
+
+        await this.psql.addAttributesToEntity(entityMetadata.id, fragment_expanded)
     }
 
 
@@ -563,22 +566,8 @@ export class ContextBroker {
         }
         //################## END Determine actual datasetId to use ################
 
-        const actualContext = appendCoreContext(contextUrl)
-        const context = await getNormalizedContext(actualContext)
 
-        const attributeId_expanded = expandObject(attributeId_compacted, context)
-        const datasetId_expanded = expandObject(useDatasetId_compacted, context)
-      
-
-        // TODO: 2 Implement 5.6.13.4 " If the target Entity does not contain the target Attribute then an error of type ResourceNotFound shall be raised."
-
-        // Possible cases:
-        // useDatasetId == null -> delete default instance(s) (i.e. instances without datasetId)
-        // useDatasetId == undefined -> delete all instances
-        // useDetasetId == something else -> delete instance(s) with the specified dataset id
-
-
-        await this.deleteAttribute(entityId, true, attributeId_expanded, datasetId_expanded, undefined)
+        await this.deleteAttribute(entityId, true, attributeId_compacted, useDatasetId_compacted, undefined, contextUrl)
     }
 
 
@@ -646,14 +635,7 @@ export class ContextBroker {
     // Spec 5.6.15
     async api_5_6_15_deleteAttributeInstanceOfTemporalEntity(entityId: string, attributeId_compacted: string, instanceId_compacted: string, contextUrl: string | undefined) {
 
-        const actualContext = appendCoreContext(contextUrl)
-        const context = await getNormalizedContext(actualContext)
-
-        const attributeId_expanded = expandObject(attributeId_compacted, context)
-        const instanceId_expanded = expandObject(instanceId_compacted, context)
-
-        // TODO 3: Ask: Can the attribute instances of temporal entities have a datasetId?
-        await this.deleteAttribute(entityId, true, attributeId_expanded, undefined, instanceId_expanded)
+        await this.deleteAttribute(entityId, true, attributeId_compacted, undefined, instanceId_compacted, contextUrl)
     }
 
 
@@ -665,7 +647,7 @@ export class ContextBroker {
         }
 
         // TODO: 2 Catch SQL exceptions here instead of returning them
-        let result = await this.psql.deleteEntity(entityId).catch((e) => {
+        const result = await this.psql.deleteEntity(entityId).catch((e) => {
             throw errorTypes.ResourceNotFound.withDetail("No entity with the passed ID exists: " + entityId)
         })
     }
@@ -740,10 +722,10 @@ export class ContextBroker {
 
 
         const actualContext = appendCoreContext(contextUrl)
-        
+
         const context = await getNormalizedContext(actualContext)
 
-        
+
         // Fetch entities
         let entities_expanded = await this.psql.queryEntities(query, false, includeSysAttrs, context)
 
@@ -844,7 +826,7 @@ export class ContextBroker {
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
 
-        
+
         if (query.temporalQ == undefined) {
             throw errorTypes.BadRequestData.withDetail("No temporal query provided in request.")
         }
@@ -964,7 +946,15 @@ export class ContextBroker {
 
 
 
-    async deleteAttribute(entityId: string, temporal: boolean, attributeId_expanded: string, datasetId_expanded: string | null | undefined, instanceId_expanded: string | undefined) {
+    async deleteAttribute(entityId: string, temporal: boolean, attributeId_compacted: string, datasetId_compacted: string | null | undefined, instanceId_expanded: string | undefined, contextUrl: any) {
+
+        const actualContext = appendCoreContext(contextUrl)
+        const context = await getNormalizedContext(actualContext)
+
+        const attributeId_expanded = expandObject(attributeId_compacted, context)
+        const datasetId_expanded = expandObject(datasetId_compacted, context)
+
+
 
         //######################## BEGIN Input validation ##############################
         if (!isUri(entityId)) {
@@ -991,13 +981,13 @@ export class ContextBroker {
         if (!entityMetadata) {
             throw errorTypes.ResourceNotFound.withDetail("No entity with the passed ID exists: " + entityId)
         }
-        
+
         const entityInternalId = entityMetadata.id
         //######## END Read target entity from database to get its internal ID, which is required for the delete call ##########
 
         const rowCount = await this.psql.deleteAttribute(entityInternalId, attributeId_expanded, instanceId_expanded, datasetId_expanded)
 
-        if (rowCount == 0) {        
+        if (rowCount == 0) {
             throw errorTypes.ResourceNotFound.withDetail(`Failed to delete attribute instance. No attribute instance with the following properties exists: Entity ID = '${entityId}', Attribute ID ='${attributeId_expanded}', Instance ID = '${instanceId_expanded}'.`)
         }
     }

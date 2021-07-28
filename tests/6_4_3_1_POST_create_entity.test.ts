@@ -63,4 +63,17 @@ describe('6.4.3.1 POST /entities/', function () {
 
 
 
+    it("Should return HTTP status code 409 if an entity with the same ID already exists", async function () {
+
+
+        // Try to create the same entity (with same id) again:
+        let response = await axios.post(testConfig.base_url + "entities/", entity, config).catch((err) => {
+            expect(err.response.status).equals(409)
+        })
+
+     
+        expect(response).to.be.undefined
+    })
+
+
 });

@@ -1,14 +1,13 @@
 // NGSI-LD Version 1.3.1
 // https://www.etsi.org/deliver/etsi_gs/CIM/001_099/009/01.03.01_60/gs_CIM009v010301p.pdf
 
-// TODO: 3 Automatically add "createdAt" and "modifiedAt" to all Attributes in JSON 
-// so that these fields can be queried with the query language. Remove them from output if not explicitly requested.
 
+// TODO: 1 Refactor PsqlBackend::addAttributesToTemporalEntity
 // TODO: 1 Spec 6.3.5 (Extract context from request)
 // TODO: 1 Spec 6.3.6 (Response context representation)
-// TODO: 2 Return error response if invalid JSON (e.g. something other than an array of entities) is passed to entityOperations/upsert. Currently, this throws a "500 server error"
+// TODO: 3 Automatically add "createdAt" and "modifiedAt" to all Attributes in JSON 
+// so that these fields can be queried with the query language. Remove them from output if not explicitly requested.
 // TODO: 3 Correct implementation for what to expand and what not
-// TODO: 3 What about querying of instanceId?
 // TODO: 3 Support GeoJSON for GeoProperty as string
 // TODO: 3 Spec 6.3.4 vervollständigen (v.a. check von Accept Headers)
 // TODO: 3 GeoJSON response headers-Gedöns (spec 6.3.6)
@@ -17,13 +16,10 @@
 // TODO: 4 Spec 4.5.9
 // TODO: 4 Print context parse errors in response
 // TODO: 4 Spec 5.7.2.4 Context header in GeoJSON response?
+// TODO 4: Implement "limit" / pagination (spec 6.3.10)
 // TODO: Spec 5.5.5
 // TODO: Spec 5.5.6
 // TODO: 5 Spec 5.5.9 (pagination)
-
-
-// TODO: Implement "limit" / pagination (spec 6.3.10)
-
 // TODO: 5 Spec 6.3.12
 // TODO: 5 Spec 6.3.13 (results count header)
 
@@ -44,6 +40,7 @@ import { getNormalizedContext, NGSI_LD_CORE_CONTEXT_URL } from "./jsonld"
 import { PsqlBackend } from "./psqlBackend/PsqlBackend"
 import * as fs from 'fs'
 import * as auth from 'basic-auth'
+import createStatsCollector = require("mocha/lib/stats-collector")
 
 
 export class HttpBinding {
@@ -70,10 +67,8 @@ export class HttpBinding {
     http_6_4_3_1_POST_createEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
-            return
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")        
         }
-
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
 
@@ -227,9 +222,7 @@ export class HttpBinding {
 
         const overwrite = !options.includes("noOverwrite")
 
-        let result = await this.broker.api_5_6_3_appendEntityAttributes(ctx.params.entityId, ctx.request.rawBody, contextUrl, overwrite)
-
-        console.log(result)
+        let result = await this.broker.api_5_6_3_appendEntityAttributes(ctx.params.entityId, ctx.request.rawBody, contextUrl, overwrite)       
 
         if (result.notUpdated.length == 0) {
             ctx.status = 204
@@ -678,7 +671,8 @@ export class HttpBinding {
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
 
-        ctx.body = await this.broker.api_5_6_12_addAttributesToTemporalEntity(ctx.params.entityId, ctx.request.rawBody, contextUrl)
+        await this.broker.api_5_6_12_addAttributesToTemporalEntity(ctx.params.entityId, ctx.request.rawBody, contextUrl)
+        ctx.status = 204
 
         await next()
     }
@@ -696,8 +690,7 @@ export class HttpBinding {
 
         const deleteAll = (ctx.request.query.deleteAll == "true")
 
-
-        ctx.body = await this.broker.api_5_6_13_deleteAttributeFromTemporalEntity(ctx.params.entityId, ctx.params.attrId, ctx.request.query.datasetId, contextUrl, deleteAll)
+        await this.broker.api_5_6_13_deleteAttributeFromTemporalEntity(ctx.params.entityId, ctx.params.attrId, ctx.request.query.datasetId, contextUrl, deleteAll)
         ctx.status = 204
 
         await next()
@@ -764,9 +757,6 @@ export class HttpBinding {
         }
 
 
-
-
-
         if (ctx.request.headers["accept"] == "application/geo+json" && query.geometryProperty == undefined) {
             query.geometryProperty = "location"
         }
@@ -783,8 +773,6 @@ export class HttpBinding {
             contextUrl = ""
         }
         //##################### END Resolve context ##################
-
-        console.log(JSON.stringify(query))
 
         ctx.body = await this.broker.api_5_7_2_queryEntities(query, contextUrl)
         ctx.status = 200

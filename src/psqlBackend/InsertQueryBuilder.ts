@@ -24,7 +24,15 @@ export class InsertQueryBuilder {
     }
 
 
-    getStringForTable(tableName: string): string {
-        return `INSERT INTO ${tableName} (${this.fields.join(",")}) VALUES (${this.values.join(",")});`
+    getStringForTable(tableName: string, returnField : string |undefined = undefined): string {
+        let result =  `INSERT INTO ${tableName} (${this.fields.join(",")}) VALUES (${this.values.join(",")})`
+
+        if (returnField != undefined){
+            result += " returning " + returnField
+        }
+
+        result += ";"
+        
+        return result
     }
 }

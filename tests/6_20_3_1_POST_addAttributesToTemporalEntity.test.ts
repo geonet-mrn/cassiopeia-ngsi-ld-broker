@@ -105,37 +105,16 @@ describe('6.20.3.1 POST temporal/entities/<entityId>/attrs/', function () {
         }) as AxiosResponse
 
 
+        const e = getResponse.data
 
 
         expect(getResponse).to.not.be.undefined
 
-        expect(getResponse.data.id).equals(entityId)
+        expect(e.id).equals(entityId)
 
+        expect(e.testProperty.length).equals(3)
 
-        const compareEntity = {
-
-
-            "id": entityId,
-            "type": "TemporalTestEntity",
-
-            "testProperty": [{
-                "type": "Property",
-                "value": 1
-            },
-            {
-                "type": "Property",
-                "value": 2
-            },
-            {
-                "type": "Property",
-                "value": 3
-            }]
-        }
-        // NOTE: This does no longer work because of the instanceIds
-
-
-        //expect(JSON.stringify(getResponse.data)).equals(JSON.stringify(compareEntity))
-
+        
 
     })
 
