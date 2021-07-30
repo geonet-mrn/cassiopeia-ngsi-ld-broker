@@ -6,7 +6,7 @@
     "psql": {        
         "host": "localhost",
         "database": "cassiopeia",
-        "user": "postgres",
+        "user": "cassiopeia",
         "password": "",
         "port": 5432
     },
