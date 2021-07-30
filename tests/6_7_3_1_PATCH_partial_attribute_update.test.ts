@@ -85,7 +85,7 @@ describe('6.7.3.1 PATCH entities/<entityId>/attrs/<attrId>', function () {
 
 
     afterEach(async () => {
-        await prep.deleteAllEntities()
+   //     await prep.deleteAllEntities()
 
     })
 
@@ -99,7 +99,7 @@ describe('6.7.3.1 PATCH entities/<entityId>/attrs/<attrId>', function () {
         // Step 1: Patch default instance attribute "multiAttribute":
         let patchUrl = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009/attrs/multiAttribute"
         const patchResponse = await axios.patch(patchUrl, patchFragment, config).catch((e) => {
-            console.log(e)
+            console.log(e.response.data)
             return
         })
 
