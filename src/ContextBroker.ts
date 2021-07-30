@@ -575,8 +575,7 @@ export class ContextBroker {
     async api_5_6_14_updateAttributeInstanceOfTemporalEntity(entityId: string, attributeId_compacted: string,
         instanceId_compacted: string, fragmentString_compacted: string, contextUrl: string | undefined) {
 
-        // TODO: 2 What if there are multiple attributes in the fragment?
-
+      
         const fragment_compacted = parseJson(fragmentString_compacted)
 
         const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : fragment_compacted['@context']
@@ -588,7 +587,7 @@ export class ContextBroker {
         const attributeId_expanded = expandObject(attributeId_compacted, context)
         const instanceId_expanded = expandObject(instanceId_compacted, context)
 
-        //########################### BEGIN Input validation #########################
+        //########################### BEGIN Generic NGSI-LD Input validation #########################
         if (!isUri(entityId)) {
             throw errorTypes.BadRequestData.withDetail(`'${entityId}' is not a valid URI.`)
         }
@@ -601,34 +600,38 @@ export class ContextBroker {
             throw errorTypes.BadRequestData.withDetail(`'${instanceId_compacted}' is not a valid URI.`)
         }
 
-
         const entityCheckResults = checkEntity(fragment_expanded, false)
 
         if (entityCheckResults.length > 0) {
             throw errorTypes.InvalidRequest.withDetail("The submitted data is not a valid NGSI-LD entity fragment: " + entityCheckResults.join(" "))
         }
-        //########################### END Input validation #########################
+        //########################### END Generic NGSI-LD Input validation #########################
 
-        if (!(attributeId_expanded in fragment_expanded)) {
+
+        //########################### BEGIN Use-Case-specific NGSI-LD Input validation #########################
+
+        let patchFragmentAttribute = fragment_expanded[attributeId_expanded]
+
+        if (patchFragmentAttribute == undefined) {
             throw errorTypes.BadRequestData.withDetail("Provided entity fragment does not contain an attribute with the id " + attributeId_expanded)
         }
 
-        let attribute = fragment_expanded[attributeId_expanded]
-
-        if (!(attribute instanceof Array)) {
-            attribute = [attribute]
+        if (!(patchFragmentAttribute instanceof Array)) {
+            throw errorTypes.ResourceNotFound.withDetail(`The attribute to patch ("${attributeId_expanded}") is not an array in the provided entity fragment`)
         }
 
-        for (const instance of attribute) {
-            if (instance["https://uri.etsi.org/ngsi-ld/instanceId"] == instanceId_expanded) {
-                await this.psql.updateAttributeInstanceOfTemporalEntity(entityId, attributeId_expanded, instanceId_expanded, instance)
-                return
-            }
+        if (patchFragmentAttribute.length != 1) {
+            throw errorTypes.BadRequestData.withDetail(`The attribute to patch ("${attributeId_expanded}") does not have the expected amount of exactly 1 attribute instances in the submitted NGSI-LD fragment`)
         }
+        //########################### END Use-Case-specific NGSI-LD Input validation #########################
 
-        if (!(attributeId_expanded in fragment_expanded)) {
-            throw errorTypes.BadRequestData.withDetail("Provided entity fragment does not contain an attribute instance with the instanceId " + instanceId_expanded)
-        }
+        const instance = patchFragmentAttribute[0]
+
+        console.log(instance)
+        await this.psql.updateAttributeInstanceOfTemporalEntity(entityId, attributeId_expanded, instanceId_expanded, instance)
+                
+        
+
     }
 
 

@@ -5,10 +5,13 @@
 // TODO: 1 Refactor PsqlBackend::addAttributesToTemporalEntity
 // TODO: 1 Spec 6.3.5 (Extract context from request)
 // TODO: 1 Spec 6.3.6 (Response context representation)
+// TODO: 2 Support GeoJSON for GeoProperty as string
+// TODO: 3 Correct implementation for what to expand and what not
+
 // TODO: 3 Automatically add "createdAt" and "modifiedAt" to all Attributes in JSON 
 // so that these fields can be queried with the query language. Remove them from output if not explicitly requested.
-// TODO: 3 Correct implementation for what to expand and what not
-// TODO: 3 Support GeoJSON for GeoProperty as string
+
+
 // TODO: 3 Spec 6.3.4 vervollständigen (v.a. check von Accept Headers)
 // TODO: 3 GeoJSON response headers-Gedöns (spec 6.3.6)
 // TODO: 3 5.7.2.4 Match ID patterns
@@ -700,7 +703,7 @@ export class HttpBinding {
     // Spec 6.22.3.1
     // Binding for spec 5.6.14
     http_6_22_3_1_PATCH_modifyAttributeInstanceOfTemporalEntity = async (ctx: any, next: any) => {
-
+       
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }

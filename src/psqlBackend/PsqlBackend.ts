@@ -53,19 +53,19 @@ export class PsqlBackend {
         // "For each Attribute included by the Entity Fragment at root level":
         for (const attributeId in fragment_expanded) {
 
-            let attribute = (fragment_expanded as any)[attributeId]
+            let attribute_expanded = (fragment_expanded as any)[attributeId]
 
-            if (!isReifiedAttribute(attribute, attributeId)) {
+            if (!isReifiedAttribute(attribute_expanded, attributeId)) {
                 continue
             }
 
-            if (!(attribute instanceof Array)) {
-                attribute = [attribute]
+            if (!(attribute_expanded instanceof Array)) {
+                attribute_expanded = [attribute_expanded]
             }
 
             //#################### BEGIN Iterate over attribute instances #####################          
-            for (const instance of attribute) {
-                sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId, instance)
+            for (const instance_expanded of attribute_expanded) {
+                sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId, instance_expanded)
             }
             //#################### END Iterate over attribute instances #####################          
         }
@@ -86,7 +86,7 @@ export class PsqlBackend {
 
 
 
-        sql += ` AND ${this.makeSqlCondition_datasetId(datasetId)}`
+        sql += this.makeSqlCondition_datasetId(datasetId)
 
 
         console.log(sql)
@@ -224,7 +224,7 @@ export class PsqlBackend {
         // Match dataset ID if provided:
         // ATTENTION: It is REQUIRED to compare with a "!==" here! We must NOT use a "!="!
         if (datasetId !== undefined) {
-            sql += ` AND ${this.makeSqlCondition_datasetId(datasetId)}`
+            sql += this.makeSqlCondition_datasetId(datasetId)
         }
 
         const queryResult = await this.runSqlQuery(sql)
@@ -285,7 +285,7 @@ export class PsqlBackend {
         let sql_where = ` AND ${this.tableCfg.COL_ENT_ID} = '${entityId}' AND ${this.tableCfg.COL_ATTR_NAME} = '${attributeId} `
 
         if (datasetId != undefined) {
-            sql_where += ` AND ${this.makeSqlCondition_datasetId(datasetId)}`
+            sql_where += this.makeSqlCondition_datasetId(datasetId)
         }
 
         return this.getEntitiesBySqlWhere(sql_where, includeSysAttrs, undefined, undefined)
@@ -696,41 +696,8 @@ export class PsqlBackend {
     }
 
 
-    makeAddAttributesToEntityTransactionPart(entityInternalId: number, fragment_expanded: any) {
-
-        //let sql_transaction = "BEGIN;"
-        let sql_transaction = ""
-
-        //####################### BEGIN Iterate over attributes #############################
-
-        // "For each Attribute included by the Entity Fragment at root level":
-        for (const attributeId in fragment_expanded) {
-
-            let attribute = (fragment_expanded as any)[attributeId]
-
-            if (!isReifiedAttribute(attribute, attributeId)) {
-                continue
-            }
-
-            if (!(attribute instanceof Array)) {
-                attribute = [attribute]
-            }
-
-            //#################### BEGIN Iterate over attribute instances #####################          
-            for (const instance of attribute) {
-                sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId, instance)
-            }
-            //#################### END Iterate over attribute instances #####################          
-        }
-        //################## END Iterate over attributes #######################
-
-        //sql_transaction += "COMMIT;"
-
-        //await this.runSqlQuery(sql_transaction)
-        return sql_transaction
-    }
-
-    makeCreateAttributeInstanceQuery(entityInternalId: number, attributeId: string, instance: any): string {
+   
+    makeCreateAttributeInstanceQuery(entityInternalId: number, attributeId: string, instance_expanded: any): string {
 
         // NOTE: This is implemented as a method that returns an SQL string instead of
         // a method which directly creates an attribute, because in some places, we want
@@ -753,15 +720,21 @@ export class PsqlBackend {
         }
         //###################### END Add entity id to insert query ################## 
 
+        const attributeTypeIndex = this.attributeTypes.indexOf(instance_expanded['@type'])
+
+        if (attributeTypeIndex < 0) {
+            throw errorTypes.InternalError.withDetail("Invalid attribute type: " + instance_expanded['@type'])            
+        }
+
         queryBuilder.add(this.tableCfg.COL_ATTR_NAME, attributeId)
-        queryBuilder.add(this.tableCfg.COL_ATTR_TYPE, this.attributeTypes.indexOf(instance.type))
-        queryBuilder.add(this.tableCfg.COL_DATASET_ID, instance['https://uri.etsi.org/ngsi-ld/datasetId'])
-        queryBuilder.add(this.tableCfg.COL_INSTANCE_JSON, JSON.stringify(instance))
+        queryBuilder.add(this.tableCfg.COL_ATTR_TYPE, attributeTypeIndex)
+        queryBuilder.add(this.tableCfg.COL_DATASET_ID, instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId'])
+        queryBuilder.add(this.tableCfg.COL_INSTANCE_JSON, JSON.stringify(instance_expanded))
 
         // Write 'geom' column:
-        if (instance['@type'] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
+        if (instance_expanded['@type'] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
 
-            const geojson_expanded = instance['https://uri.etsi.org/ngsi-ld/hasValue']
+            const geojson_expanded = instance_expanded['https://uri.etsi.org/ngsi-ld/hasValue']
 
             // TODO: 1 Is it correct to simply use the NGSI-LD core context here?
             const geojson_compacted = compactObject(geojson_expanded, this.ngsiLdCoreContext)
@@ -775,8 +748,8 @@ export class PsqlBackend {
         }
 
         // Write 'observed_at' column:
-        if (isDateTimeUtcString(instance["https://uri.etsi.org/ngsi-ld/observedAt"])) {
-            queryBuilder.add(this.tableCfg.COL_ATTR_OBSERVED_AT, instance["https://uri.etsi.org/ngsi-ld/observedAt"])
+        if (isDateTimeUtcString(instance_expanded["https://uri.etsi.org/ngsi-ld/observedAt"])) {
+            queryBuilder.add(this.tableCfg.COL_ATTR_OBSERVED_AT, instance_expanded["https://uri.etsi.org/ngsi-ld/observedAt"])
         }
 
         // Write "created at" and "modified at" columns:
@@ -801,11 +774,14 @@ export class PsqlBackend {
 
     makeSqlCondition_datasetId(datasetId: string | null | undefined): string {
 
-        if (!datasetId) {
-            return `${this.tableCfg.COL_DATASET_ID} is null`
+        if (datasetId === null) {
+            return ` AND ${this.tableCfg.COL_DATASET_ID} is null`
+        }
+        else if (datasetId === undefined) {
+            return ""
         }
         else {
-            return `${this.tableCfg.COL_DATASET_ID} = '${datasetId}'`
+            return ` AND ${this.tableCfg.COL_DATASET_ID} = '${datasetId}'`
         }
     }
 
@@ -863,7 +839,7 @@ export class PsqlBackend {
         // Add WHERE conditions:
 
         sql += ` WHERE eid = ${entityInternalId} AND ${this.tableCfg.COL_ATTR_NAME} = '${attributeId}'`
-        sql += " AND " + this.makeSqlCondition_datasetId(instance['https://uri.etsi.org/ngsi-ld/datasetId'])
+        sql += this.makeSqlCondition_datasetId(instance['https://uri.etsi.org/ngsi-ld/datasetId'])
 
         if (instanceId != undefined) {
             // TODO: 1 Make function to get instance number from instance ID string
@@ -1121,14 +1097,16 @@ export class PsqlBackend {
         //####################### END Try to fetch existing entity ###########################
 
 
-        let sql_transaction = "BEGIN;"
+        const query = this.makeUpdateAttributeInstanceQuery(entityMetadata.id, attributeId_expanded, instanceId_expanded, instance, false)
 
-        sql_transaction += this.makeUpdateAttributeInstanceQuery(entityMetadata.id, attributeId_expanded, instanceId_expanded, instance, false)
-        sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityMetadata.id)
+        console.log(query)
 
-        sql_transaction += "COMMIT;"
+        const queryResult = await this.runSqlQuery(query)
 
-        await this.runSqlQuery(sql_transaction)
+        console.log(queryResult)
+
+        const queryResult2 = await this.runSqlQuery(this.makeUpdateEntityModifiedAtQuery(entityMetadata.id))
+
     }
 
 
@@ -1250,7 +1228,7 @@ export class PsqlBackend {
 
         let sql_transaction = "BEGIN;"
 
-        for (const instance of attribute_expanded) {
+        for (const instance_expanded of attribute_expanded) {
 
             // ATTENTION: Since we use a SQL transaction for this, it is not (easily) possible to determine the
             // number of affected rows. This means that we can't tell whether the target attribute exists in
@@ -1260,21 +1238,23 @@ export class PsqlBackend {
             // exist. In order to implement this, we perform an SQL query to count the number of existing
             // attribute instances with the specified datasetId:
 
-            const numRowsAffected = await this.countAttributeInstances(existingEntityMetadata.id, attributeId_expanded, instance['https://uri.etsi.org/ngsi-ld/datasetId'])
+            const datasetId = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
+        
+            const numRowsAffected = await this.countAttributeInstances(existingEntityMetadata.id, attributeId_expanded, datasetId)
 
             // Throw error if no attribute instances with same datasetId are found:
             if (numRowsAffected == 0) {
-                throw errorTypes.ResourceNotFound.withDetail(`No instance of attribute '${attributeId_expanded}' with dataset ID '${instance['https://uri.etsi.org/ngsi-ld/datasetId']}' exists on the target entity '${entityId}'.`)
+                throw errorTypes.ResourceNotFound.withDetail(`No instance of attribute '${attributeId_expanded}' with dataset ID '${instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']}' exists on the target entity '${entityId}'.`)
             }
 
             // Throw error if more than one attribute instance with same datasetId is found (should never happen!):
-            if (numRowsAffected > 1) {
-                throw errorTypes.InternalError.withDetail(`Multiple attribute instances (${numRowsAffected}) were updated in an operation that should affect one attribute instance at most. This is a sign of invalid database content and should never happen. Entity ID: '${entityId}', Attribute ID: '${attributeId_expanded}', Dataset ID: '${instance['https://uri.etsi.org/ngsi-ld/datasetId']}'.`)
+            if (datasetId !== undefined && numRowsAffected > 1) {
+                throw errorTypes.InternalError.withDetail(`${numRowsAffected} with the same datasetId '${datasetId}' were found during preparation of a partial update of attribute '${attributeId_expanded}' of entity '${entityId}'. This is a database corruption and should never happen.`)
             }
 
             // If *exactly one* attribute instance with same datasetId is found, update it:
             else {
-                sql_transaction += this.makeUpdateAttributeInstanceQuery(existingEntityMetadata.id, attributeId_expanded, undefined, instance, true)
+                sql_transaction += this.makeUpdateAttributeInstanceQuery(existingEntityMetadata.id, attributeId_expanded, undefined, instance_expanded, true)
             }
         }
 
