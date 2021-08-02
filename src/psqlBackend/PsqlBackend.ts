@@ -97,8 +97,7 @@ export class PsqlBackend {
 
                 const datasetId = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
 
-                //let numExistingInstancesWithSameDatasetId = await this.countAttributeInstances(entityInternalId, attributeId, datasetId)
-
+              
                 const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId, datasetId)
 
                 if (existingInstances.length == 0 || temporal) {
@@ -109,7 +108,7 @@ export class PsqlBackend {
                 }
                 else if (overwrite) {
 
-                    sql_transaction += this.makeUpdateAttributeInstanceQuery(entityInternalId, existingInstances.instance_id, instance_expanded, true)
+                    sql_transaction += this.makeUpdateAttributeInstanceQuery(existingInstances.instance_id, instance_expanded, true)
 
                     updated = true
                 }
@@ -141,6 +140,11 @@ export class PsqlBackend {
 
 
     async getAttributeInstances(entityInternalId: number, attributeName: string, datasetId: string | null | undefined): Promise<any> {
+
+
+        if (datasetId === undefined) {
+            datasetId = null
+        }
 
         let sql = `SELECT * FROM ${this.tableCfg.TBL_ATTR} WHERE eid = ${entityInternalId} `
 
@@ -445,7 +449,7 @@ export class PsqlBackend {
 
 
     async getEntityTypeInformation(type: string): Promise<EntityTypeInfo> {
-        
+
         const entityCount = await this.countEntitiesByType(type)
 
         const sql = `SELECT DISTINCT ${this.tableCfg.COL_ATTR_NAME} FROM ${this.tableCfg.TBL_ENT} as t1, ${this.tableCfg.TBL_ATTR} as t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid AND ${this.tableCfg.COL_ENT_TYPE} = '${type}'`
@@ -824,7 +828,7 @@ export class PsqlBackend {
     }
 
 
-    makeUpdateAttributeInstanceQuery(entityInternalId: number,
+    makeUpdateAttributeInstanceQuery(
         instanceId: number,
         instance: any,
         allowAttributeTypeChange: boolean): string {
@@ -873,16 +877,8 @@ export class PsqlBackend {
             sql += `, ${this.tableCfg.COL_ATTR_OBSERVED_AT} = '${instance["https://uri.etsi.org/ngsi-ld/observedAt"]}'`
         }
 
-        // Add WHERE conditions:
-
-        sql += ` WHERE eid = ${entityInternalId} `
-        sql += this.makeSqlCondition_datasetId(instance['https://uri.etsi.org/ngsi-ld/datasetId'])
-
-
-        // TODO: 1 Make function to get instance number from instance ID string
-        //const instanceId_number = parseFloat(instanceId.split("_")[1])
-
-        sql += ` AND ${this.tableCfg.COL_INSTANCE_ID} = ${instanceId}`
+        // Add WHERE conditions:        
+        sql += ` WHERE ${this.tableCfg.COL_INSTANCE_ID} = ${instanceId}`
 
 
         if (!allowAttributeTypeChange) {
@@ -928,8 +924,6 @@ export class PsqlBackend {
 
             const datasetId = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
 
-            //const numRowsAffected = await this.countAttributeInstances(existingEntityMetadata.id, attributeId_expanded, datasetId)
-
             const existingInstances = await this.getAttributeInstances(existingEntityMetadata.id, attributeId_expanded, datasetId)
 
             // Throw error if no attribute instances with same datasetId are found:
@@ -944,7 +938,7 @@ export class PsqlBackend {
 
             // If *exactly one* attribute instance with same datasetId is found, update it:
             else {
-                sql_transaction += this.makeUpdateAttributeInstanceQuery(existingEntityMetadata.id, existingInstances[0].instance_id, instance_expanded, true)
+                sql_transaction += this.makeUpdateAttributeInstanceQuery(existingInstances[0].instance_id, instance_expanded, true)
             }
         }
 
@@ -1184,7 +1178,7 @@ export class PsqlBackend {
 
         const instanceId_number = parseFloat(instanceId_expanded.split("_")[1])
 
-        const query = this.makeUpdateAttributeInstanceQuery(entityMetadata.id, instanceId_number, instance, false)
+        const query = this.makeUpdateAttributeInstanceQuery(instanceId_number, instance, false)
 
         const queryResult = await this.runSqlQuery(query)
         const queryResult2 = await this.runSqlQuery(this.makeUpdateEntityModifiedAtQuery(entityMetadata.id))
@@ -1201,10 +1195,9 @@ export class PsqlBackend {
 
         const entityInternalId = entityMetadata.id
 
-        let result = new UpdateResult()
+        const result = new UpdateResult()
 
-        // TODO: 1 Fix this
-        return result
+
 
         //####################### BEGIN Build transaction query #############################
         let sql_transaction = "BEGIN;"
@@ -1224,26 +1217,33 @@ export class PsqlBackend {
                 continue
             }
 
-            //const numInstances = await this.countAttributeInstances(entityInternalId, attributeId_expanded, undefined)
-            const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId_expanded, undefined)
+            let updated = false
 
+            //############ BEGIN Iterate over attribute instances ###############
+            for (const instance_expanded of attribute_expanded) {
 
-            if (existingInstances.length > 0) {
+                const datasetId = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
 
-                //############ BEGIN Iterate over attribute instances ###############
-                for (const instance of attribute_expanded) {
+                const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId_expanded, datasetId)
+
+                if (existingInstances.length == 1) {
+
+                    const instanceId = existingInstances[0].instance_id
 
                     // NOTE: The following function call automatically incorporeates spec 5.6.2.4:
                     // The type of an Attribute in the Entity Fragment has to be the same as the type of the 
                     // targeted Attribute fragment, i.e. it is not allowed to change the type of an Attribute.
-                    //sql_transaction += this.makeUpdateAttributeInstanceQuery(entityInternalId, attributeId_expanded, undefined, instance, false)
-                }
-                //############## END Iterate over attribute instances ##################
+                    sql_transaction += this.makeUpdateAttributeInstanceQuery(instanceId, instance_expanded, false)
 
-                result.updated.push(attributeId_expanded)
+                    result.updated.push(attributeId_expanded)
+
+                    updated = true
+                }            
             }
-            else {
-                result.notUpdated.push(new NotUpdatedDetails(attributeId_expanded, "No attribute with the specified ID exists."))
+            //############## END Iterate over attribute instances ##################
+
+            if (!updated) {
+                result.notUpdated.push(new NotUpdatedDetails(attributeId_expanded, "No attribute instance(s) with the specified attribute ID and instance ID(s) exists."))
             }
         }
         //####################### END Build transaction query #############################

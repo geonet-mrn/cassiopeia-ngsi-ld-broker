@@ -249,7 +249,7 @@ export class HttpBinding {
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
 
-        let result = ctx.body = await this.broker.api_5_6_2_updateEntityAttributes(ctx.params.entityId, ctx.request.rawBody, contextUrl)
+        const result = await this.broker.api_5_6_2_updateEntityAttributes(ctx.params.entityId, ctx.request.rawBody, contextUrl)
 
         if (result.notUpdated.length == 0) {
             ctx.status = 204

@@ -60,6 +60,8 @@ export class ContextBroker {
 
         //################### BEGIN Validation & Preparation ################
 
+        // TODO: 3 "If the Entity Id is not present or it is not a valid URI then an error of type BadRequestData shall be raised."
+
         const fragment_compacted = parseJson(fragmentString)
 
         const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : fragment_compacted['@context']
