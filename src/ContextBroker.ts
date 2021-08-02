@@ -12,7 +12,7 @@ import { checkArrayOfEntities, checkArrayOfUris, checkReifiedAttribute, checkEnt
 import { appendCoreContext, compactObject, expandObject, getNormalizedContext } from "./jsonld"
 import { parseJson, compactedEntityToGeoJsonFeature as compactedEntityToGeoJsonFeature } from "./util"
 import * as util from './util'
-import { POINT_CONVERSION_COMPRESSED } from "constants"
+
 
 
 export class ContextBroker {
@@ -48,7 +48,7 @@ export class ContextBroker {
 
         const resultCode = await this.psql.createEntity(entity_expanded, false)
 
-        if (resultCode == -1) {             
+        if (resultCode == -1) {
             throw errorTypes.AlreadyExists.withDetail(`An Entity with the ID '${entity_expanded['@id']}' already exists.`)
         }
 
@@ -110,7 +110,17 @@ export class ContextBroker {
         //################### END Validation ################
 
 
-        return await this.psql.appendEntityAttributes(entityId, fragment_expanded, overwrite)
+        //########### BEGIN Try to fetch existing entity with same ID from the database #############
+        const entityMetadata = await this.psql.getEntityMetadata(entityId, false)
+
+        if (!entityMetadata) {
+            throw errorTypes.ResourceNotFound.withDetail("No entity with the passed ID exists: " + entityId)
+        }
+
+        const entityInternalId = entityMetadata.id
+        //########### END Try to fetch existing entity with same ID from the database #############
+
+        return await this.psql.appendEntityAttributes(entityInternalId, fragment_expanded, overwrite, false)
 
     }
 
@@ -239,11 +249,11 @@ export class ContextBroker {
 
             const entity_expanded = expandObject(ec, context)
 
-           
+
 
             const resultCode = await this.psql.createEntity(entity_expanded, false)
 
-            if (resultCode == 1) {                
+            if (resultCode == 1) {
                 result.success.push(entity_expanded['@id'])
             }
             else {
@@ -313,7 +323,7 @@ export class ContextBroker {
                 if (resultCode == 1) {
                     entity_ids_created.push(entity_expanded['@id'])
                 }
-                else if (resultCode != 1) {                    
+                else if (resultCode != 1) {
                     result.errors.push(new BatchEntityError(entity_expanded['@id'], new ProblemDetails("", "Entity creation failed.", "An entity with the same ID already exists.", 409)))
                 }
             }
@@ -357,7 +367,7 @@ export class ContextBroker {
 
                 else if (options == "update") {
 
-                    const updateResult = await this.psql.appendEntityAttributes(entity_expanded['@id'], entity_expanded, true)
+                    const updateResult = await this.psql.appendEntityAttributes(existingEntityMetadata.id, entity_expanded, true, false)
 
                     // TODO: 3 Add information about failed updates to result?
                     if (updateResult.notUpdated.length == 0) {
@@ -543,8 +553,8 @@ export class ContextBroker {
         }
         //###################### END Try to fetch existing entity ########################
 
-
-        await this.psql.addAttributesToEntity(entityMetadata.id, fragment_expanded)
+        
+        await this.psql.appendEntityAttributes(entityMetadata.id, fragment_expanded, false, true)
     }
 
 
@@ -575,7 +585,7 @@ export class ContextBroker {
     async api_5_6_14_updateAttributeInstanceOfTemporalEntity(entityId: string, attributeId_compacted: string,
         instanceId_compacted: string, fragmentString_compacted: string, contextUrl: string | undefined) {
 
-      
+
         const fragment_compacted = parseJson(fragmentString_compacted)
 
         const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : fragment_compacted['@context']
@@ -629,8 +639,8 @@ export class ContextBroker {
 
         console.log(instance)
         await this.psql.updateAttributeInstanceOfTemporalEntity(entityId, attributeId_expanded, instanceId_expanded, instance)
-                
-        
+
+
 
     }
 

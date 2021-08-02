@@ -19,7 +19,10 @@ import { compactObject, expandObject, getNormalizedContext } from '../jsonld'
 import { JsonLdContextNormalized } from 'jsonld-context-parser'
 import { UpdateResult } from '../dataTypes/UpdateResult'
 import { NotUpdatedDetails } from '../dataTypes/NotUpdatedDetails'
-import { execPath } from 'process'
+
+
+const ignoreAttributes = ["@id", "@type", "@context"]
+
 
 
 export class PsqlBackend {
@@ -43,60 +46,114 @@ export class PsqlBackend {
     }
 
 
+    async appendEntityAttributes(entityInternalId: any, fragment_expanded: any, overwrite: boolean, temporal: boolean) {
 
-    async addAttributesToEntity(entityInternalId: number, fragment_expanded: any) {
-
-        let sql_transaction = "BEGIN;"
-
-        //####################### BEGIN Iterate over attributes #############################
+        let result = new UpdateResult()
 
         // "For each Attribute included by the Entity Fragment at root level":
+
+        //####################### BEGIN Iterate over attributes #############################
         for (const attributeId in fragment_expanded) {
 
-            let attribute_expanded = (fragment_expanded as any)[attributeId]
-
-            if (!isReifiedAttribute(attribute_expanded, attributeId)) {
+            // Do not process @id, @type and @context:
+            if (ignoreAttributes.includes(attributeId)) {
                 continue
             }
+
+            let attribute_expanded = (fragment_expanded as any)[attributeId]
 
             if (!(attribute_expanded instanceof Array)) {
                 attribute_expanded = [attribute_expanded]
             }
 
-            //#################### BEGIN Iterate over attribute instances #####################          
-            for (const instance_expanded of attribute_expanded) {
-                sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId, instance_expanded)
+            //#################### BEGIN Validate attribute ####################
+            const reifiedAttributeCheck = checkReifiedAttribute(attribute_expanded, attributeId, undefined, false)
+
+            if (reifiedAttributeCheck.length > 0) {
+
+                let errorMsg = ""
+
+                for (const msg of reifiedAttributeCheck) {
+                    errorMsg += msg + "\n"
+                }
+
+                result.notUpdated.push(new NotUpdatedDetails(attributeId, "Not a valid reified attribute: \n" + errorMsg))
+
+                continue
             }
-            //#################### END Iterate over attribute instances #####################          
+            //#################### END Validate attribute ####################
+
+            let updated = false
+
+
+            // NOTE: The code here looks quite different from the algorithm described in the 
+            // specification. However, (I think) it really does the same.
+
+            //#################### BEGIN Iterate over attribute instances #####################
+
+            let sql_transaction = "BEGIN;"
+
+            for (const instance_expanded of attribute_expanded) {
+
+                const datasetId = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
+
+                //let numExistingInstancesWithSameDatasetId = await this.countAttributeInstances(entityInternalId, attributeId, datasetId)
+
+                const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId, datasetId)
+
+                if (existingInstances.length == 0 || temporal) {
+
+                    sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId, instance_expanded)
+
+                    updated = true
+                }
+                else if (overwrite) {
+
+                    sql_transaction += this.makeUpdateAttributeInstanceQuery(entityInternalId, existingInstances.instance_id, instance_expanded, true)
+
+                    updated = true
+                }
+
+            }
+            //################## END Iterate over attribute instances #######################
+
+            sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
+
+            sql_transaction += "COMMIT;"
+
+            if (updated) {
+
+                await this.runSqlQuery(sql_transaction)
+
+                result.updated.push(attributeId)
+            }
+            else {
+                result.notUpdated.push(new NotUpdatedDetails(attributeId, "Attribute instance(s) already exist and no overwrite was ordered."))
+            }
         }
-        //################## END Iterate over attributes #######################
+        //####################### END Iterate over attributes #############################
 
-        sql_transaction += "COMMIT;"
 
-        await this.runSqlQuery(sql_transaction)
+        return new Promise<UpdateResult>((resolve, reject) => {
+            resolve(result)
+        })
     }
 
 
+    async getAttributeInstances(entityInternalId: number, attributeName: string, datasetId: string | null | undefined): Promise<any> {
 
-    async countAttributeInstances(entityInternalId: number, attributeName: string, datasetId: string | null | undefined): Promise<number> {
-
-        let sql = `SELECT COUNT(*) FROM ${this.tableCfg.TBL_ATTR} WHERE eid = ${entityInternalId} `
+        let sql = `SELECT * FROM ${this.tableCfg.TBL_ATTR} WHERE eid = ${entityInternalId} `
 
         sql += ` AND ${this.tableCfg.COL_ATTR_NAME} = '${attributeName}'`
-
-
-
         sql += this.makeSqlCondition_datasetId(datasetId)
-
-
-        console.log(sql)
 
         const sqlResult = await this.runSqlQuery(sql)
 
         return new Promise((resolve, reject) => {
-            resolve(sqlResult.rows[0].count)
+            resolve(sqlResult.rows)
         })
     }
+
 
 
     async countEntitiesByType(type: string): Promise<number> {
@@ -127,24 +184,21 @@ export class PsqlBackend {
         //############## END Build INSERT query for entities table ###########
 
 
-        
-        const queryResult = await this.runSqlQuery(queryBuilder.getStringForTable(this.tableCfg.TBL_ENT, "id"))
-        
-        .catch((error: any) => {})
-
+        //################# BEGIN Create entities table entry #################
+        const queryResult = await this.runSqlQuery(queryBuilder.getStringForTable(this.tableCfg.TBL_ENT, "id")).catch((error: any) => { })
 
         if (queryResult == undefined) {
-            
+
             return new Promise<number>((resolve, reject) => {
                 resolve(-1)
             })
         }
 
-        
         const insertId = queryResult.rows[0].id
+        //################# END Create entities table entry #################
 
-        await this.addAttributesToEntity(insertId, entity_expanded)
-      
+        await this.appendEntityAttributes(insertId, entity_expanded, false, false)
+
         return new Promise<number>((resolve, reject) => {
             resolve(1)
         })
@@ -153,35 +207,37 @@ export class PsqlBackend {
 
     async createOrUpdateTemporalEntity(entity_expanded: any) {
 
+        // NOTE: We should probably not merge this with createEntity because the behaviours of both methods are different:
+        // The temporal version supports updates of an existing entity with the same request while the non-temporal version
+        // doesn't.
+
         const entityMetadata = await this.getEntityMetadata(entity_expanded['@id'], true)
 
-
         // If the entity doesn't exist yet, create it:
-
         if (entityMetadata == undefined) {
 
-            const createResult = await this.createEntity(entity_expanded, true)
+            await this.createEntity(entity_expanded, true)
+
+            return new Promise<number>((resolve, reject) => { resolve(201) })
+        }
+        else {
+
+            // If the entity already exists:
+
+            // 5.6.4.11: 
+
+            // "If the NGSI-LD endpoint already knows about this Temporal Representation of an Entity, 
+            // because there is an existing Temporal Representation of an Entity whose id (URI) is the same, 
+            // then all the Attribute instances included by the Temporal Representation shall be added to 
+            // the existing Entity as mandated by clause 5.6.12.":
+
+            // TODO: 2 Overwrite yes or no?            
+            await this.appendEntityAttributes(entityMetadata.id, entity_expanded, false, true)
 
             return new Promise<number>((resolve, reject) => {
-                resolve(201)
+                resolve(204)
             })
         }
-
-        // If the entity already exists:
-
-        // 5.6.4.11: 
-
-        // "If the NGSI-LD endpoint already knows about this Temporal Representation of an Entity, 
-        // because there is an existing Temporal Representation of an Entity whose id (URI) is the same, 
-        // then all the Attribute instances included by the Temporal Representation shall be added to 
-        // the existing Entity as mandated by clause 5.6.12.":
-
-        await this.addAttributesToEntity(entityMetadata.id, entity_expanded)
-
-        return new Promise<number>((resolve, reject) => {
-            resolve(204)
-        })
-
     }
 
 
@@ -277,18 +333,6 @@ export class PsqlBackend {
         return new Promise((resolve, reject) => {
             resolve(true)
         })
-    }
-
-
-    async getAttribute(entityId: string, attributeId: string, datasetId: string | null | undefined, includeSysAttrs: boolean) {
-
-        let sql_where = ` AND ${this.tableCfg.COL_ENT_ID} = '${entityId}' AND ${this.tableCfg.COL_ATTR_NAME} = '${attributeId} `
-
-        if (datasetId != undefined) {
-            sql_where += this.makeSqlCondition_datasetId(datasetId)
-        }
-
-        return this.getEntitiesBySqlWhere(sql_where, includeSysAttrs, undefined, undefined)
     }
 
 
@@ -401,17 +445,14 @@ export class PsqlBackend {
 
 
     async getEntityTypeInformation(type: string): Promise<EntityTypeInfo> {
-
-        // TODO: Differentiate between temporal and non-temporal entities?
+        
         const entityCount = await this.countEntitiesByType(type)
 
         const sql = `SELECT DISTINCT ${this.tableCfg.COL_ATTR_NAME} FROM ${this.tableCfg.TBL_ENT} as t1, ${this.tableCfg.TBL_ATTR} as t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid AND ${this.tableCfg.COL_ENT_TYPE} = '${type}'`
 
         const sqlResult = await this.runSqlQuery(sql)
 
-
-
-        let result = new EntityTypeInfo(type, entityCount)
+        const result = new EntityTypeInfo(type, entityCount)
 
         for (const row of sqlResult.rows) {
 
@@ -696,7 +737,7 @@ export class PsqlBackend {
     }
 
 
-   
+
     makeCreateAttributeInstanceQuery(entityInternalId: number, attributeId: string, instance_expanded: any): string {
 
         // NOTE: This is implemented as a method that returns an SQL string instead of
@@ -723,7 +764,7 @@ export class PsqlBackend {
         const attributeTypeIndex = this.attributeTypes.indexOf(instance_expanded['@type'])
 
         if (attributeTypeIndex < 0) {
-            throw errorTypes.InternalError.withDetail("Invalid attribute type: " + instance_expanded['@type'])            
+            throw errorTypes.InternalError.withDetail("Invalid attribute type: " + instance_expanded['@type'])
         }
 
         queryBuilder.add(this.tableCfg.COL_ATTR_NAME, attributeId)
@@ -740,9 +781,6 @@ export class PsqlBackend {
             const geojson_compacted = compactObject(geojson_expanded, this.ngsiLdCoreContext)
 
             const geojson_string = JSON.stringify(geojson_compacted)
-            //const geojson_string = JSON.stringify(geojson_expanded)
-
-            // console.log(geojson_string)
 
             queryBuilder.add("geom", `ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`, true)
         }
@@ -787,8 +825,7 @@ export class PsqlBackend {
 
 
     makeUpdateAttributeInstanceQuery(entityInternalId: number,
-        attributeId: string,
-        instanceId: string | undefined,
+        instanceId: number,
         instance: any,
         allowAttributeTypeChange: boolean): string {
 
@@ -838,15 +875,15 @@ export class PsqlBackend {
 
         // Add WHERE conditions:
 
-        sql += ` WHERE eid = ${entityInternalId} AND ${this.tableCfg.COL_ATTR_NAME} = '${attributeId}'`
+        sql += ` WHERE eid = ${entityInternalId} `
         sql += this.makeSqlCondition_datasetId(instance['https://uri.etsi.org/ngsi-ld/datasetId'])
 
-        if (instanceId != undefined) {
-            // TODO: 1 Make function to get instance number from instance ID string
-            const instanceId_number = parseFloat(instanceId.split("_")[1])
 
-            sql += ` AND ${this.tableCfg.COL_INSTANCE_ID} = ${instanceId_number}`
-        }
+        // TODO: 1 Make function to get instance number from instance ID string
+        //const instanceId_number = parseFloat(instanceId.split("_")[1])
+
+        sql += ` AND ${this.tableCfg.COL_INSTANCE_ID} = ${instanceId}`
+
 
         if (!allowAttributeTypeChange) {
             // ATTENTION: COL_ATTR_TYPE is of type smallint, so no quotes around the value here!
@@ -855,9 +892,6 @@ export class PsqlBackend {
 
         //################# END Build SQL query to update attribute instance #####################
 
-
-        // Add SQL query to update entity:
-        //sql_transaction += `; UPDATE ${this.tableCfg.TBL_ENT} SET ${this.tableCfg.COL_ENT_MODIFIED_AT} = '${now.toISOString()}' WHERE ${this.tableCfg.COL_ENT_INTERNAL_ID} = ${entityInternalId};`
         sql += ';'
 
         return sql
@@ -869,6 +903,58 @@ export class PsqlBackend {
 
         return `UPDATE ${this.tableCfg.TBL_ENT} SET ${this.tableCfg.COL_ENT_MODIFIED_AT} = '${now.toISOString()}' WHERE ${this.tableCfg.COL_ENT_INTERNAL_ID} = ${entityInternalId};`
     }
+
+
+    async partialAttributeUpdate(entityId: any, attributeId_expanded: string, attribute_expanded: any) {
+
+        const existingEntityMetadata = await this.getEntityMetadata(entityId, false)
+
+        if (existingEntityMetadata == undefined) {
+            throw errorTypes.ResourceNotFound.withDetail(`No entity with ID '${entityId}' exists.`)
+        }
+
+
+        let sql_transaction = "BEGIN;"
+
+        for (const instance_expanded of attribute_expanded) {
+
+            // ATTENTION: Since we use a SQL transaction for this, it is not (easily) possible to determine the
+            // number of affected rows. This means that we can't tell whether the target attribute exists in
+            // the database.
+
+            // The specification demands that a ResourceNotFound error is thrown if the attribute does not
+            // exist. In order to implement this, we perform an SQL query to count the number of existing
+            // attribute instances with the specified datasetId:
+
+            const datasetId = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
+
+            //const numRowsAffected = await this.countAttributeInstances(existingEntityMetadata.id, attributeId_expanded, datasetId)
+
+            const existingInstances = await this.getAttributeInstances(existingEntityMetadata.id, attributeId_expanded, datasetId)
+
+            // Throw error if no attribute instances with same datasetId are found:
+            if (existingInstances.length == 0) {
+                throw errorTypes.ResourceNotFound.withDetail(`No instance of attribute '${attributeId_expanded}' with dataset ID '${instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']}' exists on the target entity '${entityId}'.`)
+            }
+
+            // Throw error if more than one attribute instance with same datasetId is found (should never happen!):
+            if (datasetId !== undefined && existingInstances.length > 1) {
+                throw errorTypes.InternalError.withDetail(`${existingInstances.length} with the same datasetId '${datasetId}' were found during preparation of a partial update of attribute '${attributeId_expanded}' of entity '${entityId}'. This is a database corruption and should never happen.`)
+            }
+
+            // If *exactly one* attribute instance with same datasetId is found, update it:
+            else {
+                sql_transaction += this.makeUpdateAttributeInstanceQuery(existingEntityMetadata.id, existingInstances[0].instance_id, instance_expanded, true)
+            }
+        }
+
+        sql_transaction += this.makeUpdateEntityModifiedAtQuery(existingEntityMetadata.id)
+
+        sql_transaction += "COMMIT;"
+
+        await this.runSqlQuery(sql_transaction)
+    }
+
 
 
 
@@ -1073,7 +1159,7 @@ export class PsqlBackend {
         const resultPromise = this.pool.query(sql)
 
         // Print error, but still continue with the normal promise chain:
-        
+
         resultPromise.then(null, (e) => {
             console.log()
             console.log("Something went wrong:")
@@ -1081,7 +1167,7 @@ export class PsqlBackend {
             console.log(e)
             console.log("------------------------------")
         })
-        
+
         return resultPromise
     }
 
@@ -1096,173 +1182,12 @@ export class PsqlBackend {
         }
         //####################### END Try to fetch existing entity ###########################
 
+        const instanceId_number = parseFloat(instanceId_expanded.split("_")[1])
 
-        const query = this.makeUpdateAttributeInstanceQuery(entityMetadata.id, attributeId_expanded, instanceId_expanded, instance, false)
-
-        console.log(query)
+        const query = this.makeUpdateAttributeInstanceQuery(entityMetadata.id, instanceId_number, instance, false)
 
         const queryResult = await this.runSqlQuery(query)
-
-        console.log(queryResult)
-
         const queryResult2 = await this.runSqlQuery(this.makeUpdateEntityModifiedAtQuery(entityMetadata.id))
-
-    }
-
-
-
-    async appendEntityAttributes(entityId: any, fragment_expanded: any, overwrite: boolean) {
-
-        let result = new UpdateResult()
-
-        //########### BEGIN Try to fetch existing entity with same ID from the database #############
-        const entityMetadata = await this.getEntityMetadata(entityId, false)
-
-        if (!entityMetadata) {
-            throw errorTypes.ResourceNotFound.withDetail("No entity with the passed ID exists: " + entityId)
-        }
-
-        const entityInternalId = entityMetadata.id
-        //########### END Try to fetch existing entity with same ID from the database #############
-
-
-        // "For each Attribute included by the Entity Fragment at root level":
-
-        const ignoreAttributes = ["@id", "@type", "@context"]
-
-        //####################### BEGIN Iterate over attributes #############################
-        for (const attributeId in fragment_expanded) {
-
-            let attribute = (fragment_expanded as any)[attributeId]
-
-            //#################### BEGIN Validate attribute ####################
-            const reifiedAttributeCheck = checkReifiedAttribute(attribute, attributeId, undefined, false)
-
-            if (reifiedAttributeCheck.length > 0) {
-
-                if (ignoreAttributes.includes(attributeId)) {
-                    continue
-                }
-
-                let errorMsg = ""
-
-                for (const msg of reifiedAttributeCheck) {
-                    errorMsg += msg + "\n"
-                }
-
-                result.notUpdated.push(new NotUpdatedDetails(attributeId, "Not a valid reified attribute: \n" + errorMsg))
-
-                continue
-            }
-            //#################### END Validate attribute ####################
-
-
-            if (!(attribute instanceof Array)) {
-                attribute = [attribute]
-            }
-
-
-            let updated = false
-
-
-            // NOTE: The code here looks quite different from the algorithm described in the 
-            // specification. However, (I think) it really does the same.
-
-            //#################### BEGIN Iterate over attribute instances #####################
-
-            let sql_transaction = "BEGIN;"
-
-            for (const instance of attribute) {
-
-                let numExistingInstancesWithSameDatasetId = await this.countAttributeInstances(entityInternalId, attributeId, instance['https://uri.etsi.org/ngsi-ld/datasetId'])
-
-                if (numExistingInstancesWithSameDatasetId == 0) {
-
-                    sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId, instance)
-
-                    updated = true
-                }
-                else {
-                    if (overwrite) {
-
-                        sql_transaction += this.makeUpdateAttributeInstanceQuery(entityInternalId, attributeId, undefined, instance, true)
-
-                        updated = true
-                    }
-                }
-            }
-            //################## END Iterate over attribute instances #######################
-
-            sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
-
-            sql_transaction += "COMMIT;"
-
-            if (updated) {
-
-                await this.runSqlQuery(sql_transaction)
-
-                result.updated.push(attributeId)
-            }
-            else {
-                result.notUpdated.push(new NotUpdatedDetails(attributeId, "Attribute instance(s) already exist and no overwrite was ordered."))
-            }
-        }
-        //####################### END Iterate over attributes #############################
-
-
-        return new Promise<UpdateResult>((resolve, reject) => {
-            resolve(result)
-        })
-    }
-
-
-
-    async partialAttributeUpdate(entityId: any, attributeId_expanded: string, attribute_expanded: any) {
-
-        const existingEntityMetadata = await this.getEntityMetadata(entityId, false)
-
-        if (existingEntityMetadata == undefined) {
-            throw errorTypes.ResourceNotFound.withDetail(`No entity with ID '${entityId}' exists.`)
-        }
-
-
-        let sql_transaction = "BEGIN;"
-
-        for (const instance_expanded of attribute_expanded) {
-
-            // ATTENTION: Since we use a SQL transaction for this, it is not (easily) possible to determine the
-            // number of affected rows. This means that we can't tell whether the target attribute exists in
-            // the database.
-
-            // The specification demands that a ResourceNotFound error is thrown if the attribute does not
-            // exist. In order to implement this, we perform an SQL query to count the number of existing
-            // attribute instances with the specified datasetId:
-
-            const datasetId = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
-        
-            const numRowsAffected = await this.countAttributeInstances(existingEntityMetadata.id, attributeId_expanded, datasetId)
-
-            // Throw error if no attribute instances with same datasetId are found:
-            if (numRowsAffected == 0) {
-                throw errorTypes.ResourceNotFound.withDetail(`No instance of attribute '${attributeId_expanded}' with dataset ID '${instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']}' exists on the target entity '${entityId}'.`)
-            }
-
-            // Throw error if more than one attribute instance with same datasetId is found (should never happen!):
-            if (datasetId !== undefined && numRowsAffected > 1) {
-                throw errorTypes.InternalError.withDetail(`${numRowsAffected} with the same datasetId '${datasetId}' were found during preparation of a partial update of attribute '${attributeId_expanded}' of entity '${entityId}'. This is a database corruption and should never happen.`)
-            }
-
-            // If *exactly one* attribute instance with same datasetId is found, update it:
-            else {
-                sql_transaction += this.makeUpdateAttributeInstanceQuery(existingEntityMetadata.id, attributeId_expanded, undefined, instance_expanded, true)
-            }
-        }
-
-        sql_transaction += this.makeUpdateEntityModifiedAtQuery(existingEntityMetadata.id)
-
-        sql_transaction += "COMMIT;"
-
-        await this.runSqlQuery(sql_transaction)
     }
 
 
@@ -1278,6 +1203,8 @@ export class PsqlBackend {
 
         let result = new UpdateResult()
 
+        // TODO: 1 Fix this
+        return result
 
         //####################### BEGIN Build transaction query #############################
         let sql_transaction = "BEGIN;"
@@ -1297,9 +1224,11 @@ export class PsqlBackend {
                 continue
             }
 
-            const numInstances = await this.countAttributeInstances(entityInternalId, attributeId_expanded, undefined)
+            //const numInstances = await this.countAttributeInstances(entityInternalId, attributeId_expanded, undefined)
+            const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId_expanded, undefined)
 
-            if (numInstances > 0) {
+
+            if (existingInstances.length > 0) {
 
                 //############ BEGIN Iterate over attribute instances ###############
                 for (const instance of attribute_expanded) {
@@ -1307,7 +1236,7 @@ export class PsqlBackend {
                     // NOTE: The following function call automatically incorporeates spec 5.6.2.4:
                     // The type of an Attribute in the Entity Fragment has to be the same as the type of the 
                     // targeted Attribute fragment, i.e. it is not allowed to change the type of an Attribute.
-                    sql_transaction += this.makeUpdateAttributeInstanceQuery(entityInternalId, attributeId_expanded, undefined, instance, false)
+                    //sql_transaction += this.makeUpdateAttributeInstanceQuery(entityInternalId, attributeId_expanded, undefined, instance, false)
                 }
                 //############## END Iterate over attribute instances ##################
 

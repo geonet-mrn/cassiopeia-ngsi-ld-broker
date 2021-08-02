@@ -11,7 +11,7 @@
 // TODO: 3 Automatically add "createdAt" and "modifiedAt" to all Attributes in JSON 
 // so that these fields can be queried with the query language. Remove them from output if not explicitly requested.
 
-
+// TODO: 2 Test PostgreSQL connection at broker startup
 // TODO: 3 Spec 6.3.4 vervollständigen (v.a. check von Accept Headers)
 // TODO: 3 GeoJSON response headers-Gedöns (spec 6.3.6)
 // TODO: 3 5.7.2.4 Match ID patterns
