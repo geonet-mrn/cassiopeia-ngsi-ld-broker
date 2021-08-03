@@ -59,7 +59,7 @@ export class HttpBinding {
 
     private readonly ERROR_MSG_NOT_IMPLEMENTED_YET = "This operation is not implemented yet."
 
-    private readonly catchExceptions = true
+    private readonly catchExceptions = false
 
     // NOTE: The HTTP handler methods must be defined as arrow functions in order to work!
 
@@ -273,7 +273,7 @@ export class HttpBinding {
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
 
-        await this.broker.api_5_6_4_partialAttributeUpdate(ctx.params.entityId, ctx.params.attrId, ctx.request.rawBody, contextUrl)
+        const result = await this.broker.api_5_6_4_partialAttributeUpdate(ctx.params.entityId, ctx.params.attrId, ctx.request.rawBody, contextUrl)
         ctx.status = 204
 
         await next()

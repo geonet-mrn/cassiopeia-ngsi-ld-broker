@@ -10,21 +10,18 @@ const config = {
     auth: testConfig.auth
 }
 
+const entityId = "urn:ngsi-ld:TestEntity:TestEntity1"
+
 const entities = [
     {
-        "id": "urn:ngsi-ld:Municipality:07332009",
-        "type": "Municipality",
-        "verwaltungsgemeinschaft": [
-            {
-                "type": "Property",
-                "value": "Deidesheim"
-            }
-        ],
+        "id": entityId,
+        "type": "TestEntity",
+
 
         "name": [
             {
                 "type": "Property",
-                "value": "Deidesheim"
+                "value": "This is a test entity"
             }
         ],
 
@@ -44,9 +41,9 @@ const entities = [
 
 
 
-const patchFragment = {
-    "id": "urn:ngsi-ld:Municipality:07332009",
-    "type": "Municipality",
+const validPatchFragment = {
+    "id": "urn:ngsi-ld:TestEntity:TestEntity1",
+    "type": "TestEntity",
 
 
     "multiAttribute": [
@@ -59,6 +56,24 @@ const patchFragment = {
     ]
 }
 
+
+
+
+
+const patchFragmentWithInvalidAttributeId = {
+    "id": "urn:ngsi-ld:TestEntity:TestEntity2",
+    "type": "TestEntity",
+
+
+    "nonExistingAttribute": [
+
+        {
+            "type": "Property",
+            "value": "patched default"
+
+        }
+    ]
+}
 
 
 
@@ -85,33 +100,24 @@ describe('6.7.3.1 PATCH entities/<entityId>/attrs/<attrId>', function () {
 
 
     afterEach(async () => {
-   //     await prep.deleteAllEntities()
+        await prep.deleteAllEntities()
 
     })
 
 
     it('should patch the specified attribute instance', async function () {
 
-
-
-
-
         // Step 1: Patch default instance attribute "multiAttribute":
-        let patchUrl = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009/attrs/multiAttribute"
-        const patchResponse = await axios.patch(patchUrl, patchFragment, config).catch((e) => {
-            console.log(e.response.data)
-            return
-        })
+        let patchUrl = testConfig.base_url + "entities/" + entityId + "/attrs/multiAttribute"
+
+        const patchResponse = await axios.patch(patchUrl, validPatchFragment, config)
 
 
-        if (!patchResponse) {
-            return new Promise((resolve, reject) => reject())
-        }
 
         expect(patchResponse.status == 204)
 
 
-        let getUrl = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009"
+        let getUrl = testConfig.base_url + "entities/" + entityId
 
 
         // Step 3: Check whether attribute "name" was really patched:
@@ -124,7 +130,7 @@ describe('6.7.3.1 PATCH entities/<entityId>/attrs/<attrId>', function () {
             attr = [attr]
         }
 
-      
+
         expect(attr.length).greaterThan(0)
 
         for (const instance of attr) {
@@ -134,5 +140,59 @@ describe('6.7.3.1 PATCH entities/<entityId>/attrs/<attrId>', function () {
         }
 
     });
+
+
+
+    it('should return HTTP error 404 because the specified entity does not exist', async function () {
+
+        // Step 1: Try to patch with invalid entity ID:
+        let patchUrl = testConfig.base_url + "entities/urn:ngsi-ld:NonExistingEntity/attrs/multiAttribute"
+
+        let err = undefined
+        const patchResponse = await axios.patch(patchUrl, validPatchFragment, config).catch((e) => err = e)
+
+
+
+        expect(err).to.not.be.undefined
+
+        //@ts-ignore
+        expect(err.response.status).equals(404)
+    });
+
+
+
+    it('should return HTTP error 400 because the attribute specified in the URL does not exist in the payload fragment', async function () {
+
+        // Step 1: Try to patch with invalid entity ID:
+        let patchUrl = testConfig.base_url + "entities/" + entityId + "/attrs/nonExistingAttribute"
+
+        let err = undefined
+        const patchResponse = await axios.patch(patchUrl, validPatchFragment, config).catch((e) => err = e)
+
+
+
+        expect(err).to.not.be.undefined
+
+        //@ts-ignore
+        expect(err.response.status).equals(400)
+    });
+
+
+
+    it('should return HTTP error 404 because the attribute specified in the URL and in the payload does not exist in the specified existing entity', async function () {
+
+        // Step 1: Try to patch with invalid entity ID:
+        let patchUrl = testConfig.base_url + "entities/" + entityId + "/attrs/nonExistingAttribute"
+
+        let err = undefined
+        const patchResponse = await axios.patch(patchUrl, patchFragmentWithInvalidAttributeId, config).catch((e) => err = e)
+
+
+        expect(err).to.not.be.undefined
+
+        //@ts-ignore
+        expect(err.response.status).equals(404)
+    });
+
 });
 

@@ -3,11 +3,11 @@ import axios, { AxiosResponse } from 'axios'
 import * as prep from "./testUtil"
 import { testConfig } from './testConfig'
 
-
+const entityIdToDelete = "urn:ngsi-ld:Municipality:07332009"
 
 const entities = [
     {
-        "id": "urn:ngsi-ld:Municipality:07332009",
+        "id": entityIdToDelete,
         "type": "Municipality",
         "verwaltungsgemeinschaft": [
             {
@@ -37,45 +37,6 @@ const entities = [
                 "value": "Forst an der Weinstraße"
             }
         ]
-    },
-    {
-        "id": "urn:ngsi-ld:Municipality:07332035",
-        "type": "Municipality",
-        "verwaltungsgemeinschaft": [
-            {
-                "type": "Property",
-                "value": "Deidesheim"
-            }
-        ],
-        "name": [
-            {
-                "type": "Property",
-                "value": "Meckenheim"
-            }
-        ]
-    },
-
-    {
-        "id": "urn:ngsi-ld:Municipality:08226101",
-        "type": "Municipality",
-        "verwaltungsgemeinschaft": [
-            {
-                "type": "Property",
-                "value": "VVG der Stadt Sinsheim"
-            }
-        ],
-        "name": [
-            {
-                "type": "Property",
-                "value": "Zuzenhausen"
-            }
-        ]
-    },
-
-    {
-        "id": "urn:ngsi-ld:Municipality:08222000",
-        "type": "Municipality",
-        "name": [{ "type": "Property", "value": "Mannheim" }]
     }
 ]
 
@@ -95,7 +56,7 @@ describe('6.5.3.2 DELETE entities/<entityId>', function () {
     })
 
 
-    it('should delete the Entity with the ID', async function () {
+    it('should delete the Entity with the specified ID', async function () {
 
 
         const config = {
@@ -124,55 +85,46 @@ describe('6.5.3.2 DELETE entities/<entityId>', function () {
 
         let response = await axios.get(queryUrl, config)
 
-        expect(response.data.length).greaterThan(1)
+        expect(response.data.length).equals(2)
+
 
 
         const numEntitiesBeforeDelete = response.data.length
 
         // Step 2: Check whether the entity we are going to delete exists:
 
-        let url = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009"
-        response = await axios.get(url, config)
+        let entityUrl = queryUrl + entityIdToDelete
 
-        expect(response.data.id).equals("urn:ngsi-ld:Municipality:07332009")
+        console.log(entityUrl)
+        response = await axios.get(entityUrl, config)
+
+        expect(response.data.id).equals(entityIdToDelete)
 
 
-        // Step 3: Delete the entity:
-        url = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009"
-        response = await axios.delete(url, config)
+
+
+        response = await axios.delete(entityUrl, config)
 
         expect(response.status).equals(204)
 
 
         // Step 2: Check whether all entities are there:       
-        url = testConfig.base_url + "entities/"
+
 
         response = await axios.get(queryUrl, config)
 
-        expect(response.data.length).greaterThan(1)
+        expect(response.data.length).greaterThan(0)
 
         const numEntitiesAfterDelete = response.data.length
 
         expect(numEntitiesBeforeDelete - numEntitiesAfterDelete).equals(1)
 
-
         // Step 3: Check whether exactly the specified entity was deleted:
+        let err = undefined
+        let getResponse = await axios.get(entityUrl, config).catch((e) => { err = e })
 
-
-        url = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009"
-
-        let getResponse = undefined
-
-
-        try {
-            getResponse = await axios.get(url, config)
-        }
-        catch (e) {
-       
-            
-            expect(e.response.data.status).equals(404)
-        }
-
+        //@ts-ignore
+        expect(err.response.status).equals(404)
 
         expect(getResponse).equals(undefined)
 

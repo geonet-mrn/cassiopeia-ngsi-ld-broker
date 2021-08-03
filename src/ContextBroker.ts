@@ -77,7 +77,9 @@ export class ContextBroker {
             throw errorTypes.InvalidRequest.withDetail("The submitted data is not a valid NGSI-LD entity: " + entityCheckResults.join(" "))
         }
 
-        return await this.psql.updateEntityAttributes(entityId, fragment_expanded)
+        return await this.psql.updateEntityAttributes(entityId, fragment_expanded, undefined)
+
+        
     }
 
 
@@ -155,8 +157,13 @@ export class ContextBroker {
             throw errorTypes.InvalidRequest.withDetail("The submitted data is not a valid NGSI-LD entity: " + entityCheckResults.join(" "))
         }
 
+        
 
         let fragment_attribute_expanded = fragment_expanded[attributeId_expanded]
+
+        if (fragment_attribute_expanded == undefined) {
+            throw errorTypes.BadRequestData.withDetail("The passed fragment does not contain an attribute with the ID specified in the request URL: " + attributeId_expanded)
+        }
 
         // Convert attribute to array representation if it isn't yet:
         if (!(fragment_attribute_expanded instanceof Array)) {
@@ -170,8 +177,12 @@ export class ContextBroker {
         }
         //################### END Input validation ##################
 
-        await this.psql.partialAttributeUpdate(entityId, attributeId_expanded, fragment_attribute_expanded)
-
+        const updateResult = await this.psql.updateEntityAttributes(entityId,fragment_expanded,attributeId_expanded)
+        
+        // 5.6.4.4: "If the target Entity does not contain the target Attribute ... then an error of type ResourceNotFound shall be raised":
+        if (updateResult.updated.length == 0) {
+            throw errorTypes.ResourceNotFound.withDetail("The specified entity does not have an attribute with the specified ID: " + attributeId_expanded)
+        }
     }
 
 
@@ -639,11 +650,7 @@ export class ContextBroker {
 
         const instance = patchFragmentAttribute[0]
 
-        console.log(instance)
-        await this.psql.updateAttributeInstanceOfTemporalEntity(entityId, attributeId_expanded, instanceId_expanded, instance)
-
-
-
+        await this.psql.updateAttributeInstance(entityId, instanceId_expanded, instance)
     }
 
 

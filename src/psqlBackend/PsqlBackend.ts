@@ -901,57 +901,6 @@ export class PsqlBackend {
     }
 
 
-    async partialAttributeUpdate(entityId: any, attributeId_expanded: string, attribute_expanded: any) {
-
-        const existingEntityMetadata = await this.getEntityMetadata(entityId, false)
-
-        if (existingEntityMetadata == undefined) {
-            throw errorTypes.ResourceNotFound.withDetail(`No entity with ID '${entityId}' exists.`)
-        }
-
-
-        let sql_transaction = "BEGIN;"
-
-        for (const instance_expanded of attribute_expanded) {
-
-            // ATTENTION: Since we use a SQL transaction for this, it is not (easily) possible to determine the
-            // number of affected rows. This means that we can't tell whether the target attribute exists in
-            // the database.
-
-            // The specification demands that a ResourceNotFound error is thrown if the attribute does not
-            // exist. In order to implement this, we perform an SQL query to count the number of existing
-            // attribute instances with the specified datasetId:
-
-            const datasetId = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
-
-            const existingInstances = await this.getAttributeInstances(existingEntityMetadata.id, attributeId_expanded, datasetId)
-
-            // Throw error if no attribute instances with same datasetId are found:
-            if (existingInstances.length == 0) {
-                throw errorTypes.ResourceNotFound.withDetail(`No instance of attribute '${attributeId_expanded}' with dataset ID '${instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']}' exists on the target entity '${entityId}'.`)
-            }
-
-            // Throw error if more than one attribute instance with same datasetId is found (should never happen!):
-            if (datasetId !== undefined && existingInstances.length > 1) {
-                throw errorTypes.InternalError.withDetail(`${existingInstances.length} with the same datasetId '${datasetId}' were found during preparation of a partial update of attribute '${attributeId_expanded}' of entity '${entityId}'. This is a database corruption and should never happen.`)
-            }
-
-            // If *exactly one* attribute instance with same datasetId is found, update it:
-            else {
-                sql_transaction += this.makeUpdateAttributeInstanceQuery(existingInstances[0].instance_id, instance_expanded, true)
-            }
-        }
-
-        sql_transaction += this.makeUpdateEntityModifiedAtQuery(existingEntityMetadata.id)
-
-        sql_transaction += "COMMIT;"
-
-        await this.runSqlQuery(sql_transaction)
-    }
-
-
-
-
     // Spec 5.7.2
     async queryEntities(query: Query, temporal: boolean, includeSysAttrs: boolean, context: JsonLdContextNormalized): Promise<Array<any>> {
 
@@ -1166,7 +1115,7 @@ export class PsqlBackend {
     }
 
 
-    async updateAttributeInstanceOfTemporalEntity(entityId: string, attributeId_expanded: string, instanceId_expanded: string, instance: any) {
+    async updateAttributeInstance(entityId: string, instanceId_expanded: string, instance: any) {
 
         //####################### BEGIN Try to fetch existing entity ###########################
         const entityMetadata = await this.getEntityMetadata(entityId, true)
@@ -1176,7 +1125,7 @@ export class PsqlBackend {
         }
         //####################### END Try to fetch existing entity ###########################
 
-        const instanceId_number = parseFloat(instanceId_expanded.split("_")[1])
+        const instanceId_number = parseInt(instanceId_expanded.split("_")[1])
 
         const query = this.makeUpdateAttributeInstanceQuery(instanceId_number, instance, false)
 
@@ -1185,7 +1134,7 @@ export class PsqlBackend {
     }
 
 
-    async updateEntityAttributes(entityId: string, fragment_expanded: any) {
+    async updateEntityAttributes(entityId: string, fragment_expanded: any, attributeIdToUpdate : string|undefined) {
 
         const entityMetadata = await this.getEntityMetadata(entityId, false)
 
@@ -1204,6 +1153,10 @@ export class PsqlBackend {
 
         //####################### BEGIN Iterate over attributes #############################
         for (const attributeId_expanded in fragment_expanded) {
+
+            if (attributeIdToUpdate != undefined && attributeId_expanded != attributeIdToUpdate) {
+                continue
+            }
 
             let attribute_expanded = fragment_expanded[attributeId_expanded]
 
@@ -1239,6 +1192,9 @@ export class PsqlBackend {
 
                     updated = true
                 }            
+                else if (existingInstances.length > 1) {
+                    throw errorTypes.InternalError.withDetail(`${existingInstances.length} with the same datasetId '${datasetId}' were found during preparation of a partial update of attribute '${attributeId_expanded}' of entity '${entityId}'. This is a database corruption and should never happen. Please contact the context broker administrator.`)
+                }
             }
             //############## END Iterate over attribute instances ##################
 
@@ -1246,13 +1202,13 @@ export class PsqlBackend {
                 result.notUpdated.push(new NotUpdatedDetails(attributeId_expanded, "No attribute instance(s) with the specified attribute ID and instance ID(s) exists."))
             }
         }
-        //####################### END Build transaction query #############################
-
         //####################### END Iterate over attributes #############################
 
         sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
 
         sql_transaction += "COMMIT;"
+        //####################### END Build transaction query #############################
+
 
         await this.runSqlQuery(sql_transaction)
 
