@@ -12,15 +12,23 @@ const originalEntity = {
         {
             "type": "Property",
             "value": "before"
+        },
+
+        {
+            "type": "Property",
+            "value": "another value before",
+            "datasetId": "urn:ngsi-ld:DatasetId:dataset1"
         }
     ],
 
     "testProp2": [
         {
             "type": "Property",
-            "value": "another value before"
+            "value": "and something else again"
         }
+
     ],
+
 }
 
 
@@ -55,7 +63,11 @@ describe('6.6.3.2 PATCH entities/<entityId>/attrs/', function () {
 
 
 
-    it("should append the attributes provided in the uploaded NGSI-LD fragment to the entity specified by the URL path", async function () {
+    it("should update the specified existing entity with the attributes provided in the uploaded NGSI-LD fragment", async function () {
+
+        // 5.6.2.4:
+        // For each of the Attributes included in the Fragment, if the target Entity includes a matching one (considering
+        // term expansion rules as mandated by clause 5.5.7), then replace it by the one included by the Fragment:
 
         const config = {
             headers: {
@@ -83,8 +95,6 @@ describe('6.6.3.2 PATCH entities/<entityId>/attrs/', function () {
             console.log(e)
         }) as AxiosResponse
 
-      
-        
         expect(updateAttributesResponse.status).equals(204)
         //###################### END Step 2 ######################
 
@@ -93,12 +103,32 @@ describe('6.6.3.2 PATCH entities/<entityId>/attrs/', function () {
         //###################### BEGIN Step 3 ######################
 
         const getModifiedEntityResponse = await axios.get(entityUrl)
-    
+
         expect(getModifiedEntityResponse.status).equals(200)
 
         const modifiedEntity = getModifiedEntityResponse.data
 
-        expect(modifiedEntity.testProp1[0].value).equals("after")
+        let instanceFound = false
+        let otherInstanceFound = false
+
+        for(const instance of modifiedEntity.testProp1) {
+
+            // The instance with default dataset ID (i.e. undefined) should be changed:
+            if (instance.datasetId === undefined) {
+                instanceFound = true
+                expect(instance.value).equals("after")
+            }
+
+            // The other instance should not be changed:
+            else if(instance.datasetId == "urn:ngsi-ld:DatasetId:dataset1") {
+                expect(instance.value).equals("another value before")
+                otherInstanceFound = true
+            }
+        }
+        
+        expect(instanceFound).equals(true)
+        expect(otherInstanceFound).equals(true)
+
         //###################### END Step 3 ######################
 
     })

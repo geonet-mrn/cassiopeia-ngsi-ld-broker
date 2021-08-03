@@ -13,7 +13,7 @@ let config = {
 }
 
 
-const entity =
+const validEntity =
 {
     "id": "urn:ngsi-ld:Test1",
     "type": "TestEntity",
@@ -28,27 +28,46 @@ const entity =
 
 
 
+
+const entityWithDuplicateDatasetIds =
+{
+    "id": "urn:ngsi-ld:Test1",
+    "type": "TestEntity",
+
+    "name": [
+        {
+            "type": "Property",
+            "value": "Test1"
+        },
+        {
+            "type": "Property",
+            "value": "Test2"
+        }
+    ]
+}
+
+
 describe('6.4.3.1 POST /entities/', function () {
 
-    before(async () => {
+    beforeEach(async () => {
         await prep.deleteAllEntities()
 
 
     })
 
 
-    after(async () => {
+    afterEach(async () => {
         await prep.deleteAllEntities()
 
     })
 
 
 
-    it("Should create a new Entity", async function () {
+    it("should create a new Entity", async function () {
 
 
         // Create entity:
-        let response = await axios.post(testConfig.base_url + "entities/", entity, config)
+        let response = await axios.post(testConfig.base_url + "entities/", validEntity, config)
 
         expect(response.status).equals(201)
 
@@ -63,16 +82,38 @@ describe('6.4.3.1 POST /entities/', function () {
 
 
 
-    it("Should return HTTP status code 409 if an entity with the same ID already exists", async function () {
+    it("should return HTTP status code 409 if an entity with the same ID already exists", async function () {
 
+        // Create entity:
+        let response = await axios.post(testConfig.base_url + "entities/", validEntity, config)
+
+        expect(response.status).equals(201)
 
         // Try to create the same entity (with same id) again:
-        let response = await axios.post(testConfig.base_url + "entities/", entity, config).catch((err) => {
+        let response2 = await axios.post(testConfig.base_url + "entities/", validEntity, config).catch((err) => {
             expect(err.response.status).equals(409)
         })
 
-     
-        expect(response).to.be.undefined
+
+        expect(response2).to.be.undefined
+    })
+
+
+
+    it("should not create a new entity if one or more of its attributes has multiple instances with the same datasetId (defined or undefined)", async function () {
+
+        let err : any = undefined
+        
+        // Try to create invalid entity:
+        let response = await axios.post(testConfig.base_url + "entities/", entityWithDuplicateDatasetIds, config).catch((e) => err = e)
+
+        expect(err).to.not.be.undefined
+
+        if (err != undefined) {
+            expect(err.response.status).equals(400)
+        }
+
+        
     })
 
 
