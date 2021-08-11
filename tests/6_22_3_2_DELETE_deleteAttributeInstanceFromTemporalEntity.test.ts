@@ -44,7 +44,7 @@ const temporalEntity = {
 }
 
 
-describe('6.23.3.1 DELETE temporal/entities/<entityId>/attrs/<attrId>/<instanceId>', function () {
+describe('6.22.3.2 DELETE temporal/entities/<entityId>/attrs/<attrId>/<instanceId>', function () {
 
 
 
@@ -94,8 +94,7 @@ describe('6.23.3.1 DELETE temporal/entities/<entityId>/attrs/<attrId>/<instanceI
         let instanceId = fetchedEntity.propertyToDelete[0].instanceId
 
         const deleteUrl = testConfig.base_url + "temporal/entities/" + entityId + "/attrs/propertyToDelete/" + instanceId
-        console.log(deleteUrl)
-
+       
         err = undefined
         let deleteResponse: any = await axios.delete(deleteUrl, config).catch((e) => {
             err = e

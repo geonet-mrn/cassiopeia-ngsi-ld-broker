@@ -147,6 +147,8 @@ describe('6.18.3.1 POST temporal/entities/', function () {
 
         expect(getResponse.data.id).equals(entityId)
 
+
+
         expect(getResponse.data.testProperty.length).equals(5)
     
         
@@ -164,7 +166,7 @@ describe('6.18.3.1 POST temporal/entities/', function () {
 
         const url = testConfig.base_url + "entities/" + entityId
 
-        console.log(url)
+        
         const response = await axios.get(url)
 
         expect(response).to.not.be.undefined
@@ -175,7 +177,7 @@ describe('6.18.3.1 POST temporal/entities/', function () {
         // The property 'testProperty' should have only one instance:
 
         expect(entity.testProperty.length).equals(2)
-        console.log(entity)
+        
     })
 
 

@@ -95,7 +95,7 @@ describe('6.5.3.2 DELETE entities/<entityId>', function () {
 
         let entityUrl = queryUrl + entityIdToDelete
 
-        console.log(entityUrl)
+       
         response = await axios.get(entityUrl, config)
 
         expect(response.data.id).equals(entityIdToDelete)
