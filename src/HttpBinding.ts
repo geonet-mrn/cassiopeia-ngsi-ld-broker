@@ -2,6 +2,7 @@
 // https://www.etsi.org/deliver/etsi_gs/CIM/001_099/009/01.03.01_60/gs_CIM009v010301p.pdf
 
 // TODO: 1 Test PostgreSQL connection at broker startup
+// TODO: 2 Implement 4.6.2
 // TODO: 3 Spec 6.3.4 vervollständigen (v.a. check von Accept Headers)
 // TODO: 3 Spec 6.3.5 (Extract context from request)
 // TODO: 3 Spec 6.3.6 (Response context representation)
