@@ -1,18 +1,18 @@
 // NGSI-LD Version 1.3.1
 // https://www.etsi.org/deliver/etsi_gs/CIM/001_099/009/01.03.01_60/gs_CIM009v010301p.pdf
 
-
-// TODO: 1 Refactor PsqlBackend::addAttributesToTemporalEntity
-// TODO: 1 Spec 6.3.5 (Extract context from request)
-// TODO: 1 Spec 6.3.6 (Response context representation)
-// TODO: 2 Support GeoJSON for GeoProperty as string
+// TODO: 1 Test PostgreSQL connection at broker startup
+// TODO: 3 Spec 6.3.4 vervollständigen (v.a. check von Accept Headers)
+// TODO: 3 Spec 6.3.5 (Extract context from request)
+// TODO: 3 Spec 6.3.6 (Response context representation)
+// TODO: 3 Support GeoJSON for GeoProperty as string
 // TODO: 3 Correct implementation for what to expand and what not
 
 // TODO: 3 Automatically add "createdAt" and "modifiedAt" to all Attributes in JSON 
 // so that these fields can be queried with the query language. Remove them from output if not explicitly requested.
 
-// TODO: 2 Test PostgreSQL connection at broker startup
-// TODO: 3 Spec 6.3.4 vervollständigen (v.a. check von Accept Headers)
+
+
 // TODO: 3 GeoJSON response headers-Gedöns (spec 6.3.6)
 // TODO: 3 5.7.2.4 Match ID patterns
 // TODO: 4 Complete criteria in Spec 5.5.4 (context and null)
@@ -43,7 +43,7 @@ import { getNormalizedContext, NGSI_LD_CORE_CONTEXT_URL } from "./jsonld"
 import { PsqlBackend } from "./psqlBackend/PsqlBackend"
 import * as fs from 'fs'
 import * as auth from 'basic-auth'
-import createStatsCollector = require("mocha/lib/stats-collector")
+//import createStatsCollector = require("mocha/lib/stats-collector")
 
 
 export class HttpBinding {
