@@ -119,8 +119,7 @@ describe('Interaction between "normal" and "temporal" API endpoints', function (
 
         const entity3 = getResponse2.data
 
-        console.log(entity3)
-
+    
         expect(entity3.id).equals(temporalEntityId)
 
         expect(entity3.testProperty.length).equals(1)

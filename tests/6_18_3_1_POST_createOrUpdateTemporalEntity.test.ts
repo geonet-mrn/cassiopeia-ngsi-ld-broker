@@ -176,7 +176,7 @@ describe('6.18.3.1 POST temporal/entities/', function () {
 
         // The property 'testProperty' should have only one instance:
 
-        console.log(entity.testProperty)
+   
         expect(entity.testProperty.length).equals(2)
         
     })
