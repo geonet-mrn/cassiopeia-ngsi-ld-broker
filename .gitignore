@@ -2,4 +2,5 @@ contextCache
 dist
 node_modules
 compile_readme.sh
+cassiopeia_config.json
 markdown-enhancer.py
