@@ -100,7 +100,7 @@ export class PsqlBackend {
 
                 const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId, datasetId)
 
-            
+
                 // TODO: 1 Unit test this
 
                 if (existingInstances.length == 0 || temporal) {
@@ -111,9 +111,9 @@ export class PsqlBackend {
                 }
                 else if (overwrite) {
 
-                    let lastModifiedInstance : any = null
+                    let lastModifiedInstance: any = null
 
-                    for(const exInst of existingInstances) {
+                    for (const exInst of existingInstances) {
                         // ATTENTION: Here, the field name of "modified at" is "attr_modified_at" because it is comes directly
                         // from the database table column name!
                         if (lastModifiedInstance == null || exInst.attr_modified_at > lastModifiedInstance.attr_modified_at) {
@@ -124,9 +124,9 @@ export class PsqlBackend {
                     if (lastModifiedInstance != null) {
                         sql_transaction += this.makeUpdateAttributeInstanceQuery(lastModifiedInstance.instance_id, instance_expanded, true)
                         updated = true
-                    }                    
+                    }
                 }
-               
+
 
             }
             //################## END Iterate over attribute instances #######################
@@ -502,8 +502,8 @@ export class PsqlBackend {
     }
 
 
-    async getEntitiesBySqlWhere(sql_where: string, includeSysAttrs: boolean, orderBySql: string | undefined, 
-        lastN: number | undefined, attrNames_expanded : Array<string>|undefined, temporal : boolean): Promise<Array<any>> {
+    async getEntitiesBySqlWhere(sql_where: string, includeSysAttrs: boolean, orderBySql: string | undefined,
+        lastN: number | undefined, attrNames_expanded: Array<string> | undefined, temporal: boolean): Promise<Array<any>> {
 
         //############# BEGIN Build "ORDER BY" query part ############
         let orderBy = ""
@@ -610,7 +610,22 @@ export class PsqlBackend {
         let result = Array<any>()
 
         for (const key in entitiesByNgsiId) {
-            const entity = entitiesByNgsiId[key] 
+            const entity = entitiesByNgsiId[key]
+
+            //############# BEGIN Add empty arrays for requested attributes with no matching instances #############
+            // "For the avoidance of doubt, if for a requested Attribute no instance fulfils the temporal query, 
+            // then an empty Array of instances shall be provided as the representation for such Attribute.":
+
+            if (attrNames_expanded instanceof Array) {
+
+                for (const attributeName of attrNames_expanded) {
+                    if (entity[attributeName] == undefined) {
+                        entity[attributeName] = []
+                    }
+                }
+            }
+            //############# END Add empty arrays for requested attributes with no matching instances #############
+            
             result.push(entity)
         }
 
@@ -682,7 +697,6 @@ export class PsqlBackend {
         // Always include sysAttrs:
         const entities = await this.getEntitiesBySqlWhere(sql_where, true, orderBySql, lastN, attrNames_expanded, temporal)
 
-        console.log(entities)
 
         if (entities.length == 0) {
             throw errorTypes.ResourceNotFound.withDetail("No entity found.")
@@ -694,24 +708,7 @@ export class PsqlBackend {
         const entity: any = entities[0]
 
 
-        //############# BEGIN Add empty arrays for requested attributes with no matching instances #############
-        // "For the avoidance of doubt, if for a requested Attribute no instance fulfils the temporal query, 
-        // then an empty Array of instances shall be provided as the representation for such Attribute.":
 
-        if (attrNames_expanded instanceof Array) {
-
-            for (const attributeName of attrNames_expanded) {
-                for (const e of entities) {
-
-                    const entity = e as any
-
-                    if (entity[attributeName] == undefined) {
-                        entity[attributeName] = []
-                    }
-                }
-            }
-        }
-        //############# END Add empty arrays for requested attributes with no matching instances #############
 
 
         //############ BEGIN Only keep latest instance of all with same datasetId if entity is requested in non-temporal form ###########
@@ -911,7 +908,7 @@ export class PsqlBackend {
         // NOTE: This method returns a Promise that contains the number of updated attribute instances.
 
 
-        
+
 
         //################# BEGIN Build SQL query to update attribute instance #####################
         let sql = `UPDATE ${this.tableCfg.TBL_ATTR} SET ${this.tableCfg.COL_INSTANCE_JSON} = '${JSON.stringify(instance)}'`
@@ -922,7 +919,7 @@ export class PsqlBackend {
             const geojson_expanded = instance['https://uri.etsi.org/ngsi-ld/hasValue']
 
             const geojson_compacted = compactObject(geojson_expanded, this.ngsiLdCoreContext)
-            
+
             const geojson_string = JSON.stringify(geojson_compacted)
 
             sql += `, geom = ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`
@@ -935,11 +932,11 @@ export class PsqlBackend {
 
 
         // Write 'modified_at' column:    
-        const now = new Date()    
+        const now = new Date()
         sql += `, ${this.tableCfg.COL_ATTR_MODIFIED_AT} = '${now.toISOString()}'`
 
 
-    
+
         // Add WHERE conditions:        
         sql += ` WHERE ${this.tableCfg.COL_INSTANCE_ID} = ${instanceId}`
 
