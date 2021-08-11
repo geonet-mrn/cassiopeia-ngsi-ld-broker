@@ -238,6 +238,8 @@ A new folder named "dist" should have appeared in the Cassiopeia directory. It c
 
 ## Modify Cassiopeia's configuration file
 
+The repository folder contains a file named `cassiopeia_config_template.json`. As a first step, rename or copy this file to `cassiopeia_config.json`. `cassiopeia_config.json` is the hard-coded file name that is expected by Cassipeia to contain the configuration settings. The file is renamed to `cassiopeia_config_template.json` in the Git repository to prevent accidental uploading of "live" config files with real credentials.
+
 The file `cassiopeia_config.json` holds various settings that must be adjusted for Cassiopeia to work. If you have followed the installation steps exactly as described up to this point, the only value you need to change in this file is the PostgreSQL password. All other settings can be left as they are. However, if you e.g. decided to use a different name for your PostgreSQL database or role, you might have to make the configuration file reflect these changes.
 
 Open `cassiopeia_config.json` with your text editor of choice and adjust its content as follows:
