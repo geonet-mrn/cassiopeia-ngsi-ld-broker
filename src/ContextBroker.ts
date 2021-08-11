@@ -750,7 +750,7 @@ export class ContextBroker {
 
         // Fetch entities
         let entities_expanded = await this.psql.queryEntities(query, false, includeSysAttrs, context)
-
+        
 
         if (keyValues) {
 
@@ -833,7 +833,11 @@ export class ContextBroker {
 
         const attrs_expanded = expandObject(attrs_compacted, context)
 
+       
         const returnedEntity_expanded = await this.psql.getEntity(entityId, true, attrs_expanded, temporalQ, includeSysAttrs)
+
+       
+
 
 
         const returnedEntity_compacted = compactObject(returnedEntity_expanded, context)

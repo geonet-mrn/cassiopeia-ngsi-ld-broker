@@ -97,7 +97,7 @@ export class PsqlBackend {
 
                 const datasetId = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
 
-              
+
                 const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId, datasetId)
 
                 if (existingInstances.length == 0 || temporal) {
@@ -487,7 +487,8 @@ export class PsqlBackend {
     }
 
 
-    async getEntitiesBySqlWhere(sql_where: string, includeSysAttrs: boolean, orderBySql: string | undefined, lastN: number | undefined): Promise<Array<any>> {
+    async getEntitiesBySqlWhere(sql_where: string, includeSysAttrs: boolean, orderBySql: string | undefined, 
+        lastN: number | undefined, attrNames_expanded : Array<string>|undefined, temporal : boolean): Promise<Array<any>> {
 
         //############# BEGIN Build "ORDER BY" query part ############
         let orderBy = ""
@@ -593,9 +594,32 @@ export class PsqlBackend {
 
         let result = Array<any>()
 
-        for (let key in entitiesByNgsiId) {
-            result.push(entitiesByNgsiId[key])
+        for (const key in entitiesByNgsiId) {
+            const entity = entitiesByNgsiId[key] 
+            result.push(entity)
         }
+
+
+        /*
+        //############# BEGIN Add empty arrays for requested attributes with no matching instances #############
+        // "For the avoidance of doubt, if for a requested Attribute no instance fulfils the temporal query, 
+        // then an empty Array of instances shall be provided as the representation for such Attribute.":
+
+        if (attrNames_expanded instanceof Array) {
+
+            for (const attributeName of attrNames_expanded) {
+                for (const e of result) {
+
+                    const entity = e as any
+
+                    if (entity[attributeName] == undefined) {
+                        entity[attributeName] = []
+                    }
+                }
+            }
+        }
+        //############# END Add empty arrays for requested attributes with no matching instances #############
+        */
 
         return new Promise((resolve, reject) => {
             resolve(result)
@@ -605,7 +629,7 @@ export class PsqlBackend {
 
     async getEntity(entityId: string,
         temporal: boolean,
-        attrNames: Array<string> | undefined,
+        attrNames_expanded: Array<string> | undefined,
         temporalQ: TemporalQuery | undefined,
         includeSysAttrs: boolean): Promise<any> {
 
@@ -626,13 +650,17 @@ export class PsqlBackend {
         let lastN: number | undefined = undefined
 
 
-        let sql_where = ` AND t1.${this.tableCfg.COL_ENT_ID} = '${entityId}' AND t1.${this.tableCfg.COL_ENT_TEMPORAL} = ${temporal.toString()}`
+        // Old version with temporal entities separated:
+        //let sql_where = ` AND t1.${this.tableCfg.COL_ENT_ID} = '${entityId}' AND t1.${this.tableCfg.COL_ENT_TEMPORAL} = ${temporal.toString()}`
+
+        // New version with temporal entities not separated:
+        let sql_where = ` AND t1.${this.tableCfg.COL_ENT_ID} = '${entityId}'`
 
         //############### BEGIN Only return selected attributes #################
-        if (attrNames instanceof Array) {
+        if (attrNames_expanded instanceof Array) {
             const wherePieces = []
 
-            for (const attr of attrNames) {
+            for (const attr of attrNames_expanded) {
                 wherePieces.push(`t2.${this.tableCfg.COL_ATTR_NAME} = '${attr}'`)
             }
 
@@ -654,8 +682,14 @@ export class PsqlBackend {
 
 
         // Fetch matching entities by SQL. If everything is correct, no more than one should be returned:
-        const entities = await this.getEntitiesBySqlWhere(sql_where, includeSysAttrs, orderBySql, lastN)
 
+        // Include sysAttrs only optionally:
+        //const entities = await this.getEntitiesBySqlWhere(sql_where, includeSysAttrs, orderBySql, lastN)
+
+        // Always include sysAttrs:
+        const entities = await this.getEntitiesBySqlWhere(sql_where, true, orderBySql, lastN, attrNames_expanded, temporal)
+
+        console.log(entities)
 
         if (entities.length == 0) {
             throw errorTypes.ResourceNotFound.withDetail("No entity found.")
@@ -671,9 +705,9 @@ export class PsqlBackend {
         // "For the avoidance of doubt, if for a requested Attribute no instance fulfils the temporal query, 
         // then an empty Array of instances shall be provided as the representation for such Attribute.":
 
-        if (attrNames instanceof Array) {
+        if (attrNames_expanded instanceof Array) {
 
-            for (const attributeName of attrNames) {
+            for (const attributeName of attrNames_expanded) {
                 for (const e of entities) {
 
                     const entity = e as any
@@ -685,6 +719,54 @@ export class PsqlBackend {
             }
         }
         //############# END Add empty arrays for requested attributes with no matching instances #############
+
+
+        //############ BEGIN Only keep latest instance of all with same datasetId if entity is requested in non-temporal form ###########
+
+        if (!temporal) {
+            const uri_modifiedAt = "https://uri.etsi.org/ngsi-ld/modifiedAt"
+            const uri_datasetId = "https://uri.etsi.org/ngsi-ld/datasetId"
+
+            for (const key in entity) {
+                const attribute = entity[key]
+
+                if (!isReifiedAttribute(attribute, key)) {
+                    continue
+                }
+
+                let lastModifiedInstanceOfDataset: any = {}
+
+                for (const instance of attribute) {
+                    const timestamp_modified = instance[uri_modifiedAt]
+
+                    if (timestamp_modified == undefined) {
+                        console.error("modifiedAt is undefined!")
+                        continue
+                    }
+
+                    let datasetId = instance[uri_datasetId]
+
+                    if (datasetId == undefined) {
+                        datasetId = "default"
+                    }
+
+                    if (lastModifiedInstanceOfDataset[datasetId] == undefined || timestamp_modified > lastModifiedInstanceOfDataset[datasetId][uri_modifiedAt]) {
+                        lastModifiedInstanceOfDataset[datasetId] = instance
+                    }
+                }
+
+
+                // Reset and refill attribute:
+
+                entity[key] = []
+
+                for (const datasetId in lastModifiedInstanceOfDataset) {
+                    entity[key].push(lastModifiedInstanceOfDataset[datasetId])
+                }
+            }
+        }
+
+        //############ END Only keep latest instance of all with same datasetId if entity is requested in non-temporal form ###########
 
 
         return new Promise((resolve, reject) => {
@@ -1059,10 +1141,13 @@ export class PsqlBackend {
 
 
 
+        const attrNames_expanded = expandObject(query.attrs, context) as Array<string>
+
         // Run query and return result:
-        const entities_expanded = await this.getEntitiesBySqlWhere(sql_where, includeSysAttrs, orderBySql, lastN)
+        const entities_expanded = await this.getEntitiesBySqlWhere(sql_where, includeSysAttrs, orderBySql, lastN, attrNames_expanded, temporal)
 
 
+        /*
         //########################## BEGIN Post-process returned entities #########################
         for (const ex of entities_expanded) {
 
@@ -1092,6 +1177,7 @@ export class PsqlBackend {
             //############# END Add empty arrays for requested attributes with no matching instances #############
         }
         //########################## END Post-process returned entities #########################
+        */
 
         return entities_expanded
     }
@@ -1101,6 +1187,7 @@ export class PsqlBackend {
 
         const resultPromise = this.pool.query(sql)
 
+        //console.log(sql)
         // Print error, but still continue with the normal promise chain:
 
         resultPromise.then(null, (e) => {
@@ -1134,7 +1221,7 @@ export class PsqlBackend {
     }
 
 
-    async updateEntityAttributes(entityId: string, fragment_expanded: any, attributeIdToUpdate : string|undefined) {
+    async updateEntityAttributes(entityId: string, fragment_expanded: any, attributeIdToUpdate: string | undefined) {
 
         const entityMetadata = await this.getEntityMetadata(entityId, false)
 
@@ -1191,7 +1278,7 @@ export class PsqlBackend {
                     result.updated.push(attributeId_expanded)
 
                     updated = true
-                }            
+                }
                 else if (existingInstances.length > 1) {
                     throw errorTypes.InternalError.withDetail(`${existingInstances.length} with the same datasetId '${datasetId}' were found during preparation of a partial update of attribute '${attributeId_expanded}' of entity '${entityId}'. This is a database corruption and should never happen. Please contact the context broker administrator.`)
                 }
