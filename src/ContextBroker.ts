@@ -12,6 +12,7 @@ import { checkArrayOfEntities, checkArrayOfUris, checkReifiedAttribute, checkEnt
 import { appendCoreContext, compactObject, expandObject, getNormalizedContext } from "./jsonld"
 import { parseJson, compactedEntityToGeoJsonFeature as compactedEntityToGeoJsonFeature } from "./util"
 import * as util from './util'
+import { EntityInfo } from "./dataTypes/EntityInfo"
 
 
 
@@ -79,7 +80,7 @@ export class ContextBroker {
 
         return await this.psql.updateEntityAttributes(entityId, fragment_expanded, undefined)
 
-        
+
     }
 
 
@@ -157,7 +158,7 @@ export class ContextBroker {
             throw errorTypes.InvalidRequest.withDetail("The submitted data is not a valid NGSI-LD entity: " + entityCheckResults.join(" "))
         }
 
-        
+
 
         let fragment_attribute_expanded = fragment_expanded[attributeId_expanded]
 
@@ -177,8 +178,8 @@ export class ContextBroker {
         }
         //################### END Input validation ##################
 
-        const updateResult = await this.psql.updateEntityAttributes(entityId,fragment_expanded,attributeId_expanded)
-        
+        const updateResult = await this.psql.updateEntityAttributes(entityId, fragment_expanded, attributeId_expanded)
+
         // 5.6.4.4: "If the target Entity does not contain the target Attribute ... then an error of type ResourceNotFound shall be raised":
         if (updateResult.updated.length == 0) {
             throw errorTypes.ResourceNotFound.withDetail("The specified entity does not have an attribute with the specified ID: " + attributeId_expanded)
@@ -566,7 +567,7 @@ export class ContextBroker {
         }
         //###################### END Try to fetch existing entity ########################
 
-        
+
         await this.psql.appendEntityAttributes(entityMetadata.id, fragment_expanded, false, true)
     }
 
@@ -698,14 +699,24 @@ export class ContextBroker {
             includeSysAttrs = options.includes("sysAttrs")
         }
 
-        const entity_expanded = await this.psql.getEntity(entityId, false, attrs_expanded, undefined, includeSysAttrs)
+        //let entity_expanded = await this.psql.getEntity(entityId, false, attrs_expanded, undefined, includeSysAttrs)
 
+        const query = new Query([new EntityInfo(entityId, undefined, undefined)], attrs_compacted, undefined, undefined, undefined, undefined, undefined, undefined, undefined)
+        const entities = await this.psql.queryEntities(query, false, includeSysAttrs, context)
 
+       
+       
+        if (entities.length == 0) {
+            throw errorTypes.ResourceNotFound.withDetail("No entity found.")
+        }
+        else if (entities.length > 1) {
+            throw errorTypes.InternalError.withDetail("More than one entity with the same ID was found. This is a database corruption and should never happen.")
+        }
+     
 
-        // NOTE: If something unexpected happens during retrieval of the entity from the database
-        // (e.g. no entity with the passed ID exists), an exception is thrown and the program never
-        // continues to this point. I.e. whenever we reach this point here, we can be sure that
-        // the variable 'entity' does actually contain an entity.
+        const entity_expanded = entities[0]
+
+      
 
         let result = entity_expanded
 
@@ -750,7 +761,7 @@ export class ContextBroker {
 
         // Fetch entities
         let entities_expanded = await this.psql.queryEntities(query, false, includeSysAttrs, context)
-        
+
 
         if (keyValues) {
 
@@ -833,11 +844,23 @@ export class ContextBroker {
 
         const attrs_expanded = expandObject(attrs_compacted, context)
 
-       
-        const returnedEntity_expanded = await this.psql.getEntity(entityId, true, attrs_expanded, temporalQ, includeSysAttrs)
 
-       
+        //let returnedEntity_expanded = await this.psql.getEntity(entityId, true, attrs_expanded, temporalQ, includeSysAttrs)
 
+
+        
+        const query = new Query([new EntityInfo(entityId, undefined, undefined)], attrs_compacted, undefined, undefined, undefined, undefined, undefined, undefined, undefined)
+        const entities = await this.psql.queryEntities(query, true, includeSysAttrs, context)
+
+
+        if (entities.length == 0) {
+            throw errorTypes.ResourceNotFound.withDetail("No entity found.")
+        }
+        else if (entities.length > 1) {
+            throw errorTypes.InternalError.withDetail("More than one entity with the same ID was found. This is a database corruption and should never happen.")
+        }
+        
+        const returnedEntity_expanded = entities[0]
 
 
         const returnedEntity_compacted = compactObject(returnedEntity_expanded, context)

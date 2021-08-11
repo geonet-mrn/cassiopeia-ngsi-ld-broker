@@ -663,6 +663,7 @@ export class PsqlBackend {
     }
 
 
+    /*
     async getEntity(entityId: string,
         temporal: boolean,
         attrNames_expanded: Array<string> | undefined,
@@ -685,11 +686,6 @@ export class PsqlBackend {
         let orderBySql: string | undefined = undefined
         let lastN: number | undefined = undefined
 
-
-        // Old version with temporal entities separated:
-        //let sql_where = ` AND t1.${this.tableCfg.COL_ENT_ID} = '${entityId}' AND t1.${this.tableCfg.COL_ENT_TEMPORAL} = ${temporal.toString()}`
-
-        // New version with temporal entities not separated:
         let sql_where = ` AND t1.${this.tableCfg.COL_ENT_ID} = '${entityId}'`
 
         //############### BEGIN Only return selected attributes #################
@@ -718,11 +714,6 @@ export class PsqlBackend {
 
 
         // Fetch matching entities by SQL. If everything is correct, no more than one should be returned:
-
-        // Include sysAttrs only optionally:
-        //const entities = await this.getEntitiesBySqlWhere(sql_where, includeSysAttrs, orderBySql, lastN)
-
-        // Always include sysAttrs:
         const entities = await this.getEntitiesBySqlWhere(sql_where, includeSysAttrs, orderBySql, lastN, attrNames_expanded, temporal)
 
 
@@ -735,62 +726,11 @@ export class PsqlBackend {
 
         const entity: any = entities[0]
 
-
-
-
-        /*
-                //############ BEGIN Only keep latest instance of all with same datasetId if entity is requested in non-temporal form ###########
-        
-                if (!temporal) {
-                    const uri_modifiedAt = "https://uri.etsi.org/ngsi-ld/modifiedAt"
-                    const uri_datasetId = "https://uri.etsi.org/ngsi-ld/datasetId"
-        
-                    for (const key in entity) {
-                        const attribute = entity[key]
-        
-                        if (!isReifiedAttribute(attribute, key)) {
-                            continue
-                        }
-        
-                        let lastModifiedInstanceOfDataset: any = {}
-        
-                        for (const instance of attribute) {
-                            const timestamp_modified = instance[uri_modifiedAt]
-        
-                            if (timestamp_modified == undefined) {
-                                console.error("modifiedAt is undefined!")
-                                continue
-                            }
-        
-                            let datasetId = instance[uri_datasetId]
-        
-                            if (datasetId == undefined) {
-                                datasetId = "default"
-                            }
-        
-                            if (lastModifiedInstanceOfDataset[datasetId] == undefined || timestamp_modified > lastModifiedInstanceOfDataset[datasetId][uri_modifiedAt]) {
-                                lastModifiedInstanceOfDataset[datasetId] = instance
-                            }
-                        }
-        
-        
-                        // Reset and refill attribute:
-        
-                        entity[key] = []
-        
-                        for (const datasetId in lastModifiedInstanceOfDataset) {
-                            entity[key].push(lastModifiedInstanceOfDataset[datasetId])
-                        }
-                    }
-                }
-        
-                //############ END Only keep latest instance of all with same datasetId if entity is requested in non-temporal form ###########
-        */
-
         return new Promise((resolve, reject) => {
             resolve(entity)
         })
     }
+    */
 
 
     async getEntityMetadata(entityId: string, temporal: boolean): Promise<any> {
@@ -1025,8 +965,6 @@ export class PsqlBackend {
 
 
         let sql_where = ""
-
-        sql_where += ` AND t1.${this.tableCfg.COL_ENT_TEMPORAL} = ${temporal.toString()} `
 
         //########## BEGIN Build entity IDs and types filter expression from EntityInfo array #############
         const entityTypes_expanded: Array<string> = []
