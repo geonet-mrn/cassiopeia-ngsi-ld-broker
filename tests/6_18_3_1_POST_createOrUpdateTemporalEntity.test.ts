@@ -2,7 +2,7 @@ import { expect, assert } from "chai";
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios'
 import * as prep from "./testUtil"
 import { testConfig } from './testConfig'
-
+import * as uuid from 'uuid'
 
 
 let config = {
@@ -11,7 +11,7 @@ let config = {
 }
 
    
-const entityId = "urn:ngsi-ld:TemporalTestEntity:test"
+const entityId = "urn:ngsi-ld:TemporalTestEntity:test" + uuid.v4()
 
 
 
@@ -176,6 +176,7 @@ describe('6.18.3.1 POST temporal/entities/', function () {
 
         // The property 'testProperty' should have only one instance:
 
+        console.log(entity.testProperty)
         expect(entity.testProperty.length).equals(2)
         
     })
