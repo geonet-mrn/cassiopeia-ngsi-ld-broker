@@ -1,3 +1,5 @@
 contextCache
 dist
 node_modules
+compile_readme.sh
+markdown-enhancer.py
