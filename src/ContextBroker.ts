@@ -682,46 +682,33 @@ export class ContextBroker {
         attrs_compacted: Array<string> | undefined,
         geometryProperty_compacted: string | undefined,
         datasetId: string | undefined,
-        options: Array<string> | undefined,
+        options: Array<string>,
         contextUrl: string | undefined): Promise<any | Feature> {
 
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
 
+        const keyValues = options.includes("keyValues")
+        const includeSysAttrs = options.includes("sysAttrs")
 
-        const attrs_expanded = expandObject(attrs_compacted, context)
-
-        let includeSysAttrs = false
-        let keyValues = false
-
-        if (options instanceof Array) {
-            keyValues = options.includes("keyValues")
-            includeSysAttrs = options.includes("sysAttrs")
-        }
-
-        //let entity_expanded = await this.psql.getEntity(entityId, false, attrs_expanded, undefined, includeSysAttrs)
 
         const query = new Query([new EntityInfo(entityId, undefined, undefined)], attrs_compacted, undefined, undefined, undefined, undefined, undefined, undefined, undefined)
         const entities = await this.psql.queryEntities(query, false, includeSysAttrs, context)
 
-       
-       
+
+
         if (entities.length == 0) {
             throw errorTypes.ResourceNotFound.withDetail("No entity found.")
         }
         else if (entities.length > 1) {
             throw errorTypes.InternalError.withDetail("More than one entity with the same ID was found. This is a database corruption and should never happen.")
         }
-     
 
-        const entity_expanded = entities[0]
-
-      
-
-        let result = entity_expanded
+        
+        let result_expanded = entities[0]
 
         if (keyValues) {
-            result = util.simplifyEntity(result)
+            result_expanded = util.simplifyEntity(result_expanded)
         }
 
         // Return GeoJSON representation if requested:
@@ -729,11 +716,11 @@ export class ContextBroker {
 
             const geometryProperty_expanded = expandObject(geometryProperty_compacted, context)
 
-            result = compactedEntityToGeoJsonFeature(result, geometryProperty_expanded, datasetId)
+            result_expanded = compactedEntityToGeoJsonFeature(result_expanded, geometryProperty_expanded, datasetId)
         }
 
 
-        const result_compacted = compactObject(result, context)
+        const result_compacted = compactObject(result_expanded, context)
 
 
         result_compacted['@context'] = actualContext
@@ -825,10 +812,12 @@ export class ContextBroker {
         attrs_compacted: Array<string> | undefined,
         // NOTE: The parameter "lastN" is part of TemporalQuery
         temporalQ: TemporalQuery | undefined,
-        contextUrl: string | undefined) {
+        contextUrl: string | undefined,
+        options: Array<string>) {
 
-        // TODO: Which request option enables system attributes?
-        const includeSysAttrs = false
+        const includeSysAttrs = options.includes("sysAttrs")
+
+        // TODO: 3 Implement simplified representation (6.3.7, 6.3.12)
 
         //#################### BEGIN Validation ###################
         if (!isUri(entityId)) {
@@ -840,16 +829,7 @@ export class ContextBroker {
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
 
-
-
-        const attrs_expanded = expandObject(attrs_compacted, context)
-
-
-        //let returnedEntity_expanded = await this.psql.getEntity(entityId, true, attrs_expanded, temporalQ, includeSysAttrs)
-
-
-        
-        const query = new Query([new EntityInfo(entityId, undefined, undefined)], attrs_compacted, undefined, undefined, undefined, undefined, undefined, undefined, undefined)
+        const query = new Query([new EntityInfo(entityId, undefined, undefined)], attrs_compacted, undefined, undefined, undefined, temporalQ, undefined, undefined, undefined)
         const entities = await this.psql.queryEntities(query, true, includeSysAttrs, context)
 
 
@@ -859,13 +839,8 @@ export class ContextBroker {
         else if (entities.length > 1) {
             throw errorTypes.InternalError.withDetail("More than one entity with the same ID was found. This is a database corruption and should never happen.")
         }
-        
-        const returnedEntity_expanded = entities[0]
 
-
-        const returnedEntity_compacted = compactObject(returnedEntity_expanded, context)
-
-        return returnedEntity_compacted
+        return compactObject(entities[0], context)
     }
 
 

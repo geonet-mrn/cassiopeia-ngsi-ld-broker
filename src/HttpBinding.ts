@@ -174,13 +174,12 @@ export class HttpBinding {
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
 
-        const attrs = (ctx.request.query.attrs) ? ctx.request.query.attrs.split(",") : undefined
         const options = (typeof (ctx.request.query.options) == "string") ? (ctx.request.query.options as string).split(",") : []
 
+
+        const attrs = (ctx.request.query.attrs) ? ctx.request.query.attrs.split(",") : undefined        
+
         // NOTE: The parameters 'geometryProperty' and 'datasetId' are defined in spec 6.3.15:
-
-        const datasetId = ctx.request.query.datasetId
-
 
         let geometryProperty = ctx.request.query.geometryProperty
 
@@ -189,7 +188,7 @@ export class HttpBinding {
         }
 
 
-        ctx.body = await this.broker.api_5_7_1_retrieveEntity(ctx.params.entityId, attrs, geometryProperty, datasetId, options, contextUrl)
+        ctx.body = await this.broker.api_5_7_1_retrieveEntity(ctx.params.entityId, attrs, geometryProperty, ctx.request.query.datasetId, options, contextUrl)
         ctx.status = 200
         await next()
     }
@@ -521,10 +520,9 @@ export class HttpBinding {
     // Binding for spec 5.7.4
     http_6_18_3_2_GET_queryTemporalEntities = async (ctx: any, next: any) => {
 
-        const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
-
-
         // TODO: Share code here with non-temporal query method
+
+        const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
 
         const options = (typeof (ctx.request.query.options) == "string") ? (ctx.request.query.options as string).split(",") : []
 
@@ -619,6 +617,8 @@ export class HttpBinding {
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
 
+        const options = (typeof (ctx.request.query.options) == "string") ? (ctx.request.query.options as string).split(",") : []
+
         const attrs = (ctx.request.query.attrs) ? ctx.request.query.attrs.split(",") : undefined
 
         // NOTE: The parameters 'geometryProperty' and 'datasetId' are defined in spec 6.3.15:
@@ -642,7 +642,7 @@ export class HttpBinding {
 
         // TODO: 2 Pass GeoJSON parameters
 
-        ctx.body = await this.broker.api_5_7_3_retrieveTemporalEntity(ctx.params.entityId, attrs, temporalQ, contextUrl)
+        ctx.body = await this.broker.api_5_7_3_retrieveTemporalEntity(ctx.params.entityId, attrs, temporalQ, contextUrl, options)
         ctx.status = 200
 
         await next()
@@ -787,7 +787,7 @@ export class HttpBinding {
     // Binding for spec 5.7.4
     http_6_24_3_1_POST_temporalEntityOperationsQuery = async (ctx: any, next: any) => {
 
-        // NOTE: This is the POST version of the "query tempooral entities" operation.
+        // NOTE: This is the POST version of the "query temporal entities" operation.
 
         //############### BEGIN Try to create Query object from request payload ###############
         let query = undefined
@@ -823,9 +823,6 @@ export class HttpBinding {
         }
         //##################### END Resolve context ##################
 
-        //console.log(JSON.stringify(query))
-
-        //ctx.body = await this.broker.api_5_7_2_queryEntities(query, contextUrl)
         ctx.body = await this.broker.api_5_7_4_queryTemporalEntities(query, contextUrl)
         ctx.status = 200
         await next()
@@ -978,21 +975,6 @@ export class HttpBinding {
   
             this.app.use(compress({
                 threshold: 2048,
-               
-                /*
-                filter(content_type: string) {
-                    return /text/i.test(content_type)
-                },
-                */
-                  /*         
-                gzip: {
-                    flush: require('zlib').constants.Z_SYNC_FLUSH
-                },
-                deflate: {
-                    flush: require('zlib').constants.Z_SYNC_FLUSH,
-                },
-                br: false // disable brotli
-               */
             }))
         }
         //################ END Enable response payload compression ################
@@ -1026,7 +1008,7 @@ export class HttpBinding {
         }
         //##################### END "entities" endpoints #############################
 
-
+        
 
         //################ BEGIN "csourceRegistrations" endpoints #######################
         {

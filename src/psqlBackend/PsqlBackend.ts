@@ -151,7 +151,7 @@ export class PsqlBackend {
     }
 
 
-    async getAttributeInstances(entityInternalId: number, attributeName: string, datasetId: string | null | undefined): Promise<any> {
+    private async getAttributeInstances(entityInternalId: number, attributeName: string, datasetId: string | null | undefined): Promise<any> {
 
 
         if (datasetId === undefined) {
@@ -661,76 +661,6 @@ export class PsqlBackend {
             resolve(result)
         })
     }
-
-
-    /*
-    async getEntity(entityId: string,
-        temporal: boolean,
-        attrNames_expanded: Array<string> | undefined,
-        temporalQ: TemporalQuery | undefined,
-        includeSysAttrs: boolean): Promise<any> {
-
-
-        // ATTENTION:
-
-        // There is Spec 4.5.5:
-        // "In case of conflicting information for an Attribute, where a datasetId is duplicated, 
-        // but there are differences in the other attribute data, the one with the most recent 
-        // observedAt DateTime, if present, and otherwise the one with the most recent
-        //  modifiedAt DateTime shall be provided.".
-
-        // HOWEVER, in order to implement this, we CAN NOT simply set lastN = 1 and order by observedAt
-        // and modifiedAt here, since we still want to retrieve all attribute instances with different
-        // datasetIds!
-
-        let orderBySql: string | undefined = undefined
-        let lastN: number | undefined = undefined
-
-        let sql_where = ` AND t1.${this.tableCfg.COL_ENT_ID} = '${entityId}'`
-
-        //############### BEGIN Only return selected attributes #################
-        if (attrNames_expanded instanceof Array) {
-            const wherePieces = []
-
-            for (const attr of attrNames_expanded) {
-                wherePieces.push(`t2.${this.tableCfg.COL_ATTR_NAME} = '${attr}'`)
-            }
-
-            sql_where += " AND (" + wherePieces.join(" OR ") + ") "
-        }
-        //############### END Only return selected attributes #################
-
-
-        // ############# BEGIN Only return attribute instances within temporal query interval #############
-        if (temporalQ != undefined) {
-            sql_where += makeTemporalQueryCondition(temporalQ, this.tableCfg)
-
-            orderBySql = this.getTemporalTableColumn(temporalQ.timeproperty) + " DESC"
-
-            lastN = temporalQ.lastN
-        }
-
-        // ############# END Only return attribute instances within temporal query interval #############
-
-
-        // Fetch matching entities by SQL. If everything is correct, no more than one should be returned:
-        const entities = await this.getEntitiesBySqlWhere(sql_where, includeSysAttrs, orderBySql, lastN, attrNames_expanded, temporal)
-
-
-        if (entities.length == 0) {
-            throw errorTypes.ResourceNotFound.withDetail("No entity found.")
-        }
-        else if (entities.length > 1) {
-            throw errorTypes.InternalError.withDetail("More than one entity with the same ID was found. This is a database corruption and should never happen.")
-        }
-
-        const entity: any = entities[0]
-
-        return new Promise((resolve, reject) => {
-            resolve(entity)
-        })
-    }
-    */
 
 
     async getEntityMetadata(entityId: string, temporal: boolean): Promise<any> {
