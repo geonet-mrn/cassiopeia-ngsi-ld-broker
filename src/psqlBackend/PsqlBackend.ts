@@ -97,7 +97,6 @@ export class PsqlBackend {
 
                 const datasetId = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
 
-
                 const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId, datasetId)
 
 
@@ -126,8 +125,6 @@ export class PsqlBackend {
                         updated = true
                     }
                 }
-
-
             }
             //################## END Iterate over attribute instances #######################
 
@@ -505,6 +502,10 @@ export class PsqlBackend {
     async getEntitiesBySqlWhere(sql_where: string, includeSysAttrs: boolean, orderBySql: string | undefined,
         lastN: number | undefined, attrNames_expanded: Array<string> | undefined, temporal: boolean): Promise<Array<any>> {
 
+        const uri_modifiedAt = "https://uri.etsi.org/ngsi-ld/modifiedAt"
+        const uri_datasetId = "https://uri.etsi.org/ngsi-ld/datasetId"
+
+
         //############# BEGIN Build "ORDER BY" query part ############
         let orderBy = ""
 
@@ -591,10 +592,16 @@ export class PsqlBackend {
 
             instance["https://uri.etsi.org/ngsi-ld/instanceId"] = "urn:ngsi-ld:InstanceId:instance_" + row[this.tableCfg.COL_INSTANCE_ID]
 
+            // ATTENTION: We always add the modified timestamp first, regardless of whether includeSysAttrs is true,
+            // because we need it to find the most recently modified attribute instance if this is not a
+            // temporal API query:
+
+            instance[uri_modifiedAt] = row["attr_modified_at"]
+
             //####### BEGIN Restore JSON fields that have their own database column ##########
             if (includeSysAttrs) {
                 instance["https://uri.etsi.org/ngsi-ld/createdAt"] = row["attr_created_at"]
-                instance["https://uri.etsi.org/ngsi-ld/modifiedAt"] = row["attr_modified_at"]
+                
 
                 if (row["attr_observed_at"] != null) {
                     instance["https://uri.etsi.org/ngsi-ld/observedAt"] = row["attr_observed_at"]
@@ -602,15 +609,36 @@ export class PsqlBackend {
             }
             //####### END Restore JSON fields that have their own database column ##########
 
-            attribute.push(instance)
+            if (temporal) {
+                attribute.push(instance)
+            }
+            else {
+                let instanceToReplace = null
+
+                for(let ii = 0; ii < attribute.length; ii++) {
+                    let existingInstance = attribute[ii]
+
+                    if (existingInstance[uri_datasetId] == instance[uri_datasetId] && existingInstance[uri_modifiedAt] <= instance[uri_modifiedAt]) {
+                        instanceToReplace = ii
+                    }
+                }
+               
+                if (instanceToReplace != null) {
+                    attribute[instanceToReplace] = instance
+                }
+                else {
+                    attribute.push(instance)
+                }
+           
+            }
         }
         //#################### END Iterate over returned attribute instance rows ####################
 
 
         let result = Array<any>()
 
-        for (const key in entitiesByNgsiId) {
-            const entity = entitiesByNgsiId[key]
+        for (const entityId in entitiesByNgsiId) {
+            const entity = entitiesByNgsiId[entityId]
 
             //############# BEGIN Add empty arrays for requested attributes with no matching instances #############
             // "For the avoidance of doubt, if for a requested Attribute no instance fulfils the temporal query, 
@@ -625,7 +653,7 @@ export class PsqlBackend {
                 }
             }
             //############# END Add empty arrays for requested attributes with no matching instances #############
-            
+
             result.push(entity)
         }
 
@@ -695,7 +723,7 @@ export class PsqlBackend {
         //const entities = await this.getEntitiesBySqlWhere(sql_where, includeSysAttrs, orderBySql, lastN)
 
         // Always include sysAttrs:
-        const entities = await this.getEntitiesBySqlWhere(sql_where, true, orderBySql, lastN, attrNames_expanded, temporal)
+        const entities = await this.getEntitiesBySqlWhere(sql_where, includeSysAttrs, orderBySql, lastN, attrNames_expanded, temporal)
 
 
         if (entities.length == 0) {
@@ -710,54 +738,54 @@ export class PsqlBackend {
 
 
 
-
-        //############ BEGIN Only keep latest instance of all with same datasetId if entity is requested in non-temporal form ###########
-
-        if (!temporal) {
-            const uri_modifiedAt = "https://uri.etsi.org/ngsi-ld/modifiedAt"
-            const uri_datasetId = "https://uri.etsi.org/ngsi-ld/datasetId"
-
-            for (const key in entity) {
-                const attribute = entity[key]
-
-                if (!isReifiedAttribute(attribute, key)) {
-                    continue
-                }
-
-                let lastModifiedInstanceOfDataset: any = {}
-
-                for (const instance of attribute) {
-                    const timestamp_modified = instance[uri_modifiedAt]
-
-                    if (timestamp_modified == undefined) {
-                        console.error("modifiedAt is undefined!")
-                        continue
+        /*
+                //############ BEGIN Only keep latest instance of all with same datasetId if entity is requested in non-temporal form ###########
+        
+                if (!temporal) {
+                    const uri_modifiedAt = "https://uri.etsi.org/ngsi-ld/modifiedAt"
+                    const uri_datasetId = "https://uri.etsi.org/ngsi-ld/datasetId"
+        
+                    for (const key in entity) {
+                        const attribute = entity[key]
+        
+                        if (!isReifiedAttribute(attribute, key)) {
+                            continue
+                        }
+        
+                        let lastModifiedInstanceOfDataset: any = {}
+        
+                        for (const instance of attribute) {
+                            const timestamp_modified = instance[uri_modifiedAt]
+        
+                            if (timestamp_modified == undefined) {
+                                console.error("modifiedAt is undefined!")
+                                continue
+                            }
+        
+                            let datasetId = instance[uri_datasetId]
+        
+                            if (datasetId == undefined) {
+                                datasetId = "default"
+                            }
+        
+                            if (lastModifiedInstanceOfDataset[datasetId] == undefined || timestamp_modified > lastModifiedInstanceOfDataset[datasetId][uri_modifiedAt]) {
+                                lastModifiedInstanceOfDataset[datasetId] = instance
+                            }
+                        }
+        
+        
+                        // Reset and refill attribute:
+        
+                        entity[key] = []
+        
+                        for (const datasetId in lastModifiedInstanceOfDataset) {
+                            entity[key].push(lastModifiedInstanceOfDataset[datasetId])
+                        }
                     }
-
-                    let datasetId = instance[uri_datasetId]
-
-                    if (datasetId == undefined) {
-                        datasetId = "default"
-                    }
-
-                    if (lastModifiedInstanceOfDataset[datasetId] == undefined || timestamp_modified > lastModifiedInstanceOfDataset[datasetId][uri_modifiedAt]) {
-                        lastModifiedInstanceOfDataset[datasetId] = instance
-                    }
                 }
-
-
-                // Reset and refill attribute:
-
-                entity[key] = []
-
-                for (const datasetId in lastModifiedInstanceOfDataset) {
-                    entity[key].push(lastModifiedInstanceOfDataset[datasetId])
-                }
-            }
-        }
-
-        //############ END Only keep latest instance of all with same datasetId if entity is requested in non-temporal form ###########
-
+        
+                //############ END Only keep latest instance of all with same datasetId if entity is requested in non-temporal form ###########
+        */
 
         return new Promise((resolve, reject) => {
             resolve(entity)
