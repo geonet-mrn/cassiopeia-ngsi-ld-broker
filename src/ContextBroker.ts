@@ -78,8 +78,20 @@ export class ContextBroker {
             throw errorTypes.InvalidRequest.withDetail("The submitted data is not a valid NGSI-LD entity: " + entityCheckResults.join(" "))
         }
 
-        return await this.psql.updateEntityAttributes(entityId, fragment_expanded, undefined)
 
+        //return await this.psql.updateEntityAttributes(entityId, fragment_expanded, undefined)
+
+        //############# BEGIN Get internal ID of entity #############
+        const entityMetadata = await this.psql.getEntityMetadata(entityId)
+
+        if (!entityMetadata) {
+            throw errorTypes.ResourceNotFound.withDetail("No entity with the passed ID exists: " + entityId)
+        }
+
+        const entityInternalId = entityMetadata.id
+        //############# END Get internal ID of entity #############
+
+        return await this.psql.appendEntityAttributes(entityInternalId, fragment_expanded, true, true, false)
 
     }
 
@@ -124,8 +136,8 @@ export class ContextBroker {
 
         const entityInternalId = entityMetadata.id
         //########### END Try to fetch existing entity with same ID from the database #############
-        
-        return await this.psql.appendEntityAttributes(entityInternalId, fragment_expanded, overwrite, false)
+
+        return await this.psql.appendEntityAttributes(entityInternalId, fragment_expanded, overwrite, false, false)
 
     }
 
@@ -178,7 +190,24 @@ export class ContextBroker {
         }
         //################### END Input validation ##################
 
-        const updateResult = await this.psql.updateEntityAttributes(entityId, fragment_expanded, attributeId_expanded)
+
+
+
+        //############# BEGIN Get internal ID of entity #############
+        const entityMetadata = await this.psql.getEntityMetadata(entityId)
+
+        if (!entityMetadata) {
+            throw errorTypes.ResourceNotFound.withDetail("No entity with the passed ID exists: " + entityId)
+        }
+
+        const entityInternalId = entityMetadata.id
+        //############# END Get internal ID of entity #############
+
+        const updateResult = await this.psql.appendEntityAttributes(entityInternalId, fragment_expanded, true, true, false)
+
+        //const updateResult = await this.psql.updateEntityAttributes(entityId, fragment_expanded, attributeId_expanded)
+
+
 
         // 5.6.4.4: "If the target Entity does not contain the target Attribute ... then an error of type ResourceNotFound shall be raised":
         if (updateResult.updated.length == 0) {
@@ -381,7 +410,7 @@ export class ContextBroker {
 
                 else if (options == "update") {
 
-                    const updateResult = await this.psql.appendEntityAttributes(existingEntityMetadata.id, entity_expanded, true, false)
+                    const updateResult = await this.psql.appendEntityAttributes(existingEntityMetadata.id, entity_expanded, true, false, false)
 
                     // TODO: 3 Add information about failed updates to result?
                     if (updateResult.notUpdated.length == 0) {
@@ -568,7 +597,7 @@ export class ContextBroker {
         //###################### END Try to fetch existing entity ########################
 
 
-        await this.psql.appendEntityAttributes(entityMetadata.id, fragment_expanded, false, true)
+        await this.psql.appendEntityAttributes(entityMetadata.id, fragment_expanded, false, false, true)
     }
 
 
@@ -704,7 +733,7 @@ export class ContextBroker {
             throw errorTypes.InternalError.withDetail("More than one entity with the same ID was found. This is a database corruption and should never happen.")
         }
 
-        
+
         let result_expanded = entities[0]
 
         if (keyValues) {
