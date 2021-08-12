@@ -291,7 +291,7 @@ If everything works as expected, you should see the following message in your co
 Cassiopeia NGSI-LD Context Broker started. NGSI-LD version 1.3.1.
 ```
 
-## Unit Tests
+# Unit Tests
 
 Cassiopeia comes with a couple of unit tests which can be used to check whether it works as expected. **Please note that unit test coverage of Cassiopeia is still in a very early stage of development**. At the moment, only a few tests are implemented, and they are not very well designed. It's better than nothing, but far from complete.
 
@@ -313,3 +313,28 @@ The tests might need a couple of seconds to run. If everything goes according to
 ```
 
 Note that the actual number might vary depending on whether additional tests have been added since this document was written. In any case, there should be no mentions of failed tests. If there are, please first check your test configuration. If you then still think that a failure is caused by a bug in Cassiopeia's source code, please tell us about it.
+
+# How Cassipeia implements temporal entity representations
+
+NGSI-LD specifies API endpoints to create and query so-called "temporal representations of entities", or short, "temporal entities". Temporal entities essentially extend the "traditional" NGSI-LD entity data model with support for time series data on the attribute instance level. 
+
+As of NGSI-LD version 1.4.2., this is achieved with one single, quite small change to the rules that define a valid NGSI-LD attribute: In temporal entities, attributes are allowed to have multiple instances with the same datasetId (or no explicit datasetId, i.e. the default). All attribute instances with the same (or no) datasetId together represent the temporal evolution of the attribute under the respective explicitly defined datasetId (or no explicitly defined datasetId).
+
+Somewhat confusing, the NGSI-LD specification does not define how the API part to create and query "normal" entities is related to the API part to create and query temporal entities. For all the specification says (or does not say), the "normal" API and the "temporal" API could perfectly well be backed by entirely different, disjunct data sources. 
+
+We think that it makes sense to couple the "normal" and the temporal API in a meaningful way by making them represent the same pool of entities. In Cassiopeia, the temporal representation of an entity is indeed just a different view on the "normal" entity with the same ID. In other words: If an entity is modified through the "normal" API, its temporal representation with the same ID is automatically modified as well, and vice versa.
+
+The relationship between "normal" and temporal representations of entities is implemented in Cassiopeia in the following way:
+
+The temporal form is basically the system-immanent, "native" form of how an entity is stored in the database. In other words, the constraint that an attribute must not have multiple instances with the same datasetId is not enforced on the entity storage back-end. This distinction between "normal" and "temporal" representation is implemented on the I/O layer with the following mechanisms:
+
+**For reading**: 
+
+If an entity is requested through the *temporal API*, it is returned to the client in its "native" form (apart from query parameters that limit the returned data in some way). 
+
+If the same entity is requested through the *normal API*, for each attribute and each datasetId (including the default case of no explicitly defined dataset ID), only the *most recently created* attribute instance (determined by the highest instance ID, which is implemented in Cassiopeia as an auto-incrementing number) is returned. All other attribute instances with the same datasetId are removed from the response.
+
+**For writing**:
+
+For writing, the same rule is applied "in the opposite direction": If an attribute is modified through the *temporal API*, no restrictions regarding the uniqueness of datasetIds are in place. If an attribute is updated through the *normal API*, multiple instances with the same datasetId are not allowed, and all valid update operations are performed on the attribute instance in the database that has the highest instance ID among all stored instances with the same dataset ID.
+
