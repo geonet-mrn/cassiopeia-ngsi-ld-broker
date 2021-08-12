@@ -214,7 +214,7 @@ export class HttpBinding {
     // Binding for spec 5.6.3
     http_6_6_3_1_POST_appendEntityAttributes = async (ctx: any, next: any) => {
 
-
+      
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
@@ -227,12 +227,12 @@ export class HttpBinding {
 
         let result = await this.broker.api_5_6_3_appendEntityAttributes(ctx.params.entityId, ctx.request.rawBody, contextUrl, overwrite)       
 
-        if (result.notUpdated.length == 0) {
-            ctx.status = 204
+        if (result.notUpdated.length > 0) {
+            ctx.body = result
+            ctx.status = 207            
         }
         else {
-            ctx.body = result
-            ctx.status = 207
+            ctx.status = 204
         }
 
         await next()
@@ -927,7 +927,7 @@ export class HttpBinding {
 
         this.broker = new ContextBroker(psql)
 
-
+    
 
         this.setUpRoutes()
 

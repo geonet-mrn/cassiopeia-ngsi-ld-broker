@@ -116,7 +116,7 @@ export class ContextBroker {
 
 
         //########### BEGIN Try to fetch existing entity with same ID from the database #############
-        const entityMetadata = await this.psql.getEntityMetadata(entityId, false)
+        const entityMetadata = await this.psql.getEntityMetadata(entityId)
 
         if (!entityMetadata) {
             throw errorTypes.ResourceNotFound.withDetail("No entity with the passed ID exists: " + entityId)
@@ -124,7 +124,7 @@ export class ContextBroker {
 
         const entityInternalId = entityMetadata.id
         //########### END Try to fetch existing entity with same ID from the database #############
-
+        
         return await this.psql.appendEntityAttributes(entityInternalId, fragment_expanded, overwrite, false)
 
     }
@@ -326,7 +326,7 @@ export class ContextBroker {
         for (const entity_expanded of entities_expanded) {
 
             // Try to fetch entity metadata to check whether or not the entity already exists:
-            const existingEntityMetadata = await this.psql.getEntityMetadata(entity_expanded['@id'], false)
+            const existingEntityMetadata = await this.psql.getEntityMetadata(entity_expanded['@id'])
 
 
             // ############## BEGIN CREATE the Entity if it does not exist ###############            
@@ -560,7 +560,7 @@ export class ContextBroker {
 
 
         //###################### BEGIN Try to fetch existing entity ########################
-        const entityMetadata = await this.psql.getEntityMetadata(entityId, true)
+        const entityMetadata = await this.psql.getEntityMetadata(entityId)
 
         if (!entityMetadata) {
             throw errorTypes.ResourceNotFound.withDetail("No entity with the passed ID exists: " + entityId)
@@ -1000,7 +1000,7 @@ export class ContextBroker {
 
 
         //######## BEGIN Read target entity from database to get its internal ID, which is required for the delete call ##########
-        const entityMetadata = await this.psql.getEntityMetadata(entityId, temporal)
+        const entityMetadata = await this.psql.getEntityMetadata(entityId)
 
         if (!entityMetadata) {
             throw errorTypes.ResourceNotFound.withDetail("No entity with the passed ID exists: " + entityId)

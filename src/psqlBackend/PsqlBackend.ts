@@ -10,7 +10,6 @@ import { Attribute } from '../dataTypes/Attribute'
 import { AttributeList } from '../dataTypes/AttributeList'
 import { Query } from '../dataTypes/Query'
 import { checkReifiedAttribute, isDateTimeUtcString, checkGeoQuery, checkQuery, isReifiedAttribute } from '../validate'
-import { TemporalQuery } from '../dataTypes/TemporalQuery'
 import { InsertQueryBuilder } from './InsertQueryBuilder'
 import { PsqlTableConfig } from './PsqlTableConfig'
 import { makeGeoQueryCondition } from './makeGeoQueryCondition'
@@ -23,7 +22,10 @@ import { NotUpdatedDetails } from '../dataTypes/NotUpdatedDetails'
 
 const ignoreAttributes = ["@id", "@type", "@context"]
 
-
+const uri_modifiedAt = "https://uri.etsi.org/ngsi-ld/modifiedAt"
+const uri_datasetId = "https://uri.etsi.org/ngsi-ld/datasetId"
+const uri_createdAt = "https://uri.etsi.org/ngsi-ld/createdAt"
+const uri_instanceId = "https://uri.etsi.org/ngsi-ld/instanceId"
 
 export class PsqlBackend {
 
@@ -51,12 +53,31 @@ export class PsqlBackend {
 
     async appendEntityAttributes(entityInternalId: any, fragment_expanded: any, overwrite: boolean, temporal: boolean) {
 
-        let result = new UpdateResult()
+        const result = new UpdateResult()
 
-        let sql_transaction = "BEGIN;"
+        // NOTE:
+        // There is a theoretically important difference between creating one single transaction query for all
+        // instance updates and running this one query after the for loop over the attributes is completed,
+        // versus creating a separate transaction query for each attribute and running each query at the end
+        // of each loop iteration: 
+
+        // The difference is that if we run the update query for each attribute separately,
+        // the fetching of existing attribute instances in each loop iteration might return different results,
+        // because matching attribute instances might have been created in previous loop iterations.
+        // If we run only one big update query after the loops is complete, nothing is writting to the database
+        // during the loop, and attributes which are created by the update are not known to the system while
+        // the loop is still running.
+
+        // So, in theory, doing smaller sequential updates can help to detect inconsistencies like multiple identical
+        // datasetIds. In practice, this should not be necessary since input data should be validated before
+        // it is written to the database. However, for now, we stick with the sequential step-by-step update
+        // since it adds an additional layer of consistency checking.
 
         //####################### BEGIN Iterate over attributes #############################
         for (const attributeId_expanded in fragment_expanded) {
+
+            let sql_transaction = "BEGIN;"
+
 
             // Do not process @id, @type and @context:
             if (ignoreAttributes.includes(attributeId_expanded)) {
@@ -87,8 +108,6 @@ export class PsqlBackend {
             }
             //#################### END Validate attribute ####################
 
-
-
             let updated = false
 
             //#################### BEGIN Iterate over attribute instances #####################
@@ -98,33 +117,21 @@ export class PsqlBackend {
 
                 const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId_expanded, datasetId)
 
-                /*
-                if (this.temporalAppend) {
-                    if (existingInstances.length == 0 || temporal) {
-                        updated = true
-                    }
-
-                    sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
-
-                }
-                else {
-                    */
+                // In temporal mode, attribute instances are always appended, regardless of datasetId:
                 if (existingInstances.length == 0 || temporal) {
 
                     sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
 
                     updated = true
                 }
-                else if (existingInstances.length == 1) {
+                else {
 
                     if (overwrite) {
-                        /*
                         let lastCreatedInstance: any = null
 
+
                         for (const exInst of existingInstances) {
-                            // ATTENTION: Here, the field name of "modified at" is "attr_created_at" because it is comes directly
-                            // from the database table column name!
-                            if (lastCreatedInstance == null || exInst.attr_created_at > lastCreatedInstance.attr_created_at) {
+                            if (lastCreatedInstance == null || exInst.instance_id > lastCreatedInstance.instance_id) {
                                 lastCreatedInstance = exInst
                             }
                         }
@@ -133,14 +140,7 @@ export class PsqlBackend {
                             sql_transaction += this.makeUpdateAttributeInstanceQuery(lastCreatedInstance.instance_id, instance_expanded, true)
                             updated = true
                         }
-                        */
-
-                        sql_transaction += this.makeUpdateAttributeInstanceQuery(existingInstances[0].instance_id, instance_expanded, true)
-                        updated = true
                     }
-                }
-                else if (existingInstances.length > 1) {
-                    throw errorTypes.InternalError.withDetail(`${existingInstances.length} with the same datasetId '${datasetId}' were found during preparation of a partial update of attribute '${attributeId_expanded}' of entity '${entityInternalId}'. This is a database corruption and should never happen. Please contact the context broker administrator.`)
                 }
                 // }
             }
@@ -148,6 +148,10 @@ export class PsqlBackend {
 
             if (updated) {
                 result.updated.push(attributeId_expanded)
+
+                sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
+                sql_transaction += "COMMIT;"
+                await this.runSqlQuery(sql_transaction)
             }
             else {
                 result.notUpdated.push(new NotUpdatedDetails(attributeId_expanded, "Attribute instance(s) already exist and no overwrite was ordered."))
@@ -155,11 +159,6 @@ export class PsqlBackend {
         }
         //####################### END Iterate over attributes #############################
 
-        sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
-
-        sql_transaction += "COMMIT;"
-
-        await this.runSqlQuery(sql_transaction)
 
 
         return new Promise<UpdateResult>((resolve, reject) => {
@@ -245,7 +244,7 @@ export class PsqlBackend {
         // The temporal version supports updates of an existing entity with the same request while the non-temporal version
         // doesn't.
 
-        const entityMetadata = await this.getEntityMetadata(entity_expanded['@id'], true)
+        const entityMetadata = await this.getEntityMetadata(entity_expanded['@id'])
 
         // If the entity doesn't exist yet, create it:
         if (entityMetadata == undefined) {
@@ -265,7 +264,9 @@ export class PsqlBackend {
             // then all the Attribute instances included by the Temporal Representation shall be added to 
             // the existing Entity as mandated by clause 5.6.12.":
 
-            // TODO: 1 Overwrite yes or no?            
+            // NOTE: If "temporal" (last parameter) is true, then "overwrite" (second-last parameter)
+            // has no effect. We set it to false, but setting it to true wouldn't change the result.
+            // In temporal mode, attribute instances are always appended and never overwritten.
             await this.appendEntityAttributes(entityMetadata.id, entity_expanded, false, true)
 
             return new Promise<number>((resolve, reject) => {
@@ -520,9 +521,6 @@ export class PsqlBackend {
     async getEntitiesBySqlWhere(sql_where: string, includeSysAttrs: boolean, orderBySql: string | undefined,
         lastN: number | undefined, attrNames_expanded: Array<string> | undefined, temporal: boolean): Promise<Array<any>> {
 
-        const uri_modifiedAt = "https://uri.etsi.org/ngsi-ld/modifiedAt"
-        const uri_datasetId = "https://uri.etsi.org/ngsi-ld/datasetId"
-        const uri_createdAt = "https://uri.etsi.org/ngsi-ld/createdAt"
 
         //############# BEGIN Build "ORDER BY" query part ############
         let orderBy = ""
@@ -608,7 +606,7 @@ export class PsqlBackend {
             // use it in PsqlBackend::deleteAttribute() as a string separator character to extract the
             // actual instance id number from a passed instance id string.
 
-            instance["https://uri.etsi.org/ngsi-ld/instanceId"] = "urn:ngsi-ld:InstanceId:instance_" + row[this.tableCfg.COL_INSTANCE_ID]
+            instance[uri_instanceId] = "urn:ngsi-ld:InstanceId:instance_" + row[this.tableCfg.COL_INSTANCE_ID]
 
             // ATTENTION: We always add the modified timestamp first, regardless of whether includeSysAttrs is true,
             // because we need it to find the most recently modified attribute instance if this is not a
@@ -631,20 +629,23 @@ export class PsqlBackend {
                 attribute.push(instance)
             }
 
-            // If the "normal" representation of an entity is requested and there are multiple attribute instances with the
-            // same datasetId, only the most recently created attribute instance of each particular datasetId is returned:
+            // If the "normal" representation of an entity is requested and there are multiple attribute 
+            // instances with the same datasetId, only the most recently created attribute instance of each 
+            // particular datasetId (identified by highest instanceId) is returned:
             else {
                 let replaceIndex = null
 
                 for (let ii = 0; ii < attribute.length; ii++) {
                     let existingInstance = attribute[ii]
 
-                    if (existingInstance[uri_datasetId] == instance[uri_datasetId] && existingInstance[uri_createdAt] <= instance[uri_createdAt]) {
+                    if (existingInstance[uri_datasetId] == instance[uri_datasetId] && existingInstance[uri_instanceId] <= instance[uri_instanceId]) {
                         replaceIndex = ii
+                        //console.log("replacing " + existingInstance[uri_instanceId] + " " + instance[uri_instanceId])
                     }
                 }
 
                 if (replaceIndex != null) {
+
                     attribute[replaceIndex] = instance
                 }
                 else {
@@ -688,9 +689,11 @@ export class PsqlBackend {
     }
 
 
-    async getEntityMetadata(entityId: string, temporal: boolean): Promise<any> {
+    async getEntityMetadata(entityId: string): Promise<any> {
 
-        const sql = `SELECT * FROM ${this.tableCfg.TBL_ENT} WHERE ${this.tableCfg.COL_ENT_ID} = '${entityId}' AND ${this.tableCfg.COL_ENT_TEMPORAL} = ${temporal.toString()}`
+        //const sql = `SELECT * FROM ${this.tableCfg.TBL_ENT} WHERE ${this.tableCfg.COL_ENT_ID} = '${entityId}' AND ${this.tableCfg.COL_ENT_TEMPORAL} = ${temporal.toString()}`
+
+        const sql = `SELECT * FROM ${this.tableCfg.TBL_ENT} WHERE ${this.tableCfg.COL_ENT_ID} = '${entityId}'`
 
         const sqlResult = await this.runSqlQuery(sql)
 
@@ -1069,7 +1072,7 @@ export class PsqlBackend {
     async updateAttributeInstance(entityId: string, instanceId_expanded: string, instance: any) {
 
         //####################### BEGIN Try to fetch existing entity ###########################
-        const entityMetadata = await this.getEntityMetadata(entityId, true)
+        const entityMetadata = await this.getEntityMetadata(entityId)
 
         if (entityMetadata == undefined) {
             throw errorTypes.ResourceNotFound.withDetail(`No entity with ID '${entityId}' exists.`)
@@ -1087,10 +1090,13 @@ export class PsqlBackend {
 
     async updateEntityAttributes(entityId: string, fragment_expanded: any, attributeIdToUpdate: string | undefined) {
 
+
+
+
         // TODO: Compare this with appendEntityAttributes and see if we can merge them
 
         //############# BEGIN Get internal ID of entity #############
-        const entityMetadata = await this.getEntityMetadata(entityId, false)
+        const entityMetadata = await this.getEntityMetadata(entityId)
 
         if (!entityMetadata) {
             throw errorTypes.ResourceNotFound.withDetail("No entity with the passed ID exists: " + entityId)
@@ -1104,11 +1110,10 @@ export class PsqlBackend {
 
 
 
-
-        let sql_transaction = "BEGIN;"
-
         //####################### BEGIN Iterate over attributes #############################
         for (const attributeId_expanded in fragment_expanded) {
+
+            let sql_transaction = "BEGIN;"
 
             if (attributeIdToUpdate != undefined && attributeId_expanded != attributeIdToUpdate) {
                 continue
@@ -1118,7 +1123,6 @@ export class PsqlBackend {
             if (ignoreAttributes.includes(attributeId_expanded)) {
                 continue
             }
-
 
             let attribute_expanded = fragment_expanded[attributeId_expanded]
 
@@ -1153,34 +1157,43 @@ export class PsqlBackend {
 
                 const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId_expanded, datasetId)
 
-                if (existingInstances.length == 0) {
-                    // TODO What?
-                }
-                else if (existingInstances.length == 1) {
 
-                    sql_transaction += this.makeUpdateAttributeInstanceQuery(existingInstances[0].instance_id, instance_expanded, false)
+                let lastCreatedInstance: any = null
+
+                for (const exInst of existingInstances) {
+                    if (lastCreatedInstance == null || exInst.instance_id > lastCreatedInstance.instance_id) {
+                        lastCreatedInstance = exInst
+                    }
+                }
+
+                if (lastCreatedInstance != null) {
+                    sql_transaction += this.makeUpdateAttributeInstanceQuery(lastCreatedInstance.instance_id, instance_expanded, true)
                     updated = true
                 }
-                else if (existingInstances.length > 1) {
-                    throw errorTypes.InternalError.withDetail(`${existingInstances.length} with the same datasetId '${datasetId}' were found during preparation of a partial update of attribute '${attributeId_expanded}' of entity '${entityId}'. This is a database corruption and should never happen. Please contact the context broker administrator.`)
-                }
+
             }
             //############## END Iterate over attribute instances ##################
 
             if (updated) {
                 result.updated.push(attributeId_expanded)
+
+                sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
+                sql_transaction += "COMMIT;"
+
+
+                await this.runSqlQuery(sql_transaction)
             }
             else {
+
                 result.notUpdated.push(new NotUpdatedDetails(attributeId_expanded, "No attribute instance(s) with the specified attribute ID and instance ID(s) exists."))
             }
+
+
         }
         //####################### END Iterate over attributes #############################
 
-        sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
 
-        sql_transaction += "COMMIT;"
 
-        await this.runSqlQuery(sql_transaction)
 
 
         return new Promise<UpdateResult>((resolve, reject) => {
