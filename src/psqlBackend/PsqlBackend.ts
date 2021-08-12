@@ -33,6 +33,9 @@ export class PsqlBackend {
     private readonly attributeTypes = ["https://uri.etsi.org/ngsi-ld/Property", "https://uri.etsi.org/ngsi-ld/GeoProperty", "https://uri.etsi.org/ngsi-ld/Relationship"]
 
 
+    temporalAppend = true
+
+       
 
     // The PostgreSQL connection object:
     private readonly pool!: pg.Pool
@@ -50,24 +53,25 @@ export class PsqlBackend {
 
         let result = new UpdateResult()
 
-        // "For each Attribute included by the Entity Fragment at root level":
+        let sql_transaction = "BEGIN;"
 
         //####################### BEGIN Iterate over attributes #############################
-        for (const attributeId in fragment_expanded) {
+        for (const attributeId_expanded in fragment_expanded) {
 
             // Do not process @id, @type and @context:
-            if (ignoreAttributes.includes(attributeId)) {
+            if (ignoreAttributes.includes(attributeId_expanded)) {
                 continue
             }
 
-            let attribute_expanded = (fragment_expanded as any)[attributeId]
+
+            let attribute_expanded = (fragment_expanded as any)[attributeId_expanded]
 
             if (!(attribute_expanded instanceof Array)) {
                 attribute_expanded = [attribute_expanded]
             }
 
             //#################### BEGIN Validate attribute ####################
-            const reifiedAttributeCheck = checkReifiedAttribute(attribute_expanded, attributeId, undefined, false)
+            const reifiedAttributeCheck = checkReifiedAttribute(attribute_expanded, attributeId_expanded, undefined, false)
 
             if (reifiedAttributeCheck.length > 0) {
 
@@ -77,72 +81,76 @@ export class PsqlBackend {
                     errorMsg += msg + "\n"
                 }
 
-                result.notUpdated.push(new NotUpdatedDetails(attributeId, "Not a valid reified attribute: \n" + errorMsg))
+                result.notUpdated.push(new NotUpdatedDetails(attributeId_expanded, "Not a valid reified attribute: \n" + errorMsg))
 
                 continue
             }
             //#################### END Validate attribute ####################
 
+
+        
             let updated = false
 
-
-            // NOTE: The code here looks quite different from the algorithm described in the 
-            // specification. However, (I think) it really does the same.
-
             //#################### BEGIN Iterate over attribute instances #####################
-
-            let sql_transaction = "BEGIN;"
-
             for (const instance_expanded of attribute_expanded) {
 
                 const datasetId = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
 
-                const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId, datasetId)
+                const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId_expanded, datasetId)
 
+                // TODO: 2 Only update if timestamp or value has changed?
 
-                // TODO: 1 Unit test this
-
-                if (existingInstances.length == 0 || temporal) {
-
-                    sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId, instance_expanded)
-
-                    updated = true
-                }
-                else if (overwrite) {
-
-                    let lastModifiedInstance: any = null
-
-                    for (const exInst of existingInstances) {
-                        // ATTENTION: Here, the field name of "modified at" is "attr_modified_at" because it is comes directly
-                        // from the database table column name!
-                        if (lastModifiedInstance == null || exInst.attr_modified_at > lastModifiedInstance.attr_modified_at) {
-                            lastModifiedInstance = exInst
-                        }
+                if (this.temporalAppend) {
+                    if (existingInstances.length == 0 || temporal) {
+                        updated = true
                     }
 
-                    if (lastModifiedInstance != null) {
-                        sql_transaction += this.makeUpdateAttributeInstanceQuery(lastModifiedInstance.instance_id, instance_expanded, true)
+                    sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
+
+                }
+                else {
+
+                    if (existingInstances.length == 0 || temporal) {
+
+                        sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
+
                         updated = true
+                    }
+                    else if (overwrite) {
+
+                        let lastCreatedInstance: any = null
+
+                        for (const exInst of existingInstances) {
+                            // ATTENTION: Here, the field name of "modified at" is "attr_created_at" because it is comes directly
+                            // from the database table column name!
+                            if (lastCreatedInstance == null || exInst.attr_created_at > lastCreatedInstance.attr_created_at) {
+                                lastCreatedInstance = exInst
+                            }
+                        }
+
+                        if (lastCreatedInstance != null) {
+                            sql_transaction += this.makeUpdateAttributeInstanceQuery(lastCreatedInstance.instance_id, instance_expanded, true)
+                            updated = true
+                        }
                     }
                 }
             }
             //################## END Iterate over attribute instances #######################
 
-            sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
-
-            sql_transaction += "COMMIT;"
-
             if (updated) {
-
-                await this.runSqlQuery(sql_transaction)
-
-                result.updated.push(attributeId)
+                result.updated.push(attributeId_expanded)
             }
             else {
-                result.notUpdated.push(new NotUpdatedDetails(attributeId, "Attribute instance(s) already exist and no overwrite was ordered."))
+                result.notUpdated.push(new NotUpdatedDetails(attributeId_expanded, "Attribute instance(s) already exist and no overwrite was ordered."))
             }
         }
         //####################### END Iterate over attributes #############################
+
+        sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
+
+        sql_transaction += "COMMIT;"
+
+        await this.runSqlQuery(sql_transaction)
 
 
         return new Promise<UpdateResult>((resolve, reject) => {
@@ -153,6 +161,7 @@ export class PsqlBackend {
 
     private async getAttributeInstances(entityInternalId: number, attributeName: string, datasetId: string | null | undefined): Promise<any> {
 
+        // TODO 3: Order and limit to improve performance?
 
         if (datasetId === undefined) {
             datasetId = null
@@ -247,7 +256,7 @@ export class PsqlBackend {
             // then all the Attribute instances included by the Temporal Representation shall be added to 
             // the existing Entity as mandated by clause 5.6.12.":
 
-            // TODO: 2 Overwrite yes or no?            
+            // TODO: 1 Overwrite yes or no?            
             await this.appendEntityAttributes(entityMetadata.id, entity_expanded, false, true)
 
             return new Promise<number>((resolve, reject) => {
@@ -504,7 +513,7 @@ export class PsqlBackend {
 
         const uri_modifiedAt = "https://uri.etsi.org/ngsi-ld/modifiedAt"
         const uri_datasetId = "https://uri.etsi.org/ngsi-ld/datasetId"
-
+        const uri_createdAt = "https://uri.etsi.org/ngsi-ld/createdAt"
 
         //############# BEGIN Build "ORDER BY" query part ############
         let orderBy = ""
@@ -560,8 +569,8 @@ export class PsqlBackend {
                 }
 
                 if (includeSysAttrs) {
-                    entity["https://uri.etsi.org/ngsi-ld/createdAt"] = row[this.tableCfg.COL_ENT_CREATED_AT]
-                    entity["https://uri.etsi.org/ngsi-ld/modifiedAt"] = row[this.tableCfg.COL_ENT_MODIFIED_AT]
+                    entity[uri_createdAt] = row[this.tableCfg.COL_ENT_CREATED_AT]
+                    entity[uri_modifiedAt] = row[this.tableCfg.COL_ENT_MODIFIED_AT]
                 }
 
                 entitiesByNgsiId[ent_id] = entity
@@ -596,55 +605,64 @@ export class PsqlBackend {
             // because we need it to find the most recently modified attribute instance if this is not a
             // temporal API query:
 
-            instance[uri_modifiedAt] = row["attr_modified_at"]
 
             //####### BEGIN Restore JSON fields that have their own database column ##########
-            if (includeSysAttrs) {
-                instance["https://uri.etsi.org/ngsi-ld/createdAt"] = row["attr_created_at"]
-                
+            instance[uri_createdAt] = row["attr_created_at"]
+            instance[uri_modifiedAt] = row["attr_modified_at"]
 
-                if (row["attr_observed_at"] != null) {
-                    instance["https://uri.etsi.org/ngsi-ld/observedAt"] = row["attr_observed_at"]
-                }
+            if (row["attr_observed_at"] != null) {
+                instance["https://uri.etsi.org/ngsi-ld/observedAt"] = row["attr_observed_at"]
             }
             //####### END Restore JSON fields that have their own database column ##########
 
+
+
+            // If the temporal representation of an entity is requested, all attribute instances are included:
             if (temporal) {
                 attribute.push(instance)
             }
-            else {
-                let instanceToReplace = null
 
-                for(let ii = 0; ii < attribute.length; ii++) {
+            // If the "normal" representation of an entity is requested and there are multiple attribute instances with the
+            // same datasetId, only the most recently created attribute instance of each particular datasetId is returned:
+            else {
+                let replaceIndex = null
+
+                for (let ii = 0; ii < attribute.length; ii++) {
                     let existingInstance = attribute[ii]
 
-                    if (existingInstance[uri_datasetId] == instance[uri_datasetId] && existingInstance[uri_modifiedAt] <= instance[uri_modifiedAt]) {
-                        instanceToReplace = ii
+                    if (existingInstance[uri_datasetId] == instance[uri_datasetId] && existingInstance[uri_createdAt] <= instance[uri_createdAt]) {
+                        replaceIndex = ii
                     }
                 }
-               
-                if (instanceToReplace != null) {
-                    attribute[instanceToReplace] = instance
+
+                if (replaceIndex != null) {
+                    attribute[replaceIndex] = instance
                 }
                 else {
                     attribute.push(instance)
                 }
-           
+
             }
         }
         //#################### END Iterate over returned attribute instance rows ####################
 
 
+        //################ BEGIN Create result array of entities ###################
         let result = Array<any>()
 
         for (const entityId in entitiesByNgsiId) {
-            const entity = entitiesByNgsiId[entityId]
+            result.push(entitiesByNgsiId[entityId])
+        }
+        //################ END Create result array of entities ###################
 
-            //############# BEGIN Add empty arrays for requested attributes with no matching instances #############
-            // "For the avoidance of doubt, if for a requested Attribute no instance fulfils the temporal query, 
-            // then an empty Array of instances shall be provided as the representation for such Attribute.":
 
-            if (attrNames_expanded instanceof Array) {
+        //############# BEGIN Add empty arrays for requested attributes with no matching instances #############
+
+        // "For the avoidance of doubt, if for a requested Attribute no instance fulfils the temporal query, 
+        // then an empty Array of instances shall be provided as the representation for such Attribute.":
+
+        if (attrNames_expanded instanceof Array && attrNames_expanded.length > 0) {
+            for (const entity of result) {
 
                 for (const attributeName of attrNames_expanded) {
                     if (entity[attributeName] == undefined) {
@@ -652,10 +670,8 @@ export class PsqlBackend {
                     }
                 }
             }
-            //############# END Add empty arrays for requested attributes with no matching instances #############
-
-            result.push(entity)
         }
+        //############# END Add empty arrays for requested attributes with no matching instances #############
 
         return new Promise((resolve, reject) => {
             resolve(result)
@@ -1062,6 +1078,9 @@ export class PsqlBackend {
 
     async updateEntityAttributes(entityId: string, fragment_expanded: any, attributeIdToUpdate: string | undefined) {
 
+        // TODO: Compare this with appendEntityAttributes and see if we can merge them
+
+        //############# BEGIN Get internal ID of entity #############
         const entityMetadata = await this.getEntityMetadata(entityId, false)
 
         if (!entityMetadata) {
@@ -1069,12 +1088,14 @@ export class PsqlBackend {
         }
 
         const entityInternalId = entityMetadata.id
+        //############# END Get internal ID of entity #############
+
 
         const result = new UpdateResult()
 
 
 
-        //####################### BEGIN Build transaction query #############################
+        
         let sql_transaction = "BEGIN;"
 
         //####################### BEGIN Iterate over attributes #############################
@@ -1084,17 +1105,35 @@ export class PsqlBackend {
                 continue
             }
 
+            // Do not process @id, @type and @context:
+            if (ignoreAttributes.includes(attributeId_expanded)) {
+                continue
+            }
+            
+
             let attribute_expanded = fragment_expanded[attributeId_expanded]
 
             if (!(attribute_expanded instanceof Array)) {
                 attribute_expanded = [attribute_expanded]
             }
 
-            if (!isReifiedAttribute(attribute_expanded, attributeId_expanded)) {
-                // NOTE: This check is primarily meant to filter out attributes like "id" and "type",
-                // and not for actual validation. This happens earlier.
+          
+            //#################### BEGIN Validate attribute ####################
+            const reifiedAttributeCheck = checkReifiedAttribute(attribute_expanded, attributeId_expanded, undefined, false)
+
+            if (reifiedAttributeCheck.length > 0) {
+
+                let errorMsg = ""
+
+                for (const msg of reifiedAttributeCheck) {
+                    errorMsg += msg + "\n"
+                }
+
+                result.notUpdated.push(new NotUpdatedDetails(attributeId_expanded, "Not a valid reified attribute: \n" + errorMsg))
+
                 continue
             }
+            //#################### END Validate attribute ####################
 
             let updated = false
 
@@ -1114,8 +1153,7 @@ export class PsqlBackend {
                     // targeted Attribute fragment, i.e. it is not allowed to change the type of an Attribute.
                     sql_transaction += this.makeUpdateAttributeInstanceQuery(instanceId, instance_expanded, false)
 
-                    result.updated.push(attributeId_expanded)
-
+                 
                     updated = true
                 }
                 else if (existingInstances.length > 1) {
@@ -1124,7 +1162,10 @@ export class PsqlBackend {
             }
             //############## END Iterate over attribute instances ##################
 
-            if (!updated) {
+            if (updated) {
+                result.updated.push(attributeId_expanded)
+            }
+            else {
                 result.notUpdated.push(new NotUpdatedDetails(attributeId_expanded, "No attribute instance(s) with the specified attribute ID and instance ID(s) exists."))
             }
         }
@@ -1133,10 +1174,7 @@ export class PsqlBackend {
         sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
 
         sql_transaction += "COMMIT;"
-        //####################### END Build transaction query #############################
-
-
-        // TODO: 3 Do we not need to check the query result here?
+        
         await this.runSqlQuery(sql_transaction)
 
 
