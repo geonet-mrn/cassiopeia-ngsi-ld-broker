@@ -92,15 +92,18 @@ describe('6.5.3.1 GET entities/<entityId>', function () {
         await prep.deleteAllEntities()
 
 
-        const config = {
-            headers: {
-                "content-type": "application/ld+json"
-            },
-            auth: testConfig.auth
-        }
 
 
+    })
 
+
+    after(async () => {
+     //   await prep.deleteAllEntities()
+
+    })
+
+
+    it('should create the Entity', async function () {
 
 
         //###################### BEGIN Create entities for test ######################
@@ -113,12 +116,6 @@ describe('6.5.3.1 GET entities/<entityId>', function () {
 
         expect(createEntitiesResponse.status).equals(201)
         //###################### END Create entities for test ######################
-    })
-
-
-    after(async () => {
-        await prep.deleteAllEntities()
-
     })
 
 

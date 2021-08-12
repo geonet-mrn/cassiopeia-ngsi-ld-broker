@@ -5,6 +5,7 @@ export class PsqlTableConfig {
     readonly TBL_ENT = "entities"
 
     
+    readonly COL_ATTR_EID = "eid"
     readonly COL_ATTR_NAME = "attr_name"
     readonly COL_ATTR_TYPE = "attr_type"
     readonly COL_DATASET_ID = "dataset_id"

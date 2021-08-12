@@ -106,12 +106,17 @@ describe('6.23.3.1 POST entityOperations/query', function () {
         }
 
       
+        let err = undefined
 
         let response = await axios.post(testConfig.base_url + "entityOperations/query", query, config).catch((e) => {
-            console.log(e)
+            err = e
         }) as AxiosResponse
 
+        if (err != undefined) {
+            console.log(err)
+        }
 
+        expect(response).to.not.be.undefined
 
         expect(response.data.length).equals(1)
         //console.log(response.data)
@@ -122,7 +127,7 @@ describe('6.23.3.1 POST entityOperations/query', function () {
     })
 
 
-
+/*
     it("should return an empty array because no existing entities match the query", async function () {
         const query = {
             "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.3.jsonld",
@@ -179,9 +184,7 @@ describe('6.23.3.1 POST entityOperations/query', function () {
         expect(response.data).instanceOf(Array)
 
         expect(response.data[0].id).equals("urn:xdatatogo:TrafficRestriction:test")
-
-
-     
     })
+    */
 });
 

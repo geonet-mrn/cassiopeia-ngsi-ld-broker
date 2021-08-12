@@ -51,7 +51,7 @@ export class NgsiLdQueryParser {
     constructor(private tableCfg: PsqlTableConfig) {}
 
 
-    async makeQuerySql(query: Query, context : JsonLdContextNormalized): Promise<string> {
+    makeQuerySql(query: Query, context : JsonLdContextNormalized): string {
 
         if (query.q == undefined) {
             return ""
@@ -137,17 +137,21 @@ export class NgsiLdQueryParser {
             //##################### END Build expanded attribute path SQL expression #################
 
 
-            result += `SELECT eid FROM ${this.tableCfg.TBL_ATTR} WHERE ${this.tableCfg.TBL_ATTR}.attr_name = '${firstPathPiece_expanded}' AND `
-
+            //result += `SELECT eid FROM ${this.tableCfg.TBL_ATTR} WHERE ${this.tableCfg.TBL_ATTR}.attr_name = '${firstPathPiece_expanded}' AND `
+            result += `SELECT instance_id FROM ${this.tableCfg.TBL_ATTR} WHERE ${this.tableCfg.TBL_ATTR}.attr_name = '${firstPathPiece_expanded}' AND `
+            
+            
             result += "("
 
             // Check existence of non-reified property:
             if (this.nonReifiedDefaultProperties.includes(lastPathPiece_expanded)) {
-                result += `${this.tableCfg.TBL_ATTR}.${this.tableCfg.COL_INSTANCE_JSON}${attrPathSql} is not null `
+               result += `${this.tableCfg.TBL_ATTR}.${this.tableCfg.COL_INSTANCE_JSON}${attrPathSql} is not null `
+               
             }
 
             // Check existence of reified Property ot Relationship:
             else {
+                
                 //########### BEGIN Check existence of Property ##############
                 result += "("
                 result += `${this.tableCfg.TBL_ATTR}.${this.tableCfg.COL_INSTANCE_JSON}${attrPathSql}->>'@type' = 'https://uri.etsi.org/ngsi-ld/Property'`
@@ -164,9 +168,10 @@ export class NgsiLdQueryParser {
                 result += " AND "
                 result += `${this.tableCfg.TBL_ATTR}.${this.tableCfg.COL_INSTANCE_JSON}${attrPathSql}->'https://uri.etsi.org/ngsi-ld/hasObject' is not null`
                 result += ")"
-                //########### END Check existence of Relationship ##############                 
+                //########### END Check existence of Relationship ##############                                   
             }
 
+          
             result += ")"
         }
 
@@ -222,7 +227,7 @@ export class NgsiLdQueryParser {
             throw errorTypes.InvalidRequest.withDetail(`Invalid query string: Invalid query term: '${ast.toString()}'`)
         }
 
-
+     
         result += ")"
 
         return result
@@ -257,7 +262,7 @@ export class NgsiLdQueryParser {
         //############### BEGIN Build main attribute path expression (without trailing path) ##############
 
         let jsonAttrPathSql = `${this.tableCfg.TBL_ATTR}.${this.tableCfg.COL_INSTANCE_JSON}`
-
+        
         // NOTE: We skip the first element of the attribute path here, 
         // since it is the key of the attribute and not included in the JSON field in the database:
         for (const key of attrPath.slice(1)) {
@@ -325,8 +330,11 @@ export class NgsiLdQueryParser {
         const firstPathPiece = context.expandTerm(attrPath[0], true)
 
         // Begin construction of SQL query string:
-        let result = `SELECT eid FROM ${this.tableCfg.TBL_ATTR} WHERE ${this.tableCfg.TBL_ATTR}.attr_name = '${firstPathPiece}' `
+        //let result = `SELECT eid FROM ${this.tableCfg.TBL_ATTR} WHERE ${this.tableCfg.TBL_ATTR}.attr_name = '${firstPathPiece}' `
+        let result = `SELECT instance_id FROM ${this.tableCfg.TBL_ATTR} WHERE ${this.tableCfg.TBL_ATTR}.attr_name = '${firstPathPiece}' `
+        
 
+    
 
         const range = rightSide.split("..")
 

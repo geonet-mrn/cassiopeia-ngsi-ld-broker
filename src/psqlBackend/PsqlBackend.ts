@@ -540,6 +540,8 @@ export class PsqlBackend {
         fields.push(this.tableCfg.COL_ENT_TYPE)
         fields.push(this.tableCfg.COL_ENT_ID)
         fields.push(this.tableCfg.COL_ATTR_NAME)
+        fields.push(this.tableCfg.COL_ATTR_EID)
+        
         fields.push(this.tableCfg.COL_INSTANCE_ID)
         fields.push(this.tableCfg.COL_DATASET_ID)
         fields.push(this.tableCfg.COL_INSTANCE_JSON)
@@ -549,15 +551,11 @@ export class PsqlBackend {
         fields.push(`${this.tableCfg.COL_ATTR_MODIFIED_AT} at time zone 'utc' as attr_modified_at`)
         fields.push(`${this.tableCfg.COL_ATTR_OBSERVED_AT} at time zone 'utc' as attr_observed_at`)
 
-        // Original:
-        //let sql = `SELECT ${fields.join(',')} FROM ${this.tableCfg.TBL_ENT} AS t1, ${this.tableCfg.TBL_ATTR} AS t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid ${sql_where} ${orderBy}`
-
-        // We don't need "order by" for non-temporal queries:
-        //let sql = `SELECT ${fields.join(',')} FROM ${this.tableCfg.TBL_ENT} AS t1, ${this.tableCfg.TBL_ATTR} AS t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid ${sql_where}`
+       
+        let sql = `SELECT ${fields.join(',')} FROM ${this.tableCfg.TBL_ENT} AS t1, ${this.tableCfg.TBL_ATTR} AS t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid ${sql_where}`
 
 
-        let sql = `SELECT ${fields.join(',')} FROM ${this.tableCfg.TBL_ENT} AS t1, ${this.tableCfg.TBL_ATTR} AS t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid`
-
+        
 
 
         // Attempt to fix the problem that the query matches historical attribute instances in non-temporal mode:
@@ -565,18 +563,16 @@ export class PsqlBackend {
 
             let t2_sql = `(SELECT * FROM (SELECT DISTINCT ON (${this.tableCfg.TBL_ATTR}.dataset_id) ${this.tableCfg.TBL_ATTR}.* FROM ${this.tableCfg.TBL_ATTR} ORDER BY ${this.tableCfg.TBL_ATTR}.dataset_id, ${this.tableCfg.TBL_ATTR}.instance_id DESC ) t)`
 
+            t2_sql = `(SELECT * FROM (SELECT DISTINCT ON (${this.tableCfg.TBL_ATTR}.dataset_id) ${this.tableCfg.TBL_ATTR}.* FROM ${this.tableCfg.TBL_ATTR} ORDER BY ${this.tableCfg.TBL_ATTR}.dataset_id, ${this.tableCfg.TBL_ATTR}.instance_id DESC) t)`
+
+          
+            t2_sql = `(SELECT * FROM (SELECT ROW_NUMBER() OVER (PARTITION BY eid, attr_name, dataset_id ORDER BY instance_id DESC) AS r, t.* FROM ${this.tableCfg.TBL_ATTR} t) x WHERE x.r <= 1)`        
+            
             //t2_sql = this.tableCfg.TBL_ATTR
 
-            sql = `SELECT ${fields.join(',')} FROM ${this.tableCfg.TBL_ENT} AS t1, ${t2_sql}  AS t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid ${sql_where}`
-
-
-
-
-
+            sql = `SELECT ${fields.join(',')} FROM ${this.tableCfg.TBL_ENT} AS t1, ${t2_sql} AS t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid ${sql_where}`
         }
 
-
-        console.log(sql)
 
 
         // If lastN is defined, wrap limiting query around the original query:
@@ -589,6 +585,7 @@ export class PsqlBackend {
 
         const queryResult = await this.runSqlQuery(sql)
 
+        console.log(sql)
 
         console.log(queryResult.rows)
 
@@ -982,13 +979,15 @@ export class PsqlBackend {
 
 
         if (entityTypes_expanded.length > 0) {
-            //sql_where += ` AND t1.${this.tableCfg.COL_ENT_TYPE} IN ('${entityTypes_expanded.join("','")}')`
-            sql_where += ` AND ${this.tableCfg.COL_ENT_TYPE} IN ('${entityTypes_expanded.join("','")}')`
+            sql_where += ` AND t1.${this.tableCfg.COL_ENT_TYPE} IN ('${entityTypes_expanded.join("','")}')`
+            //sql_where += ` AND ${this.tableCfg.COL_ENT_TYPE} IN ('${entityTypes_expanded.join("','")}')`
         }
 
         if (entityIds.length > 0) {
-            //sql_where += ` AND t1.${this.tableCfg.COL_ENT_ID} IN ('${entityIds.join("','")}')`
-            sql_where += ` AND ${this.tableCfg.COL_ENT_ID} IN ('${entityIds.join("','")}')`
+            sql_where += ` AND t1.${this.tableCfg.COL_ENT_ID} IN ('${entityIds.join("','")}')`
+
+            
+            //sql_where += ` AND ${this.tableCfg.COL_ENT_ID} IN ('${entityIds.join("','")}')`
         }
 
         // TODO: 1 ADD FEATURE - "id matches the id patterns passed as parameter"
@@ -1010,8 +1009,8 @@ export class PsqlBackend {
 
             const attrs_expanded = expandObject(query.attrs, context)
 
-            //sql_where += ` AND t2.${this.tableCfg.COL_ATTR_NAME} IN ('${attrs_expanded.join("','")}')`
-            sql_where += ` AND ${this.tableCfg.COL_ATTR_NAME} IN ('${attrs_expanded.join("','")}')`
+            sql_where += ` AND t2.${this.tableCfg.COL_ATTR_NAME} IN ('${attrs_expanded.join("','")}')`
+            //sql_where += ` AND ${this.tableCfg.COL_ATTR_NAME} IN ('${attrs_expanded.join("','")}')`
         }
         //####################### END Match specified Attributes #######################
 
@@ -1022,10 +1021,17 @@ export class PsqlBackend {
         // - "the filter conditions specified by the query are met (as mandated by clause 4.9)":
         if (query.q != undefined) {
 
-            const ngsi_query_sql = await this.ngsiQueryParser.makeQuerySql(query, context)
+            const ngsi_query_sql = this.ngsiQueryParser.makeQuerySql(query, context)
+
+            // Original
+            //sql_where += ` AND t1.${this.tableCfg.COL_ENT_INTERNAL_ID} IN ${ngsi_query_sql}`
 
             //sql_where += ` AND t1.${this.tableCfg.COL_ENT_INTERNAL_ID} IN ${ngsi_query_sql}`
-            sql_where += ` AND ${this.tableCfg.COL_ENT_INTERNAL_ID} IN ${ngsi_query_sql}`
+
+            sql_where += ` AND t2.${this.tableCfg.COL_INSTANCE_ID} IN ${ngsi_query_sql}`
+
+
+            //sql_where += ` AND ${this.tableCfg.COL_ENT_INTERNAL_ID} IN ${ngsi_query_sql}`
         }
         //#################### END Match NGSI-LD query #################
 
@@ -1037,8 +1043,8 @@ export class PsqlBackend {
         // it is sufficient if any of these instances meets the geospatial restrictions":
 
         if (query.geoQ != undefined) {
-            //sql_where += ` AND t1.${this.tableCfg.COL_ENT_INTERNAL_ID} IN ${makeGeoQueryCondition(query.geoQ, context, this.tableCfg)}`
-            sql_where += ` AND ${this.tableCfg.COL_ENT_INTERNAL_ID} IN ${makeGeoQueryCondition(query.geoQ, context, this.tableCfg)}`
+            sql_where += ` AND t1.${this.tableCfg.COL_ENT_INTERNAL_ID} IN ${makeGeoQueryCondition(query.geoQ, context, this.tableCfg)}`
+            //sql_where += ` AND ${this.tableCfg.COL_ENT_INTERNAL_ID} IN ${makeGeoQueryCondition(query.geoQ, context, this.tableCfg)}`
         }
         //####################### END Match GeoQuery #######################
 
@@ -1102,6 +1108,7 @@ export class PsqlBackend {
         resultPromise.then(null, (e) => {
             console.log()
             console.log("Something went wrong:")
+            console.log(sql)
             console.log("------------------------------")
             console.log(e)
             console.log("------------------------------")
