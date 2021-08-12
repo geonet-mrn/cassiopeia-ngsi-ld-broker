@@ -26,7 +26,7 @@ An ongoing project to implement a light-weight and fast NGSI-LD broker in TypeSc
       - 6.6.4.) [Settings under "users":](#664-settings-under-users)
     - 6.7.) [Starting the broker](#67-starting-the-broker)
   - 7.) [Unit Tests](#7-unit-tests)
-  - 8.) [How Cassipeia implements temporal entity representations](#8-how-cassipeia-implements-temporal-entity-representations)
+  - 8.) [How Cassiopeia implements temporal entity representations](#8-how-cassiopeia-implements-temporal-entity-representations)
 
 # 1. License Information
 
@@ -338,7 +338,7 @@ The tests might need a couple of seconds to run. If everything goes according to
 
 Note that the actual number might vary depending on whether additional tests have been added since this document was written. In any case, there should be no mentions of failed tests. If there are, please first check your test configuration. If you then still think that a failure is caused by a bug in Cassiopeia's source code, please tell us about it.
 
-# 8. How Cassipeia implements temporal entity representations
+# 8. How Cassiopeia implements temporal entity representations
 
 NGSI-LD specifies API endpoints to create and query so-called "temporal representations of entities", or short, "temporal entities". Temporal entities essentially extend the "traditional" NGSI-LD entity data model with support for time series data on the attribute instance level. 
 

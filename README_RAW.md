@@ -314,7 +314,7 @@ The tests might need a couple of seconds to run. If everything goes according to
 
 Note that the actual number might vary depending on whether additional tests have been added since this document was written. In any case, there should be no mentions of failed tests. If there are, please first check your test configuration. If you then still think that a failure is caused by a bug in Cassiopeia's source code, please tell us about it.
 
-# How Cassipeia implements temporal entity representations
+# How Cassiopeia implements temporal entity representations
 
 NGSI-LD specifies API endpoints to create and query so-called "temporal representations of entities", or short, "temporal entities". Temporal entities essentially extend the "traditional" NGSI-LD entity data model with support for time series data on the attribute instance level. 
 
