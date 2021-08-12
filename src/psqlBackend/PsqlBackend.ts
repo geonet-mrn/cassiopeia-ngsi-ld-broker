@@ -35,7 +35,7 @@ export class PsqlBackend {
     private readonly attributeTypes = ["https://uri.etsi.org/ngsi-ld/Property", "https://uri.etsi.org/ngsi-ld/GeoProperty", "https://uri.etsi.org/ngsi-ld/Relationship"]
 
 
-    temporalAppend = false
+    autoHistoryMode = true
 
 
 
@@ -51,7 +51,7 @@ export class PsqlBackend {
     }
 
 
-    async appendEntityAttributes(entityInternalId: any, fragment_expanded: any, overwrite: boolean, append: boolean, temporal: boolean, attributeIdToUpdate : string|undefined) {
+    async appendEntityAttributes(entityInternalId: any, fragment_expanded: any, overwrite: boolean, append: boolean, temporal: boolean, attributeIdToUpdate: string | undefined) {
 
         const result = new UpdateResult()
 
@@ -116,14 +116,16 @@ export class PsqlBackend {
             //#################### BEGIN Iterate over attribute instances #####################
             for (const instance_expanded of attribute_expanded) {
 
-                if (temporal) {
+
+                const datasetId = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
+                const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId_expanded, datasetId)
+
+
+                if (temporal || (this.autoHistoryMode && overwrite && existingInstances.length > 0)) {
                     sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
                     updated = true
                 }
                 else {
-
-                    const datasetId = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
-                    const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId_expanded, datasetId)
 
                     if (existingInstances.length == 0) {
 
@@ -175,28 +177,6 @@ export class PsqlBackend {
     }
 
 
-    private async getAttributeInstances(entityInternalId: number, attributeName: string, datasetId: string | null | undefined): Promise<any> {
-
-        // TODO 3: Order and limit to improve performance?
-
-        if (datasetId === undefined) {
-            datasetId = null
-        }
-
-        let sql = `SELECT * FROM ${this.tableCfg.TBL_ATTR} WHERE eid = ${entityInternalId} `
-
-        sql += ` AND ${this.tableCfg.COL_ATTR_NAME} = '${attributeName}'`
-        sql += this.makeSqlCondition_datasetId(datasetId)
-
-        const sqlResult = await this.runSqlQuery(sql)
-
-        return new Promise((resolve, reject) => {
-            resolve(sqlResult.rows)
-        })
-    }
-
-
-
     async countEntitiesByType(type: string): Promise<number> {
 
         let sql = `SELECT COUNT(*) FROM ${this.tableCfg.TBL_ENT} WHERE ${this.tableCfg.COL_ENT_TYPE} = '${type}'`
@@ -246,7 +226,7 @@ export class PsqlBackend {
     }
 
 
-    async createOrUpdateTemporalEntity(entity_expanded: any) {
+    async createOrUpdateTemporalEntity(entity_expanded: any): Promise<number> {
 
         // NOTE: We should probably not merge this with createEntity because the behaviours of both methods are different:
         // The temporal version supports updates of an existing entity with the same request while the non-temporal version
@@ -377,6 +357,29 @@ export class PsqlBackend {
             resolve(true)
         })
     }
+
+
+
+    private async getAttributeInstances(entityInternalId: number, attributeName: string, datasetId: string | null | undefined): Promise<any> {
+
+        // TODO 3: Order and limit to improve performance?
+
+        if (datasetId === undefined) {
+            datasetId = null
+        }
+
+        let sql = `SELECT * FROM ${this.tableCfg.TBL_ATTR} WHERE eid = ${entityInternalId} `
+
+        sql += ` AND ${this.tableCfg.COL_ATTR_NAME} = '${attributeName}'`
+        sql += this.makeSqlCondition_datasetId(datasetId)
+
+        const sqlResult = await this.runSqlQuery(sql)
+
+        return new Promise((resolve, reject) => {
+            resolve(sqlResult.rows)
+        })
+    }
+
 
 
     async getAvailableAttributes(): Promise<AttributeList> {
@@ -529,16 +532,6 @@ export class PsqlBackend {
     async getEntitiesBySqlWhere(sql_where: string, includeSysAttrs: boolean, orderBySql: string | undefined,
         lastN: number | undefined, attrNames_expanded: Array<string> | undefined, temporal: boolean): Promise<Array<any>> {
 
-
-        //############# BEGIN Build "ORDER BY" query part ############
-        let orderBy = ""
-
-        if (orderBySql != undefined) {
-            orderBy = " ORDER BY " + orderBySql
-        }
-        //############# END Build "ORDER BY" query part ############
-
-
         // ATTENTION: The 'sql_where' string must begin with and "AND"!
 
         const fields = Array<string>()
@@ -547,6 +540,7 @@ export class PsqlBackend {
         fields.push(this.tableCfg.COL_ENT_ID)
         fields.push(this.tableCfg.COL_ATTR_NAME)
         fields.push(this.tableCfg.COL_INSTANCE_ID)
+        fields.push(this.tableCfg.COL_DATASET_ID)
         fields.push(this.tableCfg.COL_INSTANCE_JSON)
         fields.push(`${this.tableCfg.COL_ENT_CREATED_AT} at time zone 'utc' as ent_created_at`)
         fields.push(`${this.tableCfg.COL_ENT_MODIFIED_AT} at time zone 'utc' as ent_modified_at`)
@@ -554,16 +548,46 @@ export class PsqlBackend {
         fields.push(`${this.tableCfg.COL_ATTR_MODIFIED_AT} at time zone 'utc' as attr_modified_at`)
         fields.push(`${this.tableCfg.COL_ATTR_OBSERVED_AT} at time zone 'utc' as attr_observed_at`)
 
-        let sql = `SELECT ${fields.join(',')} FROM ${this.tableCfg.TBL_ENT} AS t1, ${this.tableCfg.TBL_ATTR} AS t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid ${sql_where} ${orderBy}`
+        // Original:
+        //let sql = `SELECT ${fields.join(',')} FROM ${this.tableCfg.TBL_ENT} AS t1, ${this.tableCfg.TBL_ATTR} AS t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid ${sql_where} ${orderBy}`
+        
+        // We don't need "order by" for non-temporal queries:
+        //let sql = `SELECT ${fields.join(',')} FROM ${this.tableCfg.TBL_ENT} AS t1, ${this.tableCfg.TBL_ATTR} AS t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid ${sql_where}`
+
+
+        let sql = `SELECT ${fields.join(',')} FROM ${this.tableCfg.TBL_ENT} AS t1, ${this.tableCfg.TBL_ATTR} AS t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid`
+
+        
+
+        // Attempt to fix the problem that the query matches historical attribute instances in non-temporal mode:
+        if (!temporal) {
+
+            sql = `SELECT ${fields.join(',')} FROM ${this.tableCfg.TBL_ENT} AS t1, ${this.tableCfg.TBL_ATTR} AS t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid ORDER BY t2.instance_id DESC`
+
+            sql = `SELECT * FROM (SELECT DISTINCT ON (dataset_id) * FROM (${sql}) t3) t`
+                
+                
+                
+              
+              
+              
+        }
+
+
+
 
         // If lastN is defined, wrap limiting query around the original query:
         // See https://stackoverflow.com/questions/1124603/grouped-limit-in-postgresql-show-the-first-n-rows-for-each-group
 
-        if (typeof (lastN) == "number" && lastN > 0) {
-            sql = `SELECT * FROM (SELECT ROW_NUMBER() OVER (PARTITION BY ent_id, attr_name ${orderBy}) AS r, t.* FROM (${sql}) t) x WHERE x.r <= ${lastN};`
+        if (temporal && typeof (lastN) == "number" && lastN > 0) {
+
+            sql = `SELECT * FROM (SELECT ROW_NUMBER() OVER (PARTITION BY ent_id, attr_name ${orderBySql}) AS r, t.* FROM (${sql}) t) x WHERE x.r <= ${lastN};`
         }
 
         const queryResult = await this.runSqlQuery(sql)
+
+
+        console.log(queryResult.rows)
 
         const entitiesByNgsiId: any = {}
 
@@ -648,7 +672,6 @@ export class PsqlBackend {
 
                     if (existingInstance[uri_datasetId] == instance[uri_datasetId] && existingInstance[uri_instanceId] <= instance[uri_instanceId]) {
                         replaceIndex = ii
-                        //console.log("replacing " + existingInstance[uri_instanceId] + " " + instance[uri_instanceId])
                     }
                 }
 
@@ -926,8 +949,6 @@ export class PsqlBackend {
 
         //############################# END Validation #########################
 
-        let orderBySql = undefined
-        let lastN = undefined
 
 
         let sql_where = ""
@@ -1040,11 +1061,15 @@ export class PsqlBackend {
 
 
         //################### BEGIN Match temporal query ######################
+        let orderBySql = undefined
+        let lastN = undefined
+
+
         if (query.temporalQ != undefined) {
 
             sql_where += makeTemporalQueryCondition(query.temporalQ, this.tableCfg)
 
-            orderBySql = this.getTemporalTableColumn(query.temporalQ.timeproperty) + " DESC"
+            orderBySql = " ORDER BY " + this.getTemporalTableColumn(query.temporalQ.timeproperty) + " DESC"
             lastN = query.temporalQ.lastN
         }
         //################### END Match temporal query ######################
@@ -1087,12 +1112,20 @@ export class PsqlBackend {
         }
         //####################### END Try to fetch existing entity ###########################
 
+
+
         const instanceId_number = parseInt(instanceId_expanded.split("_")[1])
 
-        const query = this.makeUpdateAttributeInstanceQuery(instanceId_number, instance, false)
+        let sql_transaction = "BEGIN;"
 
-        const queryResult = await this.runSqlQuery(query)
-        const queryResult2 = await this.runSqlQuery(this.makeUpdateEntityModifiedAtQuery(entityMetadata.id))
+        sql_transaction += this.makeUpdateAttributeInstanceQuery(instanceId_number, instance, false)
+
+
+        sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityMetadata.id)
+        sql_transaction += "COMMIT;"
+
+        const queryResult = await this.runSqlQuery(sql_transaction)
+
     }
 
 
