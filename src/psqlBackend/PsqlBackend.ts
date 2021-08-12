@@ -33,9 +33,9 @@ export class PsqlBackend {
     private readonly attributeTypes = ["https://uri.etsi.org/ngsi-ld/Property", "https://uri.etsi.org/ngsi-ld/GeoProperty", "https://uri.etsi.org/ngsi-ld/Relationship"]
 
 
-    temporalAppend = true
+    temporalAppend = false
 
-       
+
 
     // The PostgreSQL connection object:
     private readonly pool!: pg.Pool
@@ -88,7 +88,7 @@ export class PsqlBackend {
             //#################### END Validate attribute ####################
 
 
-        
+
             let updated = false
 
             //#################### BEGIN Iterate over attribute instances #####################
@@ -98,8 +98,7 @@ export class PsqlBackend {
 
                 const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId_expanded, datasetId)
 
-                // TODO: 2 Only update if timestamp or value has changed?
-
+                /*
                 if (this.temporalAppend) {
                     if (existingInstances.length == 0 || temporal) {
                         updated = true
@@ -109,15 +108,17 @@ export class PsqlBackend {
 
                 }
                 else {
+                    */
+                if (existingInstances.length == 0 || temporal) {
 
-                    if (existingInstances.length == 0 || temporal) {
+                    sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
 
-                        sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
+                    updated = true
+                }
+                else if (existingInstances.length == 1) {
 
-                        updated = true
-                    }
-                    else if (overwrite) {
-
+                    if (overwrite) {
+                        /*
                         let lastCreatedInstance: any = null
 
                         for (const exInst of existingInstances) {
@@ -132,8 +133,16 @@ export class PsqlBackend {
                             sql_transaction += this.makeUpdateAttributeInstanceQuery(lastCreatedInstance.instance_id, instance_expanded, true)
                             updated = true
                         }
+                        */
+
+                        sql_transaction += this.makeUpdateAttributeInstanceQuery(existingInstances[0].instance_id, instance_expanded, true)
+                        updated = true
                     }
                 }
+                else if (existingInstances.length > 1) {
+                    throw errorTypes.InternalError.withDetail(`${existingInstances.length} with the same datasetId '${datasetId}' were found during preparation of a partial update of attribute '${attributeId_expanded}' of entity '${entityInternalId}'. This is a database corruption and should never happen. Please contact the context broker administrator.`)
+                }
+                // }
             }
             //################## END Iterate over attribute instances #######################
 
@@ -1095,7 +1104,7 @@ export class PsqlBackend {
 
 
 
-        
+
         let sql_transaction = "BEGIN;"
 
         //####################### BEGIN Iterate over attributes #############################
@@ -1109,7 +1118,7 @@ export class PsqlBackend {
             if (ignoreAttributes.includes(attributeId_expanded)) {
                 continue
             }
-            
+
 
             let attribute_expanded = fragment_expanded[attributeId_expanded]
 
@@ -1117,7 +1126,7 @@ export class PsqlBackend {
                 attribute_expanded = [attribute_expanded]
             }
 
-          
+
             //#################### BEGIN Validate attribute ####################
             const reifiedAttributeCheck = checkReifiedAttribute(attribute_expanded, attributeId_expanded, undefined, false)
 
@@ -1144,16 +1153,12 @@ export class PsqlBackend {
 
                 const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId_expanded, datasetId)
 
-                if (existingInstances.length == 1) {
+                if (existingInstances.length == 0) {
+                    // TODO What?
+                }
+                else if (existingInstances.length == 1) {
 
-                    const instanceId = existingInstances[0].instance_id
-
-                    // NOTE: The following function call automatically incorporeates spec 5.6.2.4:
-                    // The type of an Attribute in the Entity Fragment has to be the same as the type of the 
-                    // targeted Attribute fragment, i.e. it is not allowed to change the type of an Attribute.
-                    sql_transaction += this.makeUpdateAttributeInstanceQuery(instanceId, instance_expanded, false)
-
-                 
+                    sql_transaction += this.makeUpdateAttributeInstanceQuery(existingInstances[0].instance_id, instance_expanded, false)
                     updated = true
                 }
                 else if (existingInstances.length > 1) {
@@ -1174,7 +1179,7 @@ export class PsqlBackend {
         sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
 
         sql_transaction += "COMMIT;"
-        
+
         await this.runSqlQuery(sql_transaction)
 
 
