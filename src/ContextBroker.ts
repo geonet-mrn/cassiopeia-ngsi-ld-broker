@@ -91,7 +91,7 @@ export class ContextBroker {
         const entityInternalId = entityMetadata.id
         //############# END Get internal ID of entity #############
 
-        return await this.psql.appendEntityAttributes(entityInternalId, fragment_expanded, true, true, false)
+        return await this.psql.appendEntityAttributes(entityInternalId, fragment_expanded, true, false, false, undefined)
 
     }
 
@@ -137,7 +137,7 @@ export class ContextBroker {
         const entityInternalId = entityMetadata.id
         //########### END Try to fetch existing entity with same ID from the database #############
 
-        return await this.psql.appendEntityAttributes(entityInternalId, fragment_expanded, overwrite, false, false)
+        return await this.psql.appendEntityAttributes(entityInternalId, fragment_expanded, overwrite, true, false, undefined)
 
     }
 
@@ -203,7 +203,8 @@ export class ContextBroker {
         const entityInternalId = entityMetadata.id
         //############# END Get internal ID of entity #############
 
-        const updateResult = await this.psql.appendEntityAttributes(entityInternalId, fragment_expanded, true, true, false)
+        // TODO: 1 Add parameter for partial attribute update
+        const updateResult = await this.psql.appendEntityAttributes(entityInternalId, fragment_expanded, true, false, false, attributeId_expanded)
 
         //const updateResult = await this.psql.updateEntityAttributes(entityId, fragment_expanded, attributeId_expanded)
 
@@ -410,7 +411,7 @@ export class ContextBroker {
 
                 else if (options == "update") {
 
-                    const updateResult = await this.psql.appendEntityAttributes(existingEntityMetadata.id, entity_expanded, true, false, false)
+                    const updateResult = await this.psql.appendEntityAttributes(existingEntityMetadata.id, entity_expanded, true, true, false, undefined)
 
                     // TODO: 3 Add information about failed updates to result?
                     if (updateResult.notUpdated.length == 0) {
@@ -597,7 +598,7 @@ export class ContextBroker {
         //###################### END Try to fetch existing entity ########################
 
 
-        await this.psql.appendEntityAttributes(entityMetadata.id, fragment_expanded, false, false, true)
+        await this.psql.appendEntityAttributes(entityMetadata.id, fragment_expanded, false, true, true, undefined)
     }
 
 

@@ -51,7 +51,7 @@ export class PsqlBackend {
     }
 
 
-    async appendEntityAttributes(entityInternalId: any, fragment_expanded: any, overwrite: boolean, updateOnly: boolean, temporal: boolean) {
+    async appendEntityAttributes(entityInternalId: any, fragment_expanded: any, overwrite: boolean, append: boolean, temporal: boolean, attributeIdToUpdate : string|undefined) {
 
         const result = new UpdateResult()
 
@@ -84,6 +84,9 @@ export class PsqlBackend {
                 continue
             }
 
+            if (attributeIdToUpdate != undefined && attributeId_expanded != attributeIdToUpdate) {
+                continue
+            }
 
             let attribute_expanded = (fragment_expanded as any)[attributeId_expanded]
 
@@ -113,39 +116,27 @@ export class PsqlBackend {
             //#################### BEGIN Iterate over attribute instances #####################
             for (const instance_expanded of attribute_expanded) {
 
-                const datasetId = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
-                const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId_expanded, datasetId)
-
-
-                if (updateOnly) {
-                  
-                    let lastCreatedInstance: any = null
-
-                    for (const exInst of existingInstances) {
-                        if (lastCreatedInstance == null || exInst.instance_id > lastCreatedInstance.instance_id) {
-                            lastCreatedInstance = exInst
-                        }
-                    }
-
-                    if (lastCreatedInstance != null) {
-                        sql_transaction += this.makeUpdateAttributeInstanceQuery(lastCreatedInstance.instance_id, instance_expanded, true)
-                        updated = true
-                    }
+                if (temporal) {
+                    sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
+                    updated = true
                 }
-
                 else {
-                    // In temporal mode, attribute instances are always appended, regardless of datasetId:                            
-                    if (existingInstances.length == 0 || temporal) {
 
-                        sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
+                    const datasetId = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
+                    const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId_expanded, datasetId)
 
-                        updated = true
+                    if (existingInstances.length == 0) {
+
+                        if (append) {
+                            sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
+                            updated = true
+                        }
                     }
                     else {
 
                         if (overwrite) {
-                            let lastCreatedInstance: any = null
 
+                            let lastCreatedInstance: any = null
 
                             for (const exInst of existingInstances) {
                                 if (lastCreatedInstance == null || exInst.instance_id > lastCreatedInstance.instance_id) {
@@ -247,7 +238,7 @@ export class PsqlBackend {
         const insertId = queryResult.rows[0].id
         //################# END Create entities table entry #################
 
-        await this.appendEntityAttributes(insertId, entity_expanded, false, false, false)
+        await this.appendEntityAttributes(insertId, entity_expanded, true, true, false, undefined)
 
         return new Promise<number>((resolve, reject) => {
             resolve(1)
@@ -284,7 +275,7 @@ export class PsqlBackend {
             // NOTE: If "temporal" (last parameter) is true, then "overwrite" (second-last parameter)
             // has no effect. We set it to false, but setting it to true wouldn't change the result.
             // In temporal mode, attribute instances are always appended and never overwritten.
-            await this.appendEntityAttributes(entityMetadata.id, entity_expanded, false, false, true)
+            await this.appendEntityAttributes(entityMetadata.id, entity_expanded, false, true, true, undefined)
 
             return new Promise<number>((resolve, reject) => {
                 resolve(204)
