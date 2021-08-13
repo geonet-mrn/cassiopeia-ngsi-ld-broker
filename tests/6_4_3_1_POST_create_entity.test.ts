@@ -49,15 +49,15 @@ const entityWithDuplicateDatasetIds =
 
 describe('6.4.3.1 POST /entities/', function () {
 
-    beforeEach(async () => {
+    before(async () => {
         await prep.deleteAllEntities()
 
 
     })
 
 
-    afterEach(async () => {
-        await prep.deleteAllEntities()
+    after(async () => {
+     //   await prep.deleteAllEntities()
 
     })
 
@@ -84,17 +84,12 @@ describe('6.4.3.1 POST /entities/', function () {
 
     it("should return HTTP status code 409 if an entity with the same ID already exists", async function () {
 
-        // Create entity:
-        let response = await axios.post(testConfig.base_url + "entities/", validEntity, config)
-
-        expect(response.status).equals(201)
-
-        // Try to create the same entity (with same id) again:
+         // Try to create the same entity (with same id) again:
         let response2 = await axios.post(testConfig.base_url + "entities/", validEntity, config).catch((err) => {
             expect(err.response.status).equals(409)
-        })
+        }) as AxiosResponse
 
-
+        
         expect(response2).to.be.undefined
     })
 
