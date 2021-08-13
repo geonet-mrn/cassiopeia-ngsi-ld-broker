@@ -1,6 +1,7 @@
 {
     "compressOutput" : false,
 
+    "autoHistory" : true,
     "port": 3000,
 
     "psql": {        

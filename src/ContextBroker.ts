@@ -53,7 +53,7 @@ export class ContextBroker {
     // ATTENTION: Changing the order of items in attributeTypes corrupts the database!
     private readonly attributeTypes = ["https://uri.etsi.org/ngsi-ld/Property", "https://uri.etsi.org/ngsi-ld/GeoProperty", "https://uri.etsi.org/ngsi-ld/Relationship"]
 
-    autoHistoryMode = true
+    private cfg_autoHistory = true
 
     // The PostgreSQL connection object:
     private readonly pool!: pg.Pool
@@ -61,7 +61,12 @@ export class ContextBroker {
     private readonly ngsiQueryParser = new NgsiLdQueryParser(tableCfg)
 
     constructor(private readonly config: any, private ngsiLdCoreContext: JsonLdContextNormalized) {
+        
         this.pool = new pg.Pool(config.psql)
+
+        if (config.autoHistory != undefined) {
+            this.cfg_autoHistory = config.autoHistory
+        }
     }
 
     //############################### BEGIN Official API methods ##################################
@@ -1314,7 +1319,7 @@ export class ContextBroker {
                 //###################### END Get existing instances #####################
 
 
-                if (temporal || (this.autoHistoryMode && overwrite && existingInstances.length > 0)) {
+                if (temporal || (this.cfg_autoHistory && overwrite && existingInstances.length > 0)) {
                     sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
                     updated = true
                 }
