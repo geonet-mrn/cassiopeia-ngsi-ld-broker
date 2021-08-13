@@ -5,6 +5,15 @@ import { testConfig } from './testConfig'
 
 const entityIdToDelete = "urn:ngsi-ld:Municipality:07332009"
 
+
+const config = {
+    headers: {
+        "content-type": "application/ld+json"
+    },
+    auth: testConfig.auth
+}
+
+
 const entities = [
     {
         "id": entityIdToDelete,
@@ -44,13 +53,13 @@ const entities = [
 
 describe('6.5.3.2 DELETE entities/<entityId>', function () {
 
-    beforeEach(async () => {
+    before(async () => {
         await prep.deleteAllEntities()
 
     })
 
 
-    afterEach(async () => {
+    after(async () => {
         await prep.deleteAllEntities()
 
     })
@@ -58,13 +67,6 @@ describe('6.5.3.2 DELETE entities/<entityId>', function () {
 
     it('should delete the Entity with the specified ID', async function () {
 
-
-        const config = {
-            headers: {
-                "content-type": "application/ld+json"
-            },
-            auth: testConfig.auth
-        }
 
 
         //###################### BEGIN Create entities for test ######################
@@ -119,16 +121,12 @@ describe('6.5.3.2 DELETE entities/<entityId>', function () {
 
         expect(numEntitiesBeforeDelete - numEntitiesAfterDelete).equals(1)
 
+
+
         // Step 3: Check whether exactly the specified entity was deleted:
-        let err = undefined
-        let getResponse = await axios.get(entityUrl, config).catch((e) => { err = e })
+        let getResponse = await prep.axiosGet(entityUrl, config)
 
-        //@ts-ignore
-        expect(err.response.status).equals(404)
-
-        expect(getResponse).equals(undefined)
-
-
+        expect(getResponse.status).equals(404)
     });
 });
 

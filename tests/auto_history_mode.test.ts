@@ -2,6 +2,7 @@ import { expect, assert } from "chai";
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios'
 import * as prep from "./testUtil"
 import { testConfig } from './testConfig'
+import { axiosGet } from "./testUtil";
 
 
 let config = {
@@ -132,23 +133,7 @@ describe('Auto-history mode', function () {
 
     it("should retrieve the entity through the *temporal* API", async function () {
 
-
-        // TODO: Check presence of location header in response
-
-        let err2 = undefined
-
-
-
-        let getResponse = await axios.get(testConfig.base_url + "temporal/entities/" + entityId1, config).catch((e) => {
-            err2 = e
-        }) as AxiosResponse
-
-
-        if (err2 != undefined) {
-            console.log(err2)
-        }
-
-        expect(getResponse).to.not.be.undefined
+        let getResponse = await axiosGet(testConfig.base_url + "temporal/entities/" + entityId1, config)
 
         const entity2 = getResponse.data
 

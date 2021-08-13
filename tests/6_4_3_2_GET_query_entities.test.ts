@@ -2,6 +2,7 @@ import { expect, assert } from "chai";
 import axios, { AxiosResponse } from 'axios'
 import * as prep from "./testUtil"
 import { testConfig } from './testConfig'
+import { axiosGet } from "./testUtil";
 
 
 
@@ -96,7 +97,7 @@ describe('6.4.3.2 GET /entities/', function () {
         const createUrl = testConfig.base_url + "entityOperations/upsert"
 
 
-      
+
 
 
         let createEntitiesResponse = await axios.post(createUrl, entities, config)
@@ -115,10 +116,10 @@ describe('6.4.3.2 GET /entities/', function () {
 
     it("Should return all expected entities", async function () {
 
-        
+
         const queryResponse = await axios.get(testConfig.base_url + 'entities/?q=name=="Meckenheim"')
-           
-        
+
+
         expect(queryResponse.data.length).equals(1)
         expect(queryResponse.data[0].name[0].value == "Meckenheim")
 
@@ -141,22 +142,17 @@ describe('6.4.3.2 GET /entities/', function () {
 
     it("should return the requested entities as a GeoJSON FeatureCollection if the accept header 'application/geo+json' is set (spec 6.3.15)", async function () {
 
-
-
-        let queryResponse = undefined
-
-        try {
-            queryResponse = await axios.get(testConfig.base_url + 'entities/?geometryProperty=name', config)          
-        }
-        catch (e) {
+        /*
+        let queryResponse = await axios.get(testConfig.base_url + 'entities/?geometryProperty=name', config).catch((e)=> {
             console.log(e)
-        }
+        }) as AxiosResponse|undefined
+        */
 
-        if (queryResponse == undefined) {
-            return
-        }
+        let queryResponse = await axiosGet(testConfig.base_url + 'entities/?geometryProperty=name', config)
 
         
+        expect(queryResponse.status).equals(200)
+
         expect(queryResponse.data.type).equals("FeatureCollection")
 
     })
@@ -169,7 +165,7 @@ describe('6.4.3.2 GET /entities/', function () {
         let queryResponse = undefined
 
         try {
-            queryResponse = await axios.get(testConfig.base_url + 'entities/?geometryProperty=location', config)            
+            queryResponse = await axios.get(testConfig.base_url + 'entities/?geometryProperty=location', config)
         }
         catch (e) {
             console.log(e)

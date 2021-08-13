@@ -4,6 +4,13 @@ import * as prep from "./testUtil"
 import { testConfig } from './testConfig'
 
 
+const config = {
+    headers: {
+        "content-type": "application/ld+json"
+    },
+    auth: testConfig.auth
+}
+
 const originalEntity = {
     "id": "urn:ngsi-ld:TestEntity1",
     "type": "TestEntity",
@@ -48,15 +55,14 @@ const updateAttributesFragment = {
 
 describe('6.6.3.2 PATCH entities/<entityId>/attrs/', function () {
 
-    beforeEach(async () => {
+    before(async () => {
         await prep.deleteAllEntities()
 
     })
 
 
-    afterEach(async () => {
+    after(async () => {
         await prep.deleteAllEntities()
-
     })
 
 
@@ -69,12 +75,7 @@ describe('6.6.3.2 PATCH entities/<entityId>/attrs/', function () {
         // For each of the Attributes included in the Fragment, if the target Entity includes a matching one (considering
         // term expansion rules as mandated by clause 5.5.7), then replace it by the one included by the Fragment:
 
-        const config = {
-            headers: {
-                "content-type": "application/ld+json"
-            },
-            auth: testConfig.auth
-        }
+       
 
         const entityUrl = testConfig.base_url + "entities/" + originalEntity.id
 
