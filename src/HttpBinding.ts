@@ -62,7 +62,7 @@ export class HttpBinding {
 
     private readonly ERROR_MSG_NOT_IMPLEMENTED_YET = "This operation is not implemented yet."
 
-    private readonly catchExceptions = false
+    private readonly catchExceptions = true
 
     // NOTE: The HTTP handler methods must be defined as arrow functions in order to work!
 

@@ -200,20 +200,23 @@ export class PsqlBackend {
         queryBuilder.add(this.tableCfg.COL_ENT_ID, entity_expanded['@id'])
         queryBuilder.add(this.tableCfg.COL_ENT_TYPE, entity_expanded['@type'])
         queryBuilder.add(this.tableCfg.COL_ENT_CREATED_AT, now.toISOString())
-        queryBuilder.add(this.tableCfg.COL_ENT_MODIFIED_AT, now.toISOString())
-        queryBuilder.add(this.tableCfg.COL_ENT_TEMPORAL, temporal.toString())
+        queryBuilder.add(this.tableCfg.COL_ENT_MODIFIED_AT, now.toISOString())        
         //############## END Build INSERT query for entities table ###########
 
 
         //################# BEGIN Create entities table entry #################
-        const queryResult = await this.runSqlQuery(queryBuilder.getStringForTable(this.tableCfg.TBL_ENT, "id")).catch((error: any) => { })
+        const queryResult = await this.runSqlQuery(queryBuilder.getStringForTable(this.tableCfg.TBL_ENT, "id")).catch(
+            (error: any) => {         
+        })
+
 
         if (queryResult == undefined) {
-
+            console.log("NOO")
             return new Promise<number>((resolve, reject) => {
                 resolve(-1)
             })
         }
+        console.log(queryResult)
 
         const insertId = queryResult.rows[0].id
         //################# END Create entities table entry #################
@@ -927,9 +930,9 @@ export class PsqlBackend {
         let attr_table = temporal ? this.tableCfg.TBL_ATTR : "latest_attributes"
 
 
-        let sql_view = `CREATE OR REPLACE VIEW latest_attributes AS (SELECT * FROM (SELECT ROW_NUMBER() OVER (PARTITION BY eid, attr_name, dataset_id ORDER BY instance_id DESC) AS r, t.* FROM ${this.tableCfg.TBL_ATTR} t) x WHERE x.r <= 1)`
+         // CREATE OR REPLACE VIEW latest_attributes AS (SELECT * FROM (SELECT ROW_NUMBER() OVER (PARTITION BY eid, attr_name, dataset_id ORDER BY instance_id DESC) AS r, t.* FROM attributes t) x WHERE x.r <= 1)
 
-  //      this.runSqlQuery(sql_view)
+  
 
         let sql = `SELECT ${fields.join(',')} FROM ${this.tableCfg.TBL_ENT} AS t1, ${attr_table} AS t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid ${sql_where}`
 
@@ -1094,12 +1097,18 @@ export class PsqlBackend {
         // Print error, but still continue with the normal promise chain:
 
         resultPromise.then(null, (e) => {
+            
+            console.log("######################## SOMETHING WENT WRONG ########################")
             console.log()
-            console.log("Something went wrong:")
+            console.log("SQL:")
+            console.log()
             console.log(sql)
-            console.log("------------------------------")
+            console.log()
+            console.log("ERROR:")
+            console.log()
             console.log(e)
-            console.log("------------------------------")
+            console.log()
+            console.log("#######################################################################")
         })
 
         return resultPromise

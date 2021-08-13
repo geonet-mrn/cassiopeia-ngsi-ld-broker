@@ -21,7 +21,6 @@ export class PsqlTableConfig {
     readonly COL_ENT_ID = "ent_id"
     readonly COL_ENT_TYPE = "ent_type"
     readonly COL_ENT_CREATED_AT = "ent_created_at"
-    readonly COL_ENT_MODIFIED_AT = "ent_modified_at"
-    readonly COL_ENT_TEMPORAL = "ent_temporal"
+    readonly COL_ENT_MODIFIED_AT = "ent_modified_at"    
     //############# END SQL table and column namen constants ###############
 }
