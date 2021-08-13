@@ -7,10 +7,10 @@
 
 // TODO: Perhaps create new query parser object for each query and make context a class member
 
-import { Query } from "../dataTypes/Query"
-import { errorTypes } from "../errorTypes"
+import { Query } from "./dataTypes/Query"
+import { errorTypes } from "./errorTypes"
 
-import { isDateString, isDateTimeUtcString, isTimeUtcString, isUri } from "../validate"
+import { isDateString, isDateTimeUtcString, isTimeUtcString, isUri } from "./validate"
 import { PsqlTableConfig } from "./PsqlTableConfig"
 import * as ldcp from 'jsonld-context-parser'
 import { JsonLdContextNormalized } from "jsonld-context-parser"

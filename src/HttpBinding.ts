@@ -41,7 +41,7 @@ import { EntityInfo } from "./dataTypes/EntityInfo"
 import { Query } from "./dataTypes/Query"
 import { TemporalQuery } from "./dataTypes/TemporalQuery"
 import { getNormalizedContext, NGSI_LD_CORE_CONTEXT_URL } from "./jsonld"
-import { PsqlBackend } from "./psqlBackend/PsqlBackend"
+
 import * as fs from 'fs'
 import * as auth from 'basic-auth'
 //import createStatsCollector = require("mocha/lib/stats-collector")
@@ -895,7 +895,7 @@ export class HttpBinding {
         }
 
 
-        ctx.body = await this.broker.inofficial_deleteAllEntities()
+        ctx.body = await this.broker.api_inofficial_deleteAllEntities()
 
         await next()
     }
@@ -909,7 +909,7 @@ export class HttpBinding {
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
 
-        ctx.body = await this.broker.inofficial_temporalEntityOperationsUpsert(ctx.request.rawBody, contextUrl)
+        ctx.body = await this.broker.api_inofficial_temporalEntityOperationsUpsert(ctx.request.rawBody, contextUrl)
 
         await next()
     }
@@ -923,9 +923,9 @@ export class HttpBinding {
 
         const ngsiLdCoreContext = await getNormalizedContext([NGSI_LD_CORE_CONTEXT_URL])
 
-        const psql = new PsqlBackend(this.config, ngsiLdCoreContext)
+    //    const psql = new PsqlBackend(this.config, ngsiLdCoreContext)
 
-        this.broker = new ContextBroker(psql)
+        this.broker = new ContextBroker(this.config, ngsiLdCoreContext)
 
     
 

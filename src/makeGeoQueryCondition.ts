@@ -1,9 +1,10 @@
 import { JsonLdContextNormalized } from "jsonld-context-parser"
-import { GeoQuery } from "../dataTypes/GeoQuery"
-import { errorTypes } from "../errorTypes"
-import { expandObject } from "../jsonld"
-import { checkGeoQuery } from "../validate"
+import { GeoQuery } from "./dataTypes/GeoQuery"
+import { errorTypes } from "./errorTypes"
+import { expandObject } from "./jsonld"
+
 import { PsqlTableConfig } from "./PsqlTableConfig"
+import { checkGeoQuery } from "./validate"
 
 const spatialQueryFunctions: any = {
     "within": "ST_Within",
