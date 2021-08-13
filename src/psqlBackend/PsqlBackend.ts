@@ -529,197 +529,6 @@ export class PsqlBackend {
     }
 
 
-    async getEntitiesBySqlWhere(sql_where: string, includeSysAttrs: boolean, orderBySql: string | undefined,
-        lastN: number | undefined, attrNames_expanded: Array<string> | undefined, temporal: boolean): Promise<Array<any>> {
-
-        // ATTENTION: The 'sql_where' string must begin with and "AND"!
-
-        const fields = Array<string>()
-
-        fields.push(this.tableCfg.COL_ENT_INTERNAL_ID)
-        fields.push(this.tableCfg.COL_ENT_TYPE)
-        fields.push(this.tableCfg.COL_ENT_ID)
-        fields.push(this.tableCfg.COL_ATTR_NAME)
-        fields.push(this.tableCfg.COL_ATTR_EID)
-        
-        fields.push(this.tableCfg.COL_INSTANCE_ID)
-        fields.push(this.tableCfg.COL_DATASET_ID)
-        fields.push(this.tableCfg.COL_INSTANCE_JSON)
-        fields.push(`${this.tableCfg.COL_ENT_CREATED_AT} at time zone 'utc' as ent_created_at`)
-        fields.push(`${this.tableCfg.COL_ENT_MODIFIED_AT} at time zone 'utc' as ent_modified_at`)
-        fields.push(`${this.tableCfg.COL_ATTR_CREATED_AT} at time zone 'utc' as attr_created_at`)
-        fields.push(`${this.tableCfg.COL_ATTR_MODIFIED_AT} at time zone 'utc' as attr_modified_at`)
-        fields.push(`${this.tableCfg.COL_ATTR_OBSERVED_AT} at time zone 'utc' as attr_observed_at`)
-
-       
-        let sql = `SELECT ${fields.join(',')} FROM ${this.tableCfg.TBL_ENT} AS t1, ${this.tableCfg.TBL_ATTR} AS t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid ${sql_where}`
-
-
-        
-
-
-        // Attempt to fix the problem that the query matches historical attribute instances in non-temporal mode:
-        if (!temporal) {
-
-            let t2_sql = `(SELECT * FROM (SELECT DISTINCT ON (${this.tableCfg.TBL_ATTR}.dataset_id) ${this.tableCfg.TBL_ATTR}.* FROM ${this.tableCfg.TBL_ATTR} ORDER BY ${this.tableCfg.TBL_ATTR}.dataset_id, ${this.tableCfg.TBL_ATTR}.instance_id DESC ) t)`
-
-            t2_sql = `(SELECT * FROM (SELECT DISTINCT ON (${this.tableCfg.TBL_ATTR}.dataset_id) ${this.tableCfg.TBL_ATTR}.* FROM ${this.tableCfg.TBL_ATTR} ORDER BY ${this.tableCfg.TBL_ATTR}.dataset_id, ${this.tableCfg.TBL_ATTR}.instance_id DESC) t)`
-
-          
-            t2_sql = `(SELECT * FROM (SELECT ROW_NUMBER() OVER (PARTITION BY eid, attr_name, dataset_id ORDER BY instance_id DESC) AS r, t.* FROM ${this.tableCfg.TBL_ATTR} t) x WHERE x.r <= 1)`        
-            
-            //t2_sql = this.tableCfg.TBL_ATTR
-
-            sql = `SELECT ${fields.join(',')} FROM ${this.tableCfg.TBL_ENT} AS t1, ${t2_sql} AS t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid ${sql_where}`
-        }
-
-
-
-        // If lastN is defined, wrap limiting query around the original query:
-        // See https://stackoverflow.com/questions/1124603/grouped-limit-in-postgresql-show-the-first-n-rows-for-each-group
-
-        if (temporal && typeof (lastN) == "number" && lastN > 0) {
-
-            sql = `SELECT * FROM (SELECT ROW_NUMBER() OVER (PARTITION BY ent_id, attr_name ${orderBySql}) AS r, t.* FROM (${sql}) t) x WHERE x.r <= ${lastN};`
-        }
-
-        const queryResult = await this.runSqlQuery(sql)
-
-        console.log(sql)
-
-        console.log(queryResult.rows)
-
-        const entitiesByNgsiId: any = {}
-
-        //#################### BEGIN Iterate over returned attribute instance rows ####################
-        for (const row of queryResult.rows) {
-
-            const ent_id = row[this.tableCfg.COL_ENT_ID]
-            const attr_name = row[this.tableCfg.COL_ATTR_NAME]
-
-            //############## BEGIN Get or create Entity in memory #############
-            let entity = entitiesByNgsiId[ent_id]
-
-            if (!entity) {
-
-                entity = {
-                    "@id": ent_id,
-                    "@type": row[this.tableCfg.COL_ENT_TYPE]
-                }
-
-                if (includeSysAttrs) {
-                    entity[uri_createdAt] = row[this.tableCfg.COL_ENT_CREATED_AT]
-                    entity[uri_modifiedAt] = row[this.tableCfg.COL_ENT_MODIFIED_AT]
-                }
-
-                entitiesByNgsiId[ent_id] = entity
-            }
-            //############## END Get or create Entity in memory #############
-
-
-            //############## BEGIN Get or create Attribute instance in memory #############
-            let attribute = entity[attr_name]
-
-            if (!attribute) {
-                attribute = []
-                entity[attr_name] = attribute
-            }
-            //############## END Get or create Attribute instance in memory #############
-
-            // ATTENTION: We must write the entire dataset object to the JSON field. 
-            // Only putting the value field there is not sufficient, since there might 
-            // be other fields as siblings of the value field which must be stored too (e.g. "source", see spec ?)
-
-            const instance = row[this.tableCfg.COL_INSTANCE_JSON]
-
-            // TODO: 1 Add method to create instance ID string from number
-
-            // ATTENTION: The returned instance ID value string MUST contain an "_" (underscore) because we
-            // use it in PsqlBackend::deleteAttribute() as a string separator character to extract the
-            // actual instance id number from a passed instance id string.
-
-            instance[uri_instanceId] = "urn:ngsi-ld:InstanceId:instance_" + row[this.tableCfg.COL_INSTANCE_ID]
-
-            // ATTENTION: We always add the modified timestamp first, regardless of whether includeSysAttrs is true,
-            // because we need it to find the most recently modified attribute instance if this is not a
-            // temporal API query:
-
-
-            //####### BEGIN Restore JSON fields that have their own database column ##########
-            instance[uri_createdAt] = row["attr_created_at"]
-            instance[uri_modifiedAt] = row["attr_modified_at"]
-
-            if (row["attr_observed_at"] != null) {
-                instance["https://uri.etsi.org/ngsi-ld/observedAt"] = row["attr_observed_at"]
-            }
-            //####### END Restore JSON fields that have their own database column ##########
-
-
-
-            // If the temporal representation of an entity is requested, all attribute instances are included:
-            if (temporal) {
-                attribute.push(instance)
-            }
-
-            // If the "normal" representation of an entity is requested and there are multiple attribute 
-            // instances with the same datasetId, only the most recently created attribute instance of each 
-            // particular datasetId (identified by highest instanceId) is returned:
-            else {
-                let replaceIndex = null
-
-                for (let ii = 0; ii < attribute.length; ii++) {
-                    let existingInstance = attribute[ii]
-
-                    if (existingInstance[uri_datasetId] == instance[uri_datasetId] && existingInstance[uri_instanceId] <= instance[uri_instanceId]) {
-                        replaceIndex = ii
-                    }
-                }
-
-                if (replaceIndex != null) {
-
-                    attribute[replaceIndex] = instance
-                }
-                else {
-                    attribute.push(instance)
-                }
-
-            }
-        }
-        //#################### END Iterate over returned attribute instance rows ####################
-
-
-        //################ BEGIN Create result array of entities ###################
-        let result = Array<any>()
-
-        for (const entityId in entitiesByNgsiId) {
-            result.push(entitiesByNgsiId[entityId])
-        }
-        //################ END Create result array of entities ###################
-
-
-        //############# BEGIN Add empty arrays for requested attributes with no matching instances #############
-
-        // "For the avoidance of doubt, if for a requested Attribute no instance fulfils the temporal query, 
-        // then an empty Array of instances shall be provided as the representation for such Attribute.":
-
-        if (attrNames_expanded instanceof Array && attrNames_expanded.length > 0) {
-            for (const entity of result) {
-
-                for (const attributeName of attrNames_expanded) {
-                    if (entity[attributeName] == undefined) {
-                        entity[attributeName] = []
-                    }
-                }
-            }
-        }
-        //############# END Add empty arrays for requested attributes with no matching instances #############
-
-        return new Promise((resolve, reject) => {
-            resolve(result)
-        })
-    }
-
-
     async getEntityMetadata(entityId: string): Promise<any> {
 
         //const sql = `SELECT * FROM ${this.tableCfg.TBL_ENT} WHERE ${this.tableCfg.COL_ENT_ID} = '${entityId}' AND ${this.tableCfg.COL_ENT_TEMPORAL} = ${temporal.toString()}`
@@ -864,9 +673,6 @@ export class PsqlBackend {
 
         // NOTE: This method returns a Promise that contains the number of updated attribute instances.
 
-
-
-
         //################# BEGIN Build SQL query to update attribute instance #####################
         let sql = `UPDATE ${this.tableCfg.TBL_ATTR} SET ${this.tableCfg.COL_INSTANCE_JSON} = '${JSON.stringify(instance)}'`
 
@@ -920,6 +726,9 @@ export class PsqlBackend {
 
     // Spec 5.7.2
     async queryEntities(query: Query, temporal: boolean, includeSysAttrs: boolean, context: JsonLdContextNormalized): Promise<Array<any>> {
+
+        let attr_table = temporal ? this.tableCfg.TBL_ATTR : "latest_attributes"
+
 
         //########################### BEGIN Validation ###########################      
 
@@ -980,14 +789,13 @@ export class PsqlBackend {
 
         if (entityTypes_expanded.length > 0) {
             sql_where += ` AND t1.${this.tableCfg.COL_ENT_TYPE} IN ('${entityTypes_expanded.join("','")}')`
-            //sql_where += ` AND ${this.tableCfg.COL_ENT_TYPE} IN ('${entityTypes_expanded.join("','")}')`
+            
         }
 
         if (entityIds.length > 0) {
             sql_where += ` AND t1.${this.tableCfg.COL_ENT_ID} IN ('${entityIds.join("','")}')`
 
             
-            //sql_where += ` AND ${this.tableCfg.COL_ENT_ID} IN ('${entityIds.join("','")}')`
         }
 
         // TODO: 1 ADD FEATURE - "id matches the id patterns passed as parameter"
@@ -1010,7 +818,7 @@ export class PsqlBackend {
             const attrs_expanded = expandObject(query.attrs, context)
 
             sql_where += ` AND t2.${this.tableCfg.COL_ATTR_NAME} IN ('${attrs_expanded.join("','")}')`
-            //sql_where += ` AND ${this.tableCfg.COL_ATTR_NAME} IN ('${attrs_expanded.join("','")}')`
+           
         }
         //####################### END Match specified Attributes #######################
 
@@ -1021,17 +829,11 @@ export class PsqlBackend {
         // - "the filter conditions specified by the query are met (as mandated by clause 4.9)":
         if (query.q != undefined) {
 
-            const ngsi_query_sql = this.ngsiQueryParser.makeQuerySql(query, context)
+            const ngsi_query_sql = this.ngsiQueryParser.makeQuerySql(query, context, attr_table)
 
-            // Original
-            //sql_where += ` AND t1.${this.tableCfg.COL_ENT_INTERNAL_ID} IN ${ngsi_query_sql}`
+           sql_where += ` AND t1.${this.tableCfg.COL_ENT_INTERNAL_ID} IN ${ngsi_query_sql}`
 
-            //sql_where += ` AND t1.${this.tableCfg.COL_ENT_INTERNAL_ID} IN ${ngsi_query_sql}`
-
-            sql_where += ` AND t2.${this.tableCfg.COL_INSTANCE_ID} IN ${ngsi_query_sql}`
-
-
-            //sql_where += ` AND ${this.tableCfg.COL_ENT_INTERNAL_ID} IN ${ngsi_query_sql}`
+          
         }
         //#################### END Match NGSI-LD query #################
 
@@ -1043,8 +845,8 @@ export class PsqlBackend {
         // it is sufficient if any of these instances meets the geospatial restrictions":
 
         if (query.geoQ != undefined) {
-            sql_where += ` AND t1.${this.tableCfg.COL_ENT_INTERNAL_ID} IN ${makeGeoQueryCondition(query.geoQ, context, this.tableCfg)}`
-            //sql_where += ` AND ${this.tableCfg.COL_ENT_INTERNAL_ID} IN ${makeGeoQueryCondition(query.geoQ, context, this.tableCfg)}`
+            sql_where += ` AND t1.${this.tableCfg.COL_ENT_INTERNAL_ID} IN ${makeGeoQueryCondition(query.geoQ, context, this.tableCfg, attr_table)}`
+         
         }
         //####################### END Match GeoQuery #######################
 
@@ -1098,6 +900,192 @@ export class PsqlBackend {
     }
 
 
+
+
+    async getEntitiesBySqlWhere(sql_where: string, includeSysAttrs: boolean, orderBySql: string | undefined,
+        lastN: number | undefined, attrNames_expanded: Array<string> | undefined, temporal: boolean): Promise<Array<any>> {
+
+        // ATTENTION: The 'sql_where' string must begin with and "AND"!
+
+        const fields = Array<string>()
+
+        fields.push(this.tableCfg.COL_ENT_INTERNAL_ID)
+        fields.push(this.tableCfg.COL_ENT_TYPE)
+        fields.push(this.tableCfg.COL_ENT_ID)
+        fields.push(this.tableCfg.COL_ATTR_NAME)
+        fields.push(this.tableCfg.COL_ATTR_EID)
+
+        fields.push(this.tableCfg.COL_INSTANCE_ID)
+        fields.push(this.tableCfg.COL_DATASET_ID)
+        fields.push(this.tableCfg.COL_INSTANCE_JSON)
+        fields.push(`${this.tableCfg.COL_ENT_CREATED_AT} at time zone 'utc' as ent_created_at`)
+        fields.push(`${this.tableCfg.COL_ENT_MODIFIED_AT} at time zone 'utc' as ent_modified_at`)
+        fields.push(`${this.tableCfg.COL_ATTR_CREATED_AT} at time zone 'utc' as attr_created_at`)
+        fields.push(`${this.tableCfg.COL_ATTR_MODIFIED_AT} at time zone 'utc' as attr_modified_at`)
+        fields.push(`${this.tableCfg.COL_ATTR_OBSERVED_AT} at time zone 'utc' as attr_observed_at`)
+
+        let attr_table = temporal ? this.tableCfg.TBL_ATTR : "latest_attributes"
+
+
+        let sql_view = `CREATE OR REPLACE VIEW latest_attributes AS (SELECT * FROM (SELECT ROW_NUMBER() OVER (PARTITION BY eid, attr_name, dataset_id ORDER BY instance_id DESC) AS r, t.* FROM ${this.tableCfg.TBL_ATTR} t) x WHERE x.r <= 1)`
+
+  //      this.runSqlQuery(sql_view)
+
+        let sql = `SELECT ${fields.join(',')} FROM ${this.tableCfg.TBL_ENT} AS t1, ${attr_table} AS t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid ${sql_where}`
+
+
+
+
+
+        // If lastN is defined, wrap limiting query around the original query:
+        // See https://stackoverflow.com/questions/1124603/grouped-limit-in-postgresql-show-the-first-n-rows-for-each-group
+
+        if (temporal && typeof (lastN) == "number" && lastN > 0) {
+
+            sql = `SELECT * FROM (SELECT ROW_NUMBER() OVER (PARTITION BY ent_id, attr_name ${orderBySql}) AS r, t.* FROM (${sql}) t) x WHERE x.r <= ${lastN};`
+        }
+
+        const queryResult = await this.runSqlQuery(sql)
+
+        //console.log(sql)
+
+        //console.log(queryResult.rows)
+
+        const entitiesByNgsiId: any = {}
+
+        //#################### BEGIN Iterate over returned attribute instance rows ####################
+        for (const row of queryResult.rows) {
+
+            const ent_id = row[this.tableCfg.COL_ENT_ID]
+            const attr_name = row[this.tableCfg.COL_ATTR_NAME]
+
+            //############## BEGIN Get or create Entity in memory #############
+            let entity = entitiesByNgsiId[ent_id]
+
+            if (!entity) {
+
+                entity = {
+                    "@id": ent_id,
+                    "@type": row[this.tableCfg.COL_ENT_TYPE]
+                }
+
+                if (includeSysAttrs) {
+                    entity[uri_createdAt] = row[this.tableCfg.COL_ENT_CREATED_AT]
+                    entity[uri_modifiedAt] = row[this.tableCfg.COL_ENT_MODIFIED_AT]
+                }
+
+                entitiesByNgsiId[ent_id] = entity
+            }
+            //############## END Get or create Entity in memory #############
+
+
+            //############## BEGIN Get or create Attribute instance in memory #############
+            let attribute = entity[attr_name]
+
+            if (!attribute) {
+                attribute = []
+                entity[attr_name] = attribute
+            }
+            //############## END Get or create Attribute instance in memory #############
+
+            // ATTENTION: We must write the entire dataset object to the JSON field. 
+            // Only putting the value field there is not sufficient, since there might 
+            // be other fields as siblings of the value field which must be stored too (e.g. "source", see spec ?)
+
+            const instance = row[this.tableCfg.COL_INSTANCE_JSON]
+
+            // TODO: 1 Add method to create instance ID string from number
+
+            // ATTENTION: The returned instance ID value string MUST contain an "_" (underscore) because we
+            // use it in PsqlBackend::deleteAttribute() as a string separator character to extract the
+            // actual instance id number from a passed instance id string.
+
+            instance[uri_instanceId] = "urn:ngsi-ld:InstanceId:instance_" + row[this.tableCfg.COL_INSTANCE_ID]
+
+            // ATTENTION: We always add the modified timestamp first, regardless of whether includeSysAttrs is true,
+            // because we need it to find the most recently modified attribute instance if this is not a
+            // temporal API query:
+
+
+            //####### BEGIN Restore JSON fields that have their own database column ##########
+            instance[uri_createdAt] = row["attr_created_at"]
+            instance[uri_modifiedAt] = row["attr_modified_at"]
+
+            if (row["attr_observed_at"] != null) {
+                instance["https://uri.etsi.org/ngsi-ld/observedAt"] = row["attr_observed_at"]
+            }
+            //####### END Restore JSON fields that have their own database column ##########
+
+
+
+            // If the temporal representation of an entity is requested, all attribute instances are included:
+            if (temporal) {
+                attribute.push(instance)
+            }
+
+            // If the "normal" representation of an entity is requested and there are multiple attribute 
+            // instances with the same datasetId, only the most recently created attribute instance of each 
+            // particular datasetId (identified by highest instanceId) is returned:
+
+            // NOTE: In theory, this should no longer be required since the filtering is now done by the view
+            // "latest_attributes"
+            else {
+                let replaceIndex = null
+
+                for (let ii = 0; ii < attribute.length; ii++) {
+                    let existingInstance = attribute[ii]
+
+                    if (existingInstance[uri_datasetId] == instance[uri_datasetId] && existingInstance[uri_instanceId] <= instance[uri_instanceId]) {
+                        replaceIndex = ii
+                    }
+                }
+
+                if (replaceIndex != null) {
+
+                    attribute[replaceIndex] = instance
+                }
+                else {
+                    attribute.push(instance)
+                }
+
+            }
+        }
+        //#################### END Iterate over returned attribute instance rows ####################
+
+
+        //################ BEGIN Create result array of entities ###################
+        let result = Array<any>()
+
+        for (const entityId in entitiesByNgsiId) {
+            result.push(entitiesByNgsiId[entityId])
+        }
+        //################ END Create result array of entities ###################
+
+
+        //############# BEGIN Add empty arrays for requested attributes with no matching instances #############
+
+        // "For the avoidance of doubt, if for a requested Attribute no instance fulfils the temporal query, 
+        // then an empty Array of instances shall be provided as the representation for such Attribute.":
+
+        if (attrNames_expanded instanceof Array && attrNames_expanded.length > 0) {
+            for (const entity of result) {
+
+                for (const attributeName of attrNames_expanded) {
+                    if (entity[attributeName] == undefined) {
+                        entity[attributeName] = []
+                    }
+                }
+            }
+        }
+        //############# END Add empty arrays for requested attributes with no matching instances #############
+
+        return new Promise((resolve, reject) => {
+            resolve(result)
+        })
+    }
+
+
+
     private async runSqlQuery(sql: string): Promise<pg.QueryResult> {
 
         const resultPromise = this.pool.query(sql)
@@ -1145,114 +1133,6 @@ export class PsqlBackend {
     }
 
 
-    /*
-    async updateEntityAttributes(entityId: string, fragment_expanded: any, attributeIdToUpdate: string | undefined) {
 
-        // TODO: Compare this with appendEntityAttributes and see if we can merge them
-
-        //############# BEGIN Get internal ID of entity #############
-        const entityMetadata = await this.getEntityMetadata(entityId)
-
-        if (!entityMetadata) {
-            throw errorTypes.ResourceNotFound.withDetail("No entity with the passed ID exists: " + entityId)
-        }
-
-        const entityInternalId = entityMetadata.id
-        //############# END Get internal ID of entity #############
-
-
-        const result = new UpdateResult()
-
-
-
-        //####################### BEGIN Iterate over attributes #############################
-        for (const attributeId_expanded in fragment_expanded) {
-
-            let sql_transaction = "BEGIN;"
-
-            if (attributeIdToUpdate != undefined && attributeId_expanded != attributeIdToUpdate) {
-                continue
-            }
-
-            // Do not process @id, @type and @context:
-            if (ignoreAttributes.includes(attributeId_expanded)) {
-                continue
-            }
-
-            let attribute_expanded = fragment_expanded[attributeId_expanded]
-
-            if (!(attribute_expanded instanceof Array)) {
-                attribute_expanded = [attribute_expanded]
-            }
-
-
-            //#################### BEGIN Validate attribute ####################
-            const reifiedAttributeCheck = checkReifiedAttribute(attribute_expanded, attributeId_expanded, undefined, false)
-
-            if (reifiedAttributeCheck.length > 0) {
-
-                let errorMsg = ""
-
-                for (const msg of reifiedAttributeCheck) {
-                    errorMsg += msg + "\n"
-                }
-
-                result.notUpdated.push(new NotUpdatedDetails(attributeId_expanded, "Not a valid reified attribute: \n" + errorMsg))
-
-                continue
-            }
-            //#################### END Validate attribute ####################
-
-            let updated = false
-
-            //############ BEGIN Iterate over attribute instances ###############
-            for (const instance_expanded of attribute_expanded) {
-
-                const datasetId = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
-                const existingInstances = await this.getAttributeInstances(entityInternalId, attributeId_expanded, datasetId)
-
-
-                let lastCreatedInstance: any = null
-
-                for (const exInst of existingInstances) {
-                    if (lastCreatedInstance == null || exInst.instance_id > lastCreatedInstance.instance_id) {
-                        lastCreatedInstance = exInst
-                    }
-                }
-
-                if (lastCreatedInstance != null) {
-                    sql_transaction += this.makeUpdateAttributeInstanceQuery(lastCreatedInstance.instance_id, instance_expanded, true)
-                    updated = true
-                }
-
-            }
-            //############## END Iterate over attribute instances ##################
-
-            if (updated) {
-                result.updated.push(attributeId_expanded)
-
-                sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
-                sql_transaction += "COMMIT;"
-
-
-                await this.runSqlQuery(sql_transaction)
-            }
-            else {
-
-                result.notUpdated.push(new NotUpdatedDetails(attributeId_expanded, "No attribute instance(s) with the specified attribute ID and instance ID(s) exists."))
-            }
-
-
-        }
-        //####################### END Iterate over attributes #############################
-
-
-
-
-        return new Promise<UpdateResult>((resolve, reject) => {
-            resolve(result)
-        })
-    }
-        */
 
 }
