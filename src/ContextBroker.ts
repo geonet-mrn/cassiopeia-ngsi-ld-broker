@@ -1007,7 +1007,7 @@ export class ContextBroker {
 
     // Spec 5.7.6
     async api_5_7_6_retrieveAvailableEntityTypeDetails() {
-        
+
         const sql = `SELECT DISTINCT ${tableCfg.COL_ENT_TYPE}, ${tableCfg.COL_ATTR_NAME} FROM ${tableCfg.TBL_ENT} AS t1, ${tableCfg.TBL_ATTR} AS t2 WHERE t1.${tableCfg.COL_ENT_INTERNAL_ID} = t2.eid`
 
         const queryResult = await this.runSqlQuery(sql)
@@ -1044,7 +1044,7 @@ export class ContextBroker {
 
     // Spec 5.7.7
     async api_5_7_7_retrieveAvailableEntityTypeInformation(type: string) {
-     
+
         let sql_count = `SELECT COUNT(*) FROM ${tableCfg.TBL_ENT} WHERE ${tableCfg.COL_ENT_TYPE} = '${type}'`
 
 
@@ -1073,7 +1073,7 @@ export class ContextBroker {
     // Spec 5.7.8 
     async api_5_7_8_retrieveAvailableAttributes() {
 
-     
+
         // TODO: 3 Ask: Should default attributes like "createdAt" be included here?
 
         const attrNames_expanded = new AttributeList()
@@ -1085,7 +1085,7 @@ export class ContextBroker {
         for (const row of sqlResult.rows) {
             attrNames_expanded.attributeList.push(row[tableCfg.COL_ATTR_NAME])
         }
-        
+
         let result = Array<Attribute>()
 
         for (const attrName_expanded of attrNames_expanded.attributeList) {
@@ -1102,7 +1102,7 @@ export class ContextBroker {
 
     // Spec 5.7.9
     async api_5_7_9_retrieveAvailableAttributeDetails() {
-       
+
         // TODO: 3 Ask: Should default attributes like "createdAt" be included here?
 
         const result = new AttributeList()
@@ -1214,7 +1214,7 @@ export class ContextBroker {
             sql += ` AND ${tableCfg.COL_INSTANCE_ID} = '${instanceId_number}'`
         }
 
-       
+
         // Match dataset ID if provided:
         // ATTENTION: It is REQUIRED to compare with a "!==" here! We must NOT use a "!="!
         if (datasetId_expanded !== undefined) {
@@ -1295,7 +1295,7 @@ export class ContextBroker {
             for (const instance_expanded of attribute_expanded) {
 
                 const datasetId_expanded = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
-             
+
                 //###################### BEGIN Get existing instances #####################
                 let datasetId_expanded_sql = datasetId_expanded
 
@@ -1481,7 +1481,7 @@ export class ContextBroker {
             const row = sqlResult.rows[0]
             const metadata = { id: row[tableCfg.COL_ENT_INTERNAL_ID], type: row[tableCfg.COL_ENT_TYPE] }
 
-            return metadata            
+            return metadata
         }
 
         // More than 1 Entity with passed ID was found. This should never happen:
@@ -1638,7 +1638,7 @@ export class ContextBroker {
     // Spec 5.7.2
     async queryEntities(query: Query, temporal: boolean, includeSysAttrs: boolean, context: JsonLdContextNormalized): Promise<Array<any>> {
 
-        let attr_table = temporal ? tableCfg.TBL_ATTR : "latest_attributes"
+        const attr_table = temporal ? tableCfg.TBL_ATTR : "latest_attributes"
 
 
         //########################### BEGIN Validation ###########################      
@@ -1723,7 +1723,6 @@ export class ContextBroker {
             const attrs_expanded = expandObject(query.attrs, context)
 
             sql_where += ` AND t2.${tableCfg.COL_ATTR_NAME} IN ('${attrs_expanded.join("','")}')`
-
         }
         //####################### END Match specified Attributes #######################
 
@@ -1749,7 +1748,6 @@ export class ContextBroker {
 
         if (query.geoQ != undefined) {
             sql_where += ` AND t1.${tableCfg.COL_ENT_INTERNAL_ID} IN ${makeGeoQueryCondition(query.geoQ, context, tableCfg, attr_table)}`
-
         }
         //####################### END Match GeoQuery #######################
 
@@ -1783,9 +1781,7 @@ export class ContextBroker {
 
             sql_where += makeTemporalQueryCondition(query.temporalQ, tableCfg)
 
-            let ttc = undefined// this.getTemporalTableColumn(query.temporalQ.timeproperty)
-
-            //################## BEGIN Figure out temporal table column to query ####################
+            let ttc = undefined
 
             if ((query.temporalQ.timeproperty in temporalFields)) {
                 ttc = temporalFields[query.temporalQ.timeproperty]
@@ -1796,17 +1792,18 @@ export class ContextBroker {
         }
         //################### END Match temporal query ######################
 
-        const attrNames_expanded = expandObject(query.attrs, context) as Array<string>
 
         /*
         // Run query and return result:
         return await this.getEntitiesBySqlWhere(sql_where, includeSysAttrs, orderBySql, lastN, attrNames_expanded, temporal)
     }
 
+    // NOTE: The code parts above and under this comment were formerly separated functions, but are for now
+    // merged for simplity.
 
     async getEntitiesBySqlWhere(sql_where: string, includeSysAttrs: boolean, orderBySql: string | undefined,
         lastN: number | undefined, attrNames_expanded: Array<string> | undefined, temporal: boolean): Promise<Array<any>> {
-*/
+        */
         // ATTENTION: The 'sql_where' string must begin with and "AND"!
 
         const fields = Array<string>()
@@ -1825,8 +1822,6 @@ export class ContextBroker {
         fields.push(`${tableCfg.COL_ATTR_MODIFIED_AT} at time zone 'utc' as attr_modified_at`)
         fields.push(`${tableCfg.COL_ATTR_OBSERVED_AT} at time zone 'utc' as attr_observed_at`)
 
-        //let attr_table = temporal ? tableCfg.TBL_ATTR : "latest_attributes"
-
         let sql = `SELECT ${fields.join(',')} FROM ${tableCfg.TBL_ENT} AS t1, ${attr_table} AS t2 WHERE t1.${tableCfg.COL_ENT_INTERNAL_ID} = t2.eid ${sql_where}`
 
         // If lastN is defined, wrap limiting query around the original query:
@@ -1836,6 +1831,11 @@ export class ContextBroker {
             sql = `SELECT * FROM (SELECT ROW_NUMBER() OVER (PARTITION BY ent_id, attr_name ${orderBySql}) AS r, t.* FROM (${sql}) t) x WHERE x.r <= ${lastN};`
         }
 
+
+        console.log("---")
+        console.log(sql)
+        console.log("---")
+        
         const queryResult = await this.runSqlQuery(sql)
 
 
@@ -1896,14 +1896,15 @@ export class ContextBroker {
 
 
             //####### BEGIN Restore JSON fields that have their own database column ##########
-            instance[uri_createdAt] = row["attr_created_at"]
-            instance[uri_modifiedAt] = row["attr_modified_at"]
+            if (includeSysAttrs) {
+                instance[uri_createdAt] = row["attr_created_at"]
+                instance[uri_modifiedAt] = row["attr_modified_at"]
+            }
 
             if (row["attr_observed_at"] != null) {
                 instance["https://uri.etsi.org/ngsi-ld/observedAt"] = row["attr_observed_at"]
             }
             //####### END Restore JSON fields that have their own database column ##########
-
 
             attribute.push(instance)
         }
@@ -1924,9 +1925,10 @@ export class ContextBroker {
         // "For the avoidance of doubt, if for a requested Attribute no instance fulfils the temporal query, 
         // then an empty Array of instances shall be provided as the representation for such Attribute.":
 
+        const attrNames_expanded = expandObject(query.attrs, context) as Array<string>
+
         if (attrNames_expanded instanceof Array && attrNames_expanded.length > 0) {
             for (const entity of result) {
-
                 for (const attributeName of attrNames_expanded) {
                     if (entity[attributeName] == undefined) {
                         entity[attributeName] = []
@@ -1945,7 +1947,11 @@ export class ContextBroker {
 
         const resultPromise = this.pool.query(sql)
 
-        //console.log(sql)
+        /*
+        console.log("---")
+        console.log(sql)
+        console.log("---")
+        */
         // Print error, but still continue with the normal promise chain:
 
         resultPromise.then(null, (e) => {
