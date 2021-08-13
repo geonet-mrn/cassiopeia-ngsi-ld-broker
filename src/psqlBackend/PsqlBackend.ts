@@ -211,12 +211,12 @@ export class PsqlBackend {
 
 
         if (queryResult == undefined) {
-            console.log("NOO")
+            
             return new Promise<number>((resolve, reject) => {
                 resolve(-1)
             })
         }
-        console.log(queryResult)
+        
 
         const insertId = queryResult.rows[0].id
         //################# END Create entities table entry #################
@@ -754,7 +754,7 @@ export class PsqlBackend {
             // TODO: Validate temporal query
         }
 
-        // TODO: 4: "If the list of Entity identifiers includes a URI which it is not valid, 
+        // TODO 4: "If the list of Entity identifiers includes a URI which it is not valid, 
         // or the query, geo-query or context source filter are not syntactically valid 
         // (as per the referred clauses 4.9 and 4.10) an error of type BadRequestData
         // shall be raised.
@@ -765,7 +765,7 @@ export class PsqlBackend {
 
         let sql_where = ""
 
-        //########## BEGIN Build entity IDs and types filter expression from EntityInfo array #############
+        //################ BEGIN Build entity IDs and types filter expression from EntityInfo array ##################
         const entityTypes_expanded: Array<string> = []
         const entityIds: Array<string> = []
         const idPatterns: Array<string> = []
@@ -791,20 +791,16 @@ export class PsqlBackend {
 
 
         if (entityTypes_expanded.length > 0) {
-            sql_where += ` AND t1.${this.tableCfg.COL_ENT_TYPE} IN ('${entityTypes_expanded.join("','")}')`
-            
+            sql_where += ` AND t1.${this.tableCfg.COL_ENT_TYPE} IN ('${entityTypes_expanded.join("','")}')`            
         }
 
         if (entityIds.length > 0) {
-            sql_where += ` AND t1.${this.tableCfg.COL_ENT_ID} IN ('${entityIds.join("','")}')`
-
-            
+            sql_where += ` AND t1.${this.tableCfg.COL_ENT_ID} IN ('${entityIds.join("','")}')`            
         }
 
-        // TODO: 1 ADD FEATURE - "id matches the id patterns passed as parameter"
+        // TODO: 3 ADD FEATURE - "id matches the id patterns passed as parameter"
 
-
-        //########## END Build entity IDs and types filter expression from EntityInfo array #############
+        //############### END Build entity IDs and types filter expression from EntityInfo array ##################
 
 
 
@@ -853,11 +849,7 @@ export class PsqlBackend {
         }
         //####################### END Match GeoQuery #######################
 
-
-
-
         // TODO: 2 - "the entity is available at the Context Source(s) that match the context source filter conditions."
-
 
         // TODO: 2 - "if the Attribute list is present, in order for an Entity to match, 
         //            it shall contain at least one of the Attributes in the Attribute list."
@@ -883,7 +875,6 @@ export class PsqlBackend {
         let orderBySql = undefined
         let lastN = undefined
 
-
         if (query.temporalQ != undefined) {
 
             sql_where += makeTemporalQueryCondition(query.temporalQ, this.tableCfg)
@@ -893,21 +884,17 @@ export class PsqlBackend {
         }
         //################### END Match temporal query ######################
 
-
-
         const attrNames_expanded = expandObject(query.attrs, context) as Array<string>
 
-
+        /*
         // Run query and return result:
         return await this.getEntitiesBySqlWhere(sql_where, includeSysAttrs, orderBySql, lastN, attrNames_expanded, temporal)
     }
 
 
-
-
     async getEntitiesBySqlWhere(sql_where: string, includeSysAttrs: boolean, orderBySql: string | undefined,
         lastN: number | undefined, attrNames_expanded: Array<string> | undefined, temporal: boolean): Promise<Array<any>> {
-
+*/
         // ATTENTION: The 'sql_where' string must begin with and "AND"!
 
         const fields = Array<string>()
@@ -917,7 +904,6 @@ export class PsqlBackend {
         fields.push(this.tableCfg.COL_ENT_ID)
         fields.push(this.tableCfg.COL_ATTR_NAME)
         fields.push(this.tableCfg.COL_ATTR_EID)
-
         fields.push(this.tableCfg.COL_INSTANCE_ID)
         fields.push(this.tableCfg.COL_DATASET_ID)
         fields.push(this.tableCfg.COL_INSTANCE_JSON)
@@ -927,30 +913,20 @@ export class PsqlBackend {
         fields.push(`${this.tableCfg.COL_ATTR_MODIFIED_AT} at time zone 'utc' as attr_modified_at`)
         fields.push(`${this.tableCfg.COL_ATTR_OBSERVED_AT} at time zone 'utc' as attr_observed_at`)
 
-        let attr_table = temporal ? this.tableCfg.TBL_ATTR : "latest_attributes"
-
-
-         // CREATE OR REPLACE VIEW latest_attributes AS (SELECT * FROM (SELECT ROW_NUMBER() OVER (PARTITION BY eid, attr_name, dataset_id ORDER BY instance_id DESC) AS r, t.* FROM attributes t) x WHERE x.r <= 1)
-
-  
-
+        //let attr_table = temporal ? this.tableCfg.TBL_ATTR : "latest_attributes"
+        
         let sql = `SELECT ${fields.join(',')} FROM ${this.tableCfg.TBL_ENT} AS t1, ${attr_table} AS t2 WHERE t1.${this.tableCfg.COL_ENT_INTERNAL_ID} = t2.eid ${sql_where}`
-
-
-
-
 
         // If lastN is defined, wrap limiting query around the original query:
         // See https://stackoverflow.com/questions/1124603/grouped-limit-in-postgresql-show-the-first-n-rows-for-each-group
 
         if (temporal && typeof (lastN) == "number" && lastN > 0) {
-
             sql = `SELECT * FROM (SELECT ROW_NUMBER() OVER (PARTITION BY ent_id, attr_name ${orderBySql}) AS r, t.* FROM (${sql}) t) x WHERE x.r <= ${lastN};`
         }
 
         const queryResult = await this.runSqlQuery(sql)
 
-        //console.log(sql)
+        console.log(sql)
 
         //console.log(queryResult.rows)
 
@@ -1020,38 +996,7 @@ export class PsqlBackend {
             //####### END Restore JSON fields that have their own database column ##########
 
 
-
-            // If the temporal representation of an entity is requested, all attribute instances are included:
-            if (temporal) {
-                attribute.push(instance)
-            }
-
-            // If the "normal" representation of an entity is requested and there are multiple attribute 
-            // instances with the same datasetId, only the most recently created attribute instance of each 
-            // particular datasetId (identified by highest instanceId) is returned:
-
-            // NOTE: In theory, this should no longer be required since the filtering is now done by the view
-            // "latest_attributes"
-            else {
-                let replaceIndex = null
-
-                for (let ii = 0; ii < attribute.length; ii++) {
-                    let existingInstance = attribute[ii]
-
-                    if (existingInstance[uri_datasetId] == instance[uri_datasetId] && existingInstance[uri_instanceId] <= instance[uri_instanceId]) {
-                        replaceIndex = ii
-                    }
-                }
-
-                if (replaceIndex != null) {
-
-                    attribute[replaceIndex] = instance
-                }
-                else {
-                    attribute.push(instance)
-                }
-
-            }
+            attribute.push(instance)
         }
         //#################### END Iterate over returned attribute instance rows ####################
 
@@ -1086,7 +1031,6 @@ export class PsqlBackend {
             resolve(result)
         })
     }
-
 
 
     private async runSqlQuery(sql: string): Promise<pg.QueryResult> {
@@ -1125,8 +1069,6 @@ export class PsqlBackend {
         }
         //####################### END Try to fetch existing entity ###########################
 
-
-
         const instanceId_number = parseInt(instanceId_expanded.split("_")[1])
 
         let sql_transaction = "BEGIN;"
@@ -1138,10 +1080,5 @@ export class PsqlBackend {
         sql_transaction += "COMMIT;"
 
         const queryResult = await this.runSqlQuery(sql_transaction)
-
     }
-
-
-
-
 }
