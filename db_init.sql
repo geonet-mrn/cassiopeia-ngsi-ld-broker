@@ -2,10 +2,8 @@
 -- PostgreSQL database dump
 --
 
--- Dumped from database version 12.6 (Ubuntu 12.6-0ubuntu0.20.04.1)
--- Dumped by pg_dump version 12.6 (Ubuntu 12.6-0ubuntu0.20.04.1)
-
--- Started on 2021-03-25 16:39:05 CET
+-- Dumped from database version 12.8 (Ubuntu 12.8-0ubuntu0.20.04.1)
+-- Dumped by pg_dump version 12.8 (Ubuntu 12.8-0ubuntu0.20.04.1)
 
 SET statement_timeout = 0;
 SET lock_timeout = 0;
@@ -19,7 +17,6 @@ SET client_min_messages = warning;
 SET row_security = off;
 
 --
--- TOC entry 2 (class 3079 OID 37814)
 -- Name: postgis; Type: EXTENSION; Schema: -; Owner: -
 --
 
@@ -27,8 +24,6 @@ CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;
 
 
 --
--- TOC entry 3854 (class 0 OID 0)
--- Dependencies: 2
 -- Name: EXTENSION postgis; Type: COMMENT; Schema: -; Owner: 
 --
 
@@ -40,7 +35,6 @@ SET default_tablespace = '';
 SET default_table_access_method = heap;
 
 --
--- TOC entry 208 (class 1259 OID 38816)
 -- Name: attributes; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -61,7 +55,6 @@ CREATE TABLE public.attributes (
 ALTER TABLE public.attributes OWNER TO postgres;
 
 --
--- TOC entry 209 (class 1259 OID 38822)
 -- Name: attributes_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
@@ -76,8 +69,6 @@ CREATE SEQUENCE public.attributes_id_seq
 ALTER TABLE public.attributes_id_seq OWNER TO postgres;
 
 --
--- TOC entry 3855 (class 0 OID 0)
--- Dependencies: 209
 -- Name: attributes_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
@@ -85,7 +76,6 @@ ALTER SEQUENCE public.attributes_id_seq OWNED BY public.attributes.instance_id;
 
 
 --
--- TOC entry 210 (class 1259 OID 38824)
 -- Name: entities; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -94,15 +84,13 @@ CREATE TABLE public.entities (
     ent_id character varying NOT NULL,
     ent_type character varying NOT NULL,
     ent_created_at timestamp without time zone NOT NULL,
-    ent_modified_at timestamp without time zone NOT NULL,
-    ent_temporal boolean NOT NULL
+    ent_modified_at timestamp without time zone NOT NULL
 );
 
 
 ALTER TABLE public.entities OWNER TO postgres;
 
 --
--- TOC entry 211 (class 1259 OID 38830)
 -- Name: entities_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
 --
 
@@ -117,8 +105,6 @@ CREATE SEQUENCE public.entities_id_seq
 ALTER TABLE public.entities_id_seq OWNER TO postgres;
 
 --
--- TOC entry 3856 (class 0 OID 0)
--- Dependencies: 211
 -- Name: entities_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
 --
 
@@ -126,7 +112,39 @@ ALTER SEQUENCE public.entities_id_seq OWNED BY public.entities.id;
 
 
 --
--- TOC entry 3704 (class 2604 OID 38832)
+-- Name: latest_attributes; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW public.latest_attributes AS
+ SELECT x.r,
+    x.instance_id,
+    x.eid,
+    x.attr_name,
+    x.dataset_id,
+    x.json,
+    x.geom,
+    x.attr_type,
+    x.attr_created_at,
+    x.attr_modified_at,
+    x.attr_observed_at
+   FROM ( SELECT row_number() OVER (PARTITION BY t.eid, t.attr_name, t.dataset_id ORDER BY t.instance_id DESC) AS r,
+            t.instance_id,
+            t.eid,
+            t.attr_name,
+            t.dataset_id,
+            t.json,
+            t.geom,
+            t.attr_type,
+            t.attr_created_at,
+            t.attr_modified_at,
+            t.attr_observed_at
+           FROM public.attributes t) x
+  WHERE (x.r <= 1);
+
+
+ALTER TABLE public.latest_attributes OWNER TO postgres;
+
+--
 -- Name: attributes instance_id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -134,7 +152,6 @@ ALTER TABLE ONLY public.attributes ALTER COLUMN instance_id SET DEFAULT nextval(
 
 
 --
--- TOC entry 3705 (class 2604 OID 38833)
 -- Name: entities id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -142,8 +159,6 @@ ALTER TABLE ONLY public.entities ALTER COLUMN id SET DEFAULT nextval('public.ent
 
 
 --
--- TOC entry 3845 (class 0 OID 38816)
--- Dependencies: 208
 -- Data for Name: attributes; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
@@ -152,18 +167,14 @@ COPY public.attributes (instance_id, eid, attr_name, dataset_id, json, geom, att
 
 
 --
--- TOC entry 3847 (class 0 OID 38824)
--- Dependencies: 210
 -- Data for Name: entities; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-COPY public.entities (id, ent_id, ent_type, ent_created_at, ent_modified_at, ent_temporal) FROM stdin;
+COPY public.entities (id, ent_id, ent_type, ent_created_at, ent_modified_at) FROM stdin;
 \.
 
 
 --
--- TOC entry 3702 (class 0 OID 38119)
--- Dependencies: 204
 -- Data for Name: spatial_ref_sys; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
@@ -172,8 +183,6 @@ COPY public.spatial_ref_sys (srid, auth_name, auth_srid, srtext, proj4text) FROM
 
 
 --
--- TOC entry 3857 (class 0 OID 0)
--- Dependencies: 209
 -- Name: attributes_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
@@ -181,8 +190,6 @@ SELECT pg_catalog.setval('public.attributes_id_seq', 1, false);
 
 
 --
--- TOC entry 3858 (class 0 OID 0)
--- Dependencies: 211
 -- Name: entities_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
 --
 
@@ -190,7 +197,6 @@ SELECT pg_catalog.setval('public.entities_id_seq', 15, true);
 
 
 --
--- TOC entry 3709 (class 2606 OID 38835)
 -- Name: attributes attributes_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -199,24 +205,20 @@ ALTER TABLE ONLY public.attributes
 
 
 --
--- TOC entry 3711 (class 2606 OID 38837)
 -- Name: entities ent_id_and_temporal_unique; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.entities
-    ADD CONSTRAINT ent_id_and_temporal_unique UNIQUE (ent_id, ent_temporal);
+    ADD CONSTRAINT ent_id_and_temporal_unique UNIQUE (ent_id);
 
 
 --
--- TOC entry 3713 (class 2606 OID 38839)
 -- Name: entities entities_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
 ALTER TABLE ONLY public.entities
     ADD CONSTRAINT entities_pkey PRIMARY KEY (id);
 
-
--- Completed on 2021-03-25 16:39:05 CET
 
 --
 -- PostgreSQL database dump complete
