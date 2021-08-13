@@ -119,9 +119,6 @@ export class ContextBroker {
             throw errorTypes.InvalidRequest.withDetail("The submitted data is not a valid NGSI-LD entity: " + entityCheckResults.join(" "))
         }
 
-
-        //return await this.psql.updateEntityAttributes(entityId, fragment_expanded, undefined)
-
         //############# BEGIN Get internal ID of entity #############
         const entityMetadata = await this.getEntityMetadata(entityId)
 
@@ -133,7 +130,6 @@ export class ContextBroker {
         //############# END Get internal ID of entity #############
 
         return await this.appendEntityAttributes(entityInternalId, fragment_expanded, true, false, false, undefined)
-
     }
 
 
@@ -147,7 +143,6 @@ export class ContextBroker {
         const context = await getNormalizedContext(actualContext)
 
         const fragment_expanded = expandObject(fragment_compacted, context)
-
 
 
         //################### BEGIN Validation ################
@@ -272,7 +267,6 @@ export class ContextBroker {
         }
         //################## END Determine actual datasetId to use ################
 
-
         await this.deleteAttribute(entityId, false, attributeId_compacted, useDatasetId_compacted, undefined, contextUrl)
     }
 
@@ -330,8 +324,6 @@ export class ContextBroker {
 
             const entity_expanded = expandObject(ec, context)
 
-
-
             const resultCode = await this.createEntity(entity_expanded, false)
 
             if (resultCode == 1) {
@@ -343,9 +335,7 @@ export class ContextBroker {
         }
         //######## END Iterate over list of uploaded entities and try to write them to the database ########
 
-        return new Promise<BatchOperationResult>((resolve, reject) => {
-            resolve(result)
-        })
+        return result
     }
 
 
@@ -475,10 +465,7 @@ export class ContextBroker {
             result.success == entity_ids_created.concat(entity_ids_updated)
         }
 
-
-        return new Promise<BatchOperationResult>((resolve, reject) => {
-            resolve(result)
-        })
+        return result
     }
 
 
@@ -514,7 +501,6 @@ export class ContextBroker {
 
         const result = new BatchOperationResult()
 
-
         //######## BEGIN Iterate over list of uploaded entities and try to update them ########
         for (const entity of entities_expanded) {
 
@@ -533,10 +519,7 @@ export class ContextBroker {
         }
         //######## END Iterate over list of uploaded entities and try to update them ########
 
-
-        return new Promise<BatchOperationResult>((resolve, reject) => {
-            resolve(result)
-        })
+        return result
     }
 
 
@@ -574,9 +557,7 @@ export class ContextBroker {
         }
         //################ END Iterate over entity IDs and delete the respective entities ###############
 
-        return new Promise<BatchOperationResult>((resolve, reject) => {
-            resolve(result)
-        })
+        return result
     }
 
 
@@ -614,7 +595,7 @@ export class ContextBroker {
 
             await this.createEntity(entity_expanded, true)
 
-            return new Promise<number>((resolve, reject) => { resolve(201) })
+            return 201
         }
         else {
 
@@ -632,9 +613,7 @@ export class ContextBroker {
             // In temporal mode, attribute instances are always appended and never overwritten.
             await this.appendEntityAttributes(entityMetadata.id, entity_expanded, false, true, true, undefined)
 
-            return new Promise<number>((resolve, reject) => {
-                resolve(204)
-            })
+            return 204
         }
     }
 
@@ -764,8 +743,6 @@ export class ContextBroker {
         let sql_transaction = "BEGIN;"
 
         sql_transaction += this.makeUpdateAttributeInstanceQuery(instanceId_number, instance, false)
-
-
         sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityMetadata.id)
         sql_transaction += "COMMIT;"
 
@@ -1024,10 +1001,7 @@ export class ContextBroker {
             result.typeList.push(row[tableCfg.COL_ENT_TYPE])
         }
 
-
-        return new Promise((resolve, reject) => {
-            resolve(result)
-        })    
+        return result
     }
 
 
@@ -1064,9 +1038,7 @@ export class ContextBroker {
             result.push(type)
         }
 
-        return new Promise((resolve, reject) => {
-            resolve(result)
-        })
+        return result
     }
 
 
@@ -1094,9 +1066,7 @@ export class ContextBroker {
             result.attributeDetails.push(attribute)
         }
 
-        return new Promise((resolve, reject) => {
-            resolve(result)
-        })        
+        return result
     }
 
 
@@ -1125,10 +1095,8 @@ export class ContextBroker {
             result.push(attribute)
         }
 
-        return new Promise<Array<Attribute>>((resolve, reject) => {
-            resolve(result)
-        })
 
+        return result
     }
 
 
@@ -1147,9 +1115,8 @@ export class ContextBroker {
             result.attributeList.push(row[tableCfg.COL_ATTR_NAME])
         }
 
-        return new Promise<AttributeList>((resolve, reject) => {
-            resolve(result)
-        })
+
+        return result
     }
 
 
@@ -1232,9 +1199,6 @@ export class ContextBroker {
         //######## END Read target entity from database to get its internal ID, which is required for the delete call ##########
 
 
-
-        // NOTE: This method returns a Promise with the number of deleted rows
-
         let sql = `DELETE FROM ${tableCfg.TBL_ATTR} WHERE eid = ${entityInternalId} `
 
         // Match attribute ID:
@@ -1250,12 +1214,7 @@ export class ContextBroker {
             sql += ` AND ${tableCfg.COL_INSTANCE_ID} = '${instanceId_number}'`
         }
 
-        // Possible cases:
-        // datasetId_expanded == null -> delete default instance(s) (i.e. instances without datasetId)
-        // datasetId_expanded == undefined -> delete all instances
-        // datasetId_expanded == something else -> delete instance(s) with the specified dataset id
-
-
+       
         // Match dataset ID if provided:
         // ATTENTION: It is REQUIRED to compare with a "!==" here! We must NOT use a "!="!
         if (datasetId_expanded !== undefined) {
@@ -1264,11 +1223,7 @@ export class ContextBroker {
 
         const queryResult = await this.runSqlQuery(sql)
 
-
-        const rowCount = queryResult.rowCount
-
-
-        if (rowCount == 0) {
+        if (queryResult.rowCount == 0) {
             throw errorTypes.ResourceNotFound.withDetail(`Failed to delete attribute instance. No attribute instance with the following properties exists: Entity ID = '${entityId}', Attribute ID ='${attributeId_expanded}', Instance ID = '${instanceId_expanded}'.`)
         }
     }
@@ -1407,9 +1362,7 @@ export class ContextBroker {
         }
         //####################### END Iterate over attributes #############################
 
-        return new Promise<UpdateResult>((resolve, reject) => {
-            resolve(result)
-        })
+        return result
     }
 
 
@@ -1432,10 +1385,7 @@ export class ContextBroker {
 
 
         if (queryResult == undefined) {
-
-            return new Promise<number>((resolve, reject) => {
-                resolve(-1)
-            })
+            return -1
         }
 
 
@@ -1444,9 +1394,7 @@ export class ContextBroker {
 
         await this.appendEntityAttributes(insertId, entity_expanded, true, true, false, undefined)
 
-        return new Promise<number>((resolve, reject) => {
-            resolve(1)
-        })
+        return 1
     }
 
 
@@ -1463,10 +1411,7 @@ export class ContextBroker {
         const queryResult1 = await this.runSqlQuery(sql_delete_entity_metadata)
 
         if (queryResult1.rows.length == 0) {
-            // Return number of deleted rows as promise:
-            return new Promise((resolve, reject) => {
-                reject(false)
-            })
+            return false
         }
 
         // NOTE: If everything is as expected, there should always be at most 1 row returned. 
@@ -1487,11 +1432,7 @@ export class ContextBroker {
         const queryResult2 = await this.runSqlQuery(sql_delete_attributes)
         //############ END Build and run transaction query to delete all attribute rows ###########
 
-
-        // Return number of deleted rows as promise:
-        return new Promise((resolve, reject) => {
-            resolve(true)
-        })
+        return true
     }
 
 
@@ -1519,10 +1460,7 @@ export class ContextBroker {
             }
         }
 
-
-        return new Promise((resolve, reject) => {
-            resolve(result)
-        })
+        return result
     }
 
 
@@ -1534,9 +1472,7 @@ export class ContextBroker {
 
         // No entitiy with passed ID was found:
         if (sqlResult.rows.length == 0) {
-            return new Promise((resolve, reject) => {
-                resolve(undefined)
-            })
+            return undefined
         }
 
         // 1 Entity with passed ID was found:
@@ -1545,9 +1481,7 @@ export class ContextBroker {
             const row = sqlResult.rows[0]
             const metadata = { id: row[tableCfg.COL_ENT_INTERNAL_ID], type: row[tableCfg.COL_ENT_TYPE] }
 
-            return new Promise((resolve, reject) => {
-                resolve(metadata)
-            })
+            return metadata            
         }
 
         // More than 1 Entity with passed ID was found. This should never happen:
@@ -1736,7 +1670,6 @@ export class ContextBroker {
         //############################# END Validation #########################
 
 
-
         let sql_where = ""
 
         //################ BEGIN Build entity IDs and types filter expression from EntityInfo array ##################
@@ -1749,7 +1682,6 @@ export class ContextBroker {
             for (const ei of query.entities) {
 
                 if (typeof (ei.type) == "string") {
-
                     entityTypes_expanded.push(expandObject(ei.type, context))
                 }
 
@@ -2004,9 +1936,8 @@ export class ContextBroker {
         }
         //############# END Add empty arrays for requested attributes with no matching instances #############
 
-        return new Promise((resolve, reject) => {
-            resolve(result)
-        })
+
+        return result
     }
 
 
