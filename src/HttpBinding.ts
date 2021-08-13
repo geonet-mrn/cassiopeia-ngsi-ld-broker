@@ -1,9 +1,9 @@
 // NGSI-LD Version 1.3.1
 // https://www.etsi.org/deliver/etsi_gs/CIM/001_099/009/01.03.01_60/gs_CIM009v010301p.pdf
 
-// TODO: 1 Test whether NGSI-LD queries still work properly with temporal entities: For normal requests,
-// temporal attribute instances should be ignored!
+
 // TODO: 1 Test PostgreSQL connection at broker startup
+// TODO: 3 PERFORMANCE: Implement "latest_attributes" as a materialized view
 // TODO: 2 Implement 4.6.2
 // TODO: 3 Spec 6.3.4 vervollständigen (v.a. check von Accept Headers)
 // TODO: 3 Spec 6.3.5 (Extract context from request)
@@ -14,9 +14,7 @@
 // TODO: 3 Automatically add "createdAt" and "modifiedAt" to all Attributes in JSON 
 // so that these fields can be queried with the query language. Remove them from output if not explicitly requested.
 
-
-
-// TODO: 3 GeoJSON response headers-Gedöns (spec 6.3.6)
+// TODO: 3 GeoJSON response headers (spec 6.3.6)
 // TODO: 3 5.7.2.4 Match ID patterns
 // TODO: 4 Complete criteria in Spec 5.5.4 (context and null)
 // TODO: 4 Spec 4.5.9
