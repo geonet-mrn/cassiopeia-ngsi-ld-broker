@@ -1537,7 +1537,7 @@ export class ContextBroker {
         delete (cleaned_up_instance_for_write["@type"])
         delete (cleaned_up_instance_for_write["https://uri.etsi.org/ngsi-ld/observedAt"])
         delete (cleaned_up_instance_for_write[uri_datasetId])
-        
+
 
         queryBuilder.add(tableCfg.COL_INSTANCE_JSON, JSON.stringify(cleaned_up_instance_for_write))
         //############ END Clean up JSON for write and write it ##############
@@ -1878,7 +1878,7 @@ export class ContextBroker {
         }
 
 
-        console.log(sql)
+        //console.log(sql)
 
         const queryResult = await this.runSqlQuery(sql)
 
@@ -1926,20 +1926,23 @@ export class ContextBroker {
 
             const instance = row[tableCfg.COL_INSTANCE_JSON]
 
+
+            //############### BEGIN Restore JSON fields that have their own database column ##############
+
             // TODO: 1 Add method to create instance ID string from number
 
             // ATTENTION: The returned instance ID value string MUST contain an "_" (underscore) because we
             // use it in PsqlBackend::deleteAttribute() as a string separator character to extract the
             // actual instance id number from a passed instance id string.
 
-            instance[uri_instanceId] = "urn:ngsi-ld:InstanceId:instance_" + row[tableCfg.COL_INSTANCE_ID]
-
+            if (temporal) {
+                instance[uri_instanceId] = "urn:ngsi-ld:InstanceId:instance_" + row[tableCfg.COL_INSTANCE_ID]
+            }
+            
             // ATTENTION: We always add the modified timestamp first, regardless of whether includeSysAttrs is true,
             // because we need it to find the most recently modified attribute instance if this is not a
             // temporal API query:
 
-
-            //####### BEGIN Restore JSON fields that have their own database column ##########
             instance["@type"] = this.attributeTypes[row["attr_type"]]
 
             if (row["dataset_id"] != null) {
@@ -1955,7 +1958,7 @@ export class ContextBroker {
                 instance[uri_createdAt] = row["attr_created_at"]
                 instance[uri_modifiedAt] = row["attr_modified_at"]
             }
-            //####### END Restore JSON fields that have their own database column ##########
+            //############ END Restore JSON fields that have their own database column ##############
 
             attribute.push(instance)
         }
