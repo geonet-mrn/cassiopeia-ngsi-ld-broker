@@ -22,11 +22,13 @@ An ongoing project to implement a light-weight and fast NGSI-LD broker in TypeSc
     - 6.6.) [Modify Cassiopeia's configuration file](#66-modify-cassiopeias-configuration-file)
       - 6.6.1.) [Setting "compressOutput":](#661-setting-compressoutput)
       - 6.6.2.) [Setting "port":](#662-setting-port)
-      - 6.6.3.) [Settings under "psql":](#663-settings-under-psql)
-      - 6.6.4.) [Settings under "users":](#664-settings-under-users)
+      - 6.6.3.) [Setting "autoHistory":](#663-setting-autohistory)
+      - 6.6.4.) [Settings under "psql":](#664-settings-under-psql)
+      - 6.6.5.) [Settings under "users":](#665-settings-under-users)
     - 6.7.) [Starting the broker](#67-starting-the-broker)
   - 7.) [Unit Tests](#7-unit-tests)
   - 8.) [How Cassiopeia implements temporal entity representations](#8-how-cassiopeia-implements-temporal-entity-representations)
+    - 8.1.) ["Auto-history mode"](#81-auto-history-mode)
 
 # 1. License Information
 
@@ -276,8 +278,11 @@ This setting specified whether or not HTTP response payloads should be compresse
 
 This setting defines the network port on which Cassiopeia is listening. The default value is 3000.
 
+### 6.6.3. Setting "autoHistory":
+This setting enables or disables auto-history mode, i.e. whether Cassiopeia should keep the complete history of changes to an attribute for access through the temporal API. See section "How Cassiopeia implements temporal entity representations" for a more detailed explanation.
 
-### 6.6.3. Settings under "psql":
+
+### 6.6.4. Settings under "psql":
 
 - "database" : The name of the PostgreSQL database you have created for Cassiopeia. Default is "cassiopeia".
 
@@ -290,7 +295,7 @@ This setting defines the network port on which Cassiopeia is listening. The defa
 - "user" : The name of the PostgreSQL role for Cassiopeia which you have created earlier. Default is "cassiopeia".
 
 
-### 6.6.4. Settings under "users":
+### 6.6.5. Settings under "users":
 
 The pairs of username and password specified here represent the HTTP Basic Authentication credentials which can be used to perform write operations on the broker. 
 
@@ -367,3 +372,9 @@ This behaviour has an important implication: As already mentioned, the "normal" 
 For example, if a time series of five attribute instances with decreasing "observedAt" property is added to an entity through the temporal API (i.e. the instance with the oldest timestamp is added last), then the last added instance with the oldest "observedAt" will appear as the current representation of the attribute when requested through the "normal" API. Vice versa, if the attribute is modified through the "normal" API, the change is written to the last added instance with the oldest "observedAt" property.
 
 This solution is suboptimal, but at the moment, we are not aware of a better way to handle this. To minimize potential confusion, we recommend to not mix the use of write operations from both the "normal" and the temporal API too much. Each entity should probably be regarded as either a "normal" or a temporal one and be modified through the respective API only. Accessing the respective alternative representation should be regarded as a "bonus" and ideally be limited to read-only requests.
+
+## 8.1. "Auto-history mode"
+
+Cassiopeia can be configured to automatically save modifications to an attribute as a new attribute instance internally. Afterwards, if the affected entity is requested in "normal" mode, the new attribute instance will be returned instead of a previous one with the same datasetId. As far as the "normal" API is concerned, there is no difference in Cassiopeia's behaviour at all whether auto-history mode is enabled or not. However, the fact that the previous state of an attribute instance is internally not overwritten, but kept, has a great effect on what is returned if the entity is requested through the *temporal* API: In this case, all previous states of the attribute are returned as a time series.
+
+This behaviour represents our "natural" understanding of how the relationship between "normal" and temporal entity representation, or the "normal" and the temporal NGSI-LD API, respectively, should be like. Currently, auto-history mode can be enabled globally (i.e. for all write requests on all entities) in the configuration file through the boolean option "autoHistory".
