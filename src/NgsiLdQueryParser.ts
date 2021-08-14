@@ -401,7 +401,7 @@ export class NgsiLdQueryParser {
                 
                 //result += `${jsonAttrPathSql}->>'@type' = 'https://uri.etsi.org/ngsi-ld/Relationship' AND ${jsonAttrPathSql}->>'https://uri.etsi.org/ngsi-ld/hasObject' = '${range[0]}'`
 
-                result += `${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Relationship'} AND ${jsonAttrPathSql}->>'https://uri.etsi.org/ngsi-ld/hasObject' = '${range[0]}'`
+                result += `${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Relationship')} AND ${jsonAttrPathSql}->>'https://uri.etsi.org/ngsi-ld/hasObject' = '${range[0]}'`
                 break
             }
             default: {
