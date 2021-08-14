@@ -944,10 +944,20 @@ export class ContextBroker {
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
 
-
+        //################ BEGIN Validation #################
         if (query.temporalQ == undefined) {
             throw errorTypes.BadRequestData.withDetail("No temporal query provided in request.")
         }
+        
+        if (query.temporalQ.timerel == undefined) {
+            throw errorTypes.BadRequestData.withDetail("'timerel' is undefined")
+        }
+
+        if (query.temporalQ.timeAt == undefined) {
+            throw errorTypes.BadRequestData.withDetail("'timeAt' is undefined")
+        }
+
+        //################ END Validation ################# 
 
 
         let includeSysAttrs = false
