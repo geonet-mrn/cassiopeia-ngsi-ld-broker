@@ -31,6 +31,10 @@ enum CompareValueType {
 
 export class NgsiLdQueryParser {
 
+    // ATTENTION: Changing the order of items in attributeTypes corrupts the database!
+    private readonly attributeTypes = ["https://uri.etsi.org/ngsi-ld/Property", "https://uri.etsi.org/ngsi-ld/GeoProperty", "https://uri.etsi.org/ngsi-ld/Relationship"]
+
+
     // ATTENTION: For correct matching by the tokenizer, it is required that the symbols are ordered by decreasing length!    
     private readonly tokenizerDetectableSymbols = ['!~=', '==', '!=', '>=', '<=', '~=', '>', '<', ';', '|', '(', ')']
 
@@ -40,18 +44,18 @@ export class NgsiLdQueryParser {
 
     private readonly ERROR_STRING_INTRO = "Invalid query string: "
 
-    private readonly nonReifiedDefaultProperties = ["https://uri.etsi.org/ngsi-ld/createdAt", 
-                                                    "https://uri.etsi.org/ngsi-ld/modifiedAt", 
-                                                    "https://uri.etsi.org/ngsi-ld/observedAt", 
-                                                    "https://uri.etsi.org/ngsi-ld/datasetId",                                                     
-                                                    "https://uri.etsi.org/ngsi-ld/unitCode"]
+    private readonly nonReifiedDefaultProperties = ["https://uri.etsi.org/ngsi-ld/createdAt",
+        "https://uri.etsi.org/ngsi-ld/modifiedAt",
+        "https://uri.etsi.org/ngsi-ld/observedAt",
+        "https://uri.etsi.org/ngsi-ld/datasetId",
+        "https://uri.etsi.org/ngsi-ld/unitCode"]
 
 
 
-    constructor(private tableCfg: PsqlTableConfig) {}
+    constructor(private tableCfg: PsqlTableConfig) { }
 
 
-    makeQuerySql(query: Query, context : JsonLdContextNormalized, attr_table : string): string {
+    makeQuerySql(query: Query, context: JsonLdContextNormalized, attr_table: string): string {
 
         if (query.q == undefined) {
             return ""
@@ -60,9 +64,9 @@ export class NgsiLdQueryParser {
         const tokens = this.tokenize(query.q)
 
         const ast = this.buildAst(tokens)
-   
-     
-        return this.build(ast, context, attr_table)        
+
+
+        return this.build(ast, context, attr_table)
     }
 
 
@@ -88,19 +92,19 @@ export class NgsiLdQueryParser {
     }
 
 
-    private build(ast: Array<any>, context : ldcp.JsonLdContextNormalized, attrTable : string): string {
-        
+    private build(ast: Array<any>, context: ldcp.JsonLdContextNormalized, attrTable: string): string {
+
         let result = "("
 
         // Check for existence of attribute (regardless of its value):
-        if (typeof(ast) == "string") {
-    
+        if (typeof (ast) == "string") {
+
             // "When a Query Term only defines an attribute path (production rule named Attribute), 
             // the matching Entities shall be those which define the target element (Property or a Relationship),"
             // regardless of any target value or object":
 
             const attrPath_compacted = (ast as string).split(".")
-           
+
             // ATTENTION: We assume here that the return values of context.expandTerm() can never be null.
             // This is of course not correct and should be handled appropriately.
 
@@ -119,14 +123,14 @@ export class NgsiLdQueryParser {
 
 
             //##################### BEGIN Build expanded attribute path SQL expression #################
-            let attrPathSql = ""    
+            let attrPathSql = ""
 
             for (const propName of attrPath_compacted) {
-                
+
                 const propNameExpanded = context.expandTerm(propName, true)!
-                
+
                 if (this.nonReifiedDefaultProperties.includes(propNameExpanded)) {
-                    
+
                     attrPathSql += `->>'${propNameExpanded}'`
                     break
                 }
@@ -139,22 +143,24 @@ export class NgsiLdQueryParser {
 
             result += `SELECT eid FROM ${attrTable} WHERE ${attrTable}.attr_name = '${firstPathPiece_expanded}' AND `
             //result += `SELECT instance_id FROM ${this.tableCfg.TBL_ATTR} WHERE ${this.tableCfg.TBL_ATTR}.attr_name = '${firstPathPiece_expanded}' AND `
-            
-            
+
+
             result += "("
 
             // Check existence of non-reified property:
             if (this.nonReifiedDefaultProperties.includes(lastPathPiece_expanded)) {
-               result += `${attrTable}.${this.tableCfg.COL_INSTANCE_JSON}${attrPathSql} is not null `
-               
+                result += `${attrTable}.${this.tableCfg.COL_INSTANCE_JSON}${attrPathSql} is not null `
+
             }
 
             // Check existence of reified Property ot Relationship:
             else {
-                
+
                 //########### BEGIN Check existence of Property ##############
                 result += "("
-                result += `${attrTable}.${this.tableCfg.COL_INSTANCE_JSON}${attrPathSql}->>'@type' = 'https://uri.etsi.org/ngsi-ld/Property'`
+                //result += `${attrTable}.${this.tableCfg.COL_INSTANCE_JSON}${attrPathSql}->>'@type' = 'https://uri.etsi.org/ngsi-ld/Property'`
+                result += `${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Property')}`
+
                 result += " AND "
                 result += `${attrTable}.${this.tableCfg.COL_INSTANCE_JSON}${attrPathSql}->'https://uri.etsi.org/ngsi-ld/hasValue' is not null`
                 result += ")"
@@ -164,14 +170,15 @@ export class NgsiLdQueryParser {
 
                 //########### BEGIN Check existence of Relationship ##############
                 result += "("
-                result += `${attrTable}.${this.tableCfg.COL_INSTANCE_JSON}${attrPathSql}->>'@type' = 'https://uri.etsi.org/ngsi-ld/Relationship'`
+                //result += `${attrTable}.${this.tableCfg.COL_INSTANCE_JSON}${attrPathSql}->>'@type' = 'https://uri.etsi.org/ngsi-ld/Relationship'`
+                result += `${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Relationship')}`
                 result += " AND "
                 result += `${attrTable}.${this.tableCfg.COL_INSTANCE_JSON}${attrPathSql}->'https://uri.etsi.org/ngsi-ld/hasObject' is not null`
                 result += ")"
                 //########### END Check existence of Relationship ##############                                   
             }
 
-          
+
             result += ")"
         }
 
@@ -227,7 +234,7 @@ export class NgsiLdQueryParser {
             throw errorTypes.InvalidRequest.withDetail(`Invalid query string: Invalid query term: '${ast.toString()}'`)
         }
 
-     
+
         result += ")"
 
         return result
@@ -235,7 +242,7 @@ export class NgsiLdQueryParser {
 
 
     // Spec 4.9
-    private blubb(leftSide: string, op: string, rightSide: string, context : ldcp.JsonLdContextNormalized, attrTable : string): string {
+    private blubb(leftSide: string, op: string, rightSide: string, context: ldcp.JsonLdContextNormalized, attrTable: string): string {
 
 
         // TODO: ValueList
@@ -262,7 +269,7 @@ export class NgsiLdQueryParser {
         //############### BEGIN Build main attribute path expression (without trailing path) ##############
 
         let jsonAttrPathSql = `${attrTable}.${this.tableCfg.COL_INSTANCE_JSON}`
-        
+
         // NOTE: We skip the first element of the attribute path here, 
         // since it is the key of the attribute and not included in the JSON field in the database:
         for (const key of attrPath.slice(1)) {
@@ -331,14 +338,14 @@ export class NgsiLdQueryParser {
 
         // Begin construction of SQL query string:
         let result = `SELECT eid FROM ${attrTable} WHERE ${attrTable}.attr_name = '${firstPathPiece}' `
-         
 
-    
+
+
 
         const range = rightSide.split("..")
 
         if (range.length == 1) {
-            result += this.buildSingleValueCompare(range, op, jsonFullPathSql, jsonAttrPathSql)
+            result += this.buildSingleValueCompare(range, op, jsonFullPathSql, jsonAttrPathSql, attrTable)
         }
         else if (range.length == 2) {
             result += this.buildRangeCompare(range, op, jsonFullPathSql)
@@ -353,7 +360,7 @@ export class NgsiLdQueryParser {
     }
 
 
-    private buildSingleValueCompare(range: Array<any>, op: String, jsonFullPathSql: string, jsonAttrPathSql: string) {
+    private buildSingleValueCompare(range: Array<any>, op: String, jsonFullPathSql: string, jsonAttrPathSql: string, attrTable : string) {
 
         let result = " AND "
 
@@ -391,7 +398,10 @@ export class NgsiLdQueryParser {
                 // NOTE: Compare expression for Relationships is different, so we don't set test1 here and
                 // write the Relationship expression below if test1 == null.
                 // NOTE: For Relationship queries, the trailing path does not play a role:
-                result += `${jsonAttrPathSql}->>'@type' = 'https://uri.etsi.org/ngsi-ld/Relationship' AND ${jsonAttrPathSql}->>'https://uri.etsi.org/ngsi-ld/hasObject' = '${range[0]}'`
+                
+                //result += `${jsonAttrPathSql}->>'@type' = 'https://uri.etsi.org/ngsi-ld/Relationship' AND ${jsonAttrPathSql}->>'https://uri.etsi.org/ngsi-ld/hasObject' = '${range[0]}'`
+
+                result += `${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Relationship'} AND ${jsonAttrPathSql}->>'https://uri.etsi.org/ngsi-ld/hasObject' = '${range[0]}'`
                 break
             }
             default: {

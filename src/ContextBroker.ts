@@ -1529,16 +1529,32 @@ export class ContextBroker {
         }
         //###################### END Add entity id to insert query ################## 
 
+    
+        //############ BEGIN Clean up JSON for write and write it ##############
+        const cleaned_up_instance_for_write = JSON.parse(JSON.stringify(instance_expanded))
+
+        
+        delete(cleaned_up_instance_for_write["@type"])
+       
+        delete(cleaned_up_instance_for_write["https://uri.etsi.org/ngsi-ld/observedAt"])
+        delete(cleaned_up_instance_for_write[uri_datasetId])
+     
+        queryBuilder.add(tableCfg.COL_INSTANCE_JSON, JSON.stringify(cleaned_up_instance_for_write))
+        //############ END Clean up JSON for write and write it ##############
+
+        //################# BEGIN Write attribute type ################
         const attributeTypeIndex = this.attributeTypes.indexOf(instance_expanded['@type'])
 
         if (attributeTypeIndex < 0) {
             throw errorTypes.InternalError.withDetail("Invalid attribute type: " + instance_expanded['@type'])
         }
 
-        queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId)
         queryBuilder.add(tableCfg.COL_ATTR_TYPE, attributeTypeIndex)
-        queryBuilder.add(tableCfg.COL_DATASET_ID, instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId'])
-        queryBuilder.add(tableCfg.COL_INSTANCE_JSON, JSON.stringify(instance_expanded))
+        //################# END Write attribute type ################
+
+
+        queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId)        
+        queryBuilder.add(tableCfg.COL_DATASET_ID, instance_expanded[uri_datasetId])
 
         // Write 'geom' column:
         if (instance_expanded['@type'] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
@@ -1599,31 +1615,46 @@ export class ContextBroker {
 
         // NOTE: This method returns a Promise that contains the number of updated attribute instances.
 
+        //############# BEGIN Clean up JSON before writing it to the database ############
+
+        let cleaned_up_instance_for_write = JSON.parse(JSON.stringify(instance))
+            
+        delete(cleaned_up_instance_for_write["@type"])
+        delete(cleaned_up_instance_for_write["https://uri.etsi.org/ngsi-ld/observedAt"])
+        delete(cleaned_up_instance_for_write[uri_datasetId])
+        
+        //############# END Clean up JSON before writing it to the database ############
+
+
         //################# BEGIN Build SQL query to update attribute instance #####################
-        let sql = `UPDATE ${tableCfg.TBL_ATTR} SET ${tableCfg.COL_INSTANCE_JSON} = '${JSON.stringify(instance)}'`
+        let sql = `UPDATE ${tableCfg.TBL_ATTR} SET ${tableCfg.COL_INSTANCE_JSON} = '${JSON.stringify(cleaned_up_instance_for_write)}'`
 
         // Write 'geom' column:
         if (instance['@type'] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
 
             const geojson_expanded = instance['https://uri.etsi.org/ngsi-ld/hasValue']
-
             const geojson_compacted = compactObject(geojson_expanded, this.ngsiLdCoreContext)
-
             const geojson_string = JSON.stringify(geojson_compacted)
 
             sql += `, geom = ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`
         }
 
-        // Write 'observed_at' column:
-        if (isDateTimeUtcString(instance["https://uri.etsi.org/ngsi-ld/observedAt"])) {
-            sql += `, ${tableCfg.COL_ATTR_OBSERVED_AT} = '${instance["https://uri.etsi.org/ngsi-ld/observedAt"]}'`
-        }
 
+        // Write 'dataset_id' column:    
+        sql += `, ${tableCfg.COL_DATASET_ID} = '${instance[uri_datasetId]}'`
 
         // Write 'modified_at' column:    
         const now = new Date()
         sql += `, ${tableCfg.COL_ATTR_MODIFIED_AT} = '${now.toISOString()}'`
 
+        // Write attribute type column.
+        sql += `, ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance['@type'])}`
+
+
+        // Write 'observed_at' column:
+          if (isDateTimeUtcString(instance["https://uri.etsi.org/ngsi-ld/observedAt"])) {
+            sql += `, ${tableCfg.COL_ATTR_OBSERVED_AT} = '${instance["https://uri.etsi.org/ngsi-ld/observedAt"]}'`
+        }
 
 
         // Add WHERE conditions:        
@@ -1847,9 +1878,6 @@ export class ContextBroker {
         }
 
 
-        console.log("---")
-        console.log(sql)
-        console.log("---")
         
         const queryResult = await this.runSqlQuery(sql)
 
@@ -1911,13 +1939,20 @@ export class ContextBroker {
 
 
             //####### BEGIN Restore JSON fields that have their own database column ##########
-            if (includeSysAttrs) {
-                instance[uri_createdAt] = row["attr_created_at"]
-                instance[uri_modifiedAt] = row["attr_modified_at"]
+            instance["@type"] = this.attributeTypes[row["attr_type"]]
+
+            if (row["dataset_id"] != null) {
+                instance[uri_datasetId] = row["dataset_id"]
             }
+            
 
             if (row["attr_observed_at"] != null) {
                 instance["https://uri.etsi.org/ngsi-ld/observedAt"] = row["attr_observed_at"]
+            }
+
+            if (includeSysAttrs) {
+                instance[uri_createdAt] = row["attr_created_at"]
+                instance[uri_modifiedAt] = row["attr_modified_at"]
             }
             //####### END Restore JSON fields that have their own database column ##########
 
