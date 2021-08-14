@@ -76,7 +76,7 @@ export function makeGeoQueryCondition(geoQuery: GeoQuery, context : JsonLdContex
     // That's why we need to differentiate here:
 
     if (geoFilterFunc in spatialQueryFunctions) {
-        result += `${spatialQueryFunctions[geoFilterFunc]}(${attrTable}.geom, ST_SetSRID(ST_GeomFromGeoJSON('${JSON.stringify(queryGeomString)}'), 4326))`
+        result += `${spatialQueryFunctions[geoFilterFunc]}(${attrTable}.geom, ST_SetSRID(ST_GeomFromGeoJSON('${queryGeomString}'), 4326))`
     }
     else if (geoFilterFunc == "near" && geoRelParts.length == 2) {
 

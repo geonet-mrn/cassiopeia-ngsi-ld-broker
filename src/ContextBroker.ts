@@ -1559,13 +1559,11 @@ export class ContextBroker {
         // Write 'geom' column:
         if (instance_expanded['@type'] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
 
-            const geojson_expanded = instance_expanded['https://uri.etsi.org/ngsi-ld/hasValue']
+            // ATTENTION: Since property values are not expanded, we don't need to re-compact
+            // the GeoJSON object here:
 
-            // TODO: 1 Is it correct to simply use the NGSI-LD core context here?
-            const geojson_compacted = compactObject(geojson_expanded, this.ngsiLdCoreContext)
-
-            const geojson_string = JSON.stringify(geojson_compacted)
-
+            const geojson_string = JSON.stringify(instance_expanded['https://uri.etsi.org/ngsi-ld/hasValue'])
+                        
             queryBuilder.add("geom", `ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`, true)
         }
 
@@ -1610,14 +1608,14 @@ export class ContextBroker {
 
     makeUpdateAttributeInstanceQuery(
         instanceId: number,
-        instance: any,
+        instance_expanded: any,
         allowAttributeTypeChange: boolean): string {
 
         // NOTE: This method returns a Promise that contains the number of updated attribute instances.
 
         //############# BEGIN Clean up JSON before writing it to the database ############
 
-        let cleaned_up_instance_for_write = JSON.parse(JSON.stringify(instance))
+        let cleaned_up_instance_for_write = JSON.parse(JSON.stringify(instance_expanded))
 
         delete (cleaned_up_instance_for_write["@type"])
         delete (cleaned_up_instance_for_write["https://uri.etsi.org/ngsi-ld/observedAt"])
@@ -1630,30 +1628,31 @@ export class ContextBroker {
         let sql = `UPDATE ${tableCfg.TBL_ATTR} SET ${tableCfg.COL_INSTANCE_JSON} = '${JSON.stringify(cleaned_up_instance_for_write)}'`
 
         // Write 'geom' column:
-        if (instance['@type'] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
+        if (instance_expanded['@type'] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
 
-            const geojson_expanded = instance['https://uri.etsi.org/ngsi-ld/hasValue']
-            const geojson_compacted = compactObject(geojson_expanded, this.ngsiLdCoreContext)
-            const geojson_string = JSON.stringify(geojson_compacted)
+            // ATTENTION: Since property values are not expanded, we don't need to re-compact
+            // the GeoJSON object here:
 
+            const geojson_string = JSON.stringify(instance_expanded['https://uri.etsi.org/ngsi-ld/hasValue'])
+            
             sql += `, geom = ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`
         }
 
 
         // Write 'dataset_id' column:    
-        sql += `, ${tableCfg.COL_DATASET_ID} = '${instance[uri_datasetId]}'`
+        sql += `, ${tableCfg.COL_DATASET_ID} = '${instance_expanded[uri_datasetId]}'`
 
         // Write 'modified_at' column:    
         const now = new Date()
         sql += `, ${tableCfg.COL_ATTR_MODIFIED_AT} = '${now.toISOString()}'`
 
         // Write attribute type column.
-        sql += `, ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance['@type'])}`
+        sql += `, ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance_expanded['@type'])}`
 
 
         // Write 'observed_at' column:
-        if (isDateTimeUtcString(instance["https://uri.etsi.org/ngsi-ld/observedAt"])) {
-            sql += `, ${tableCfg.COL_ATTR_OBSERVED_AT} = '${instance["https://uri.etsi.org/ngsi-ld/observedAt"]}'`
+        if (isDateTimeUtcString(instance_expanded["https://uri.etsi.org/ngsi-ld/observedAt"])) {
+            sql += `, ${tableCfg.COL_ATTR_OBSERVED_AT} = '${instance_expanded["https://uri.etsi.org/ngsi-ld/observedAt"]}'`
         }
 
 
@@ -1663,7 +1662,7 @@ export class ContextBroker {
 
         if (!allowAttributeTypeChange) {
             // ATTENTION: COL_ATTR_TYPE is of type smallint, so no quotes around the value here!
-            sql += ` AND ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance['@type'])}`
+            sql += ` AND ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance_expanded['@type'])}`
         }
 
         //################# END Build SQL query to update attribute instance #####################
@@ -1938,7 +1937,7 @@ export class ContextBroker {
             if (temporal) {
                 instance[uri_instanceId] = "urn:ngsi-ld:InstanceId:instance_" + row[tableCfg.COL_INSTANCE_ID]
             }
-            
+
             // ATTENTION: We always add the modified timestamp first, regardless of whether includeSysAttrs is true,
             // because we need it to find the most recently modified attribute instance if this is not a
             // temporal API query:
