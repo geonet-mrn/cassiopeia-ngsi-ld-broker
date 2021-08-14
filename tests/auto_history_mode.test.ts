@@ -43,12 +43,14 @@ describe('Auto-history mode', function () {
 
             "testProperty": [{
                 "type": "Property",
-                "value": "original"
+                "value": "original",
+                "observedAt": "2000-01-01T00:00:00Z"
             }],
 
             "testProperty2": [{
                 "type": "Property",
-                "value": 5
+                "value": 5,
+                "observedAt": "2000-01-01T00:00:00Z"
             }]
         }
 
@@ -206,7 +208,7 @@ describe('Auto-history mode', function () {
 
         // This should fail because we query for the original attribute value ("original") which was changed
         // to "patched" in the previous test
-        let getResponse = await axios.get(testConfig.base_url + 'temporal/entities/?q=testProperty=="original"', config).catch((e) => {
+        let getResponse = await axios.get(testConfig.base_url + 'temporal/entities/?q=testProperty=="original"&timerel=before&timeAt=2100-01-01T00:00:00Z', config).catch((e) => {
             err2 = e
         }) as AxiosResponse
 
