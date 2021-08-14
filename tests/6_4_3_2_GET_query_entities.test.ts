@@ -92,18 +92,11 @@ describe('6.4.3.2 GET /entities/', function () {
     before(async () => {
         await prep.deleteAllEntities()
 
-
-        //###################### BEGIN Create entities for test ######################
         const createUrl = testConfig.base_url + "entityOperations/upsert"
-
-
-
-
 
         let createEntitiesResponse = await axios.post(createUrl, entities, config)
 
-        expect(createEntitiesResponse.status).equals(201)
-        //###################### END Create entities for test ######################
+        expect(createEntitiesResponse.status).equals(201)        
     })
 
 
@@ -142,15 +135,8 @@ describe('6.4.3.2 GET /entities/', function () {
 
     it("should return the requested entities as a GeoJSON FeatureCollection if the accept header 'application/geo+json' is set (spec 6.3.15)", async function () {
 
-        /*
-        let queryResponse = await axios.get(testConfig.base_url + 'entities/?geometryProperty=name', config).catch((e)=> {
-            console.log(e)
-        }) as AxiosResponse|undefined
-        */
-
         let queryResponse = await axiosGet(testConfig.base_url + 'entities/?geometryProperty=name', config)
 
-        
         expect(queryResponse.status).equals(200)
 
         expect(queryResponse.data.type).equals("FeatureCollection")
@@ -161,19 +147,9 @@ describe('6.4.3.2 GET /entities/', function () {
 
     it("NOT OFFICIALLY PART OF NGSI-LD: Should return the requested entities as GeoJSON if the GET parameter 'geometryProperty' is set", async function () {
 
+        let queryResponse = await axiosGet(testConfig.base_url + 'entities/?geometryProperty=location', config)
 
-        let queryResponse = undefined
-
-        try {
-            queryResponse = await axios.get(testConfig.base_url + 'entities/?geometryProperty=location', config)
-        }
-        catch (e) {
-            console.log(e)
-        }
-
-        if (queryResponse == undefined) {
-            return
-        }
+        expect(queryResponse.status).equals(200)
 
         expect(queryResponse.data.type).equals("FeatureCollection")
 
