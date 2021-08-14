@@ -61,7 +61,7 @@ export class ContextBroker {
     private readonly ngsiQueryParser = new NgsiLdQueryParser(tableCfg)
 
     constructor(private readonly config: any, private ngsiLdCoreContext: JsonLdContextNormalized) {
-        
+
         this.pool = new pg.Pool(config.psql)
 
         if (config.autoHistory != undefined) {
@@ -948,7 +948,7 @@ export class ContextBroker {
         if (query.temporalQ == undefined) {
             throw errorTypes.BadRequestData.withDetail("No temporal query provided in request.")
         }
-        
+
         if (query.temporalQ.timerel == undefined) {
             throw errorTypes.BadRequestData.withDetail("'timerel' is undefined")
         }
@@ -1529,16 +1529,16 @@ export class ContextBroker {
         }
         //###################### END Add entity id to insert query ################## 
 
-    
+
         //############ BEGIN Clean up JSON for write and write it ##############
         const cleaned_up_instance_for_write = JSON.parse(JSON.stringify(instance_expanded))
 
+
+        delete (cleaned_up_instance_for_write["@type"])
+        delete (cleaned_up_instance_for_write["https://uri.etsi.org/ngsi-ld/observedAt"])
+        delete (cleaned_up_instance_for_write[uri_datasetId])
         
-        delete(cleaned_up_instance_for_write["@type"])
-       
-        delete(cleaned_up_instance_for_write["https://uri.etsi.org/ngsi-ld/observedAt"])
-        delete(cleaned_up_instance_for_write[uri_datasetId])
-     
+
         queryBuilder.add(tableCfg.COL_INSTANCE_JSON, JSON.stringify(cleaned_up_instance_for_write))
         //############ END Clean up JSON for write and write it ##############
 
@@ -1553,7 +1553,7 @@ export class ContextBroker {
         //################# END Write attribute type ################
 
 
-        queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId)        
+        queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId)
         queryBuilder.add(tableCfg.COL_DATASET_ID, instance_expanded[uri_datasetId])
 
         // Write 'geom' column:
@@ -1618,11 +1618,11 @@ export class ContextBroker {
         //############# BEGIN Clean up JSON before writing it to the database ############
 
         let cleaned_up_instance_for_write = JSON.parse(JSON.stringify(instance))
-            
-        delete(cleaned_up_instance_for_write["@type"])
-        delete(cleaned_up_instance_for_write["https://uri.etsi.org/ngsi-ld/observedAt"])
-        delete(cleaned_up_instance_for_write[uri_datasetId])
-        
+
+        delete (cleaned_up_instance_for_write["@type"])
+        delete (cleaned_up_instance_for_write["https://uri.etsi.org/ngsi-ld/observedAt"])
+        delete (cleaned_up_instance_for_write[uri_datasetId])
+
         //############# END Clean up JSON before writing it to the database ############
 
 
@@ -1652,7 +1652,7 @@ export class ContextBroker {
 
 
         // Write 'observed_at' column:
-          if (isDateTimeUtcString(instance["https://uri.etsi.org/ngsi-ld/observedAt"])) {
+        if (isDateTimeUtcString(instance["https://uri.etsi.org/ngsi-ld/observedAt"])) {
             sql += `, ${tableCfg.COL_ATTR_OBSERVED_AT} = '${instance["https://uri.etsi.org/ngsi-ld/observedAt"]}'`
         }
 
@@ -1878,7 +1878,8 @@ export class ContextBroker {
         }
 
 
-        
+        console.log(sql)
+
         const queryResult = await this.runSqlQuery(sql)
 
 
@@ -1944,7 +1945,7 @@ export class ContextBroker {
             if (row["dataset_id"] != null) {
                 instance[uri_datasetId] = row["dataset_id"]
             }
-            
+
 
             if (row["attr_observed_at"] != null) {
                 instance["https://uri.etsi.org/ngsi-ld/observedAt"] = row["attr_observed_at"]

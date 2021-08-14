@@ -15,7 +15,7 @@ import { PsqlTableConfig } from "./PsqlTableConfig"
 import * as ldcp from 'jsonld-context-parser'
 import { JsonLdContextNormalized } from "jsonld-context-parser"
 
-const contextParser = new ldcp.ContextParser()
+
 
 
 enum CompareValueType {
@@ -142,8 +142,6 @@ export class NgsiLdQueryParser {
 
 
             result += `SELECT eid FROM ${attrTable} WHERE ${attrTable}.attr_name = '${firstPathPiece_expanded}' AND `
-            //result += `SELECT instance_id FROM ${this.tableCfg.TBL_ATTR} WHERE ${this.tableCfg.TBL_ATTR}.attr_name = '${firstPathPiece_expanded}' AND `
-
 
             result += "("
 
@@ -153,12 +151,11 @@ export class NgsiLdQueryParser {
 
             }
 
-            // Check existence of reified Property ot Relationship:
+            // Check existence of reified Property or Relationship:
             else {
 
                 //########### BEGIN Check existence of Property ##############
-                result += "("
-                //result += `${attrTable}.${this.tableCfg.COL_INSTANCE_JSON}${attrPathSql}->>'@type' = 'https://uri.etsi.org/ngsi-ld/Property'`
+                result += "("                
                 result += `${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Property')}`
 
                 result += " AND "
@@ -169,8 +166,7 @@ export class NgsiLdQueryParser {
                 result += " OR "
 
                 //########### BEGIN Check existence of Relationship ##############
-                result += "("
-                //result += `${attrTable}.${this.tableCfg.COL_INSTANCE_JSON}${attrPathSql}->>'@type' = 'https://uri.etsi.org/ngsi-ld/Relationship'`
+                result += "("                
                 result += `${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Relationship')}`
                 result += " AND "
                 result += `${attrTable}.${this.tableCfg.COL_INSTANCE_JSON}${attrPathSql}->'https://uri.etsi.org/ngsi-ld/hasObject' is not null`
@@ -188,7 +184,6 @@ export class NgsiLdQueryParser {
             let left = ast[0]
             let op = ast[1]
             let right = ast[2]
-
 
             switch (op) {
 
@@ -310,15 +305,14 @@ export class NgsiLdQueryParser {
             for (let ii = 0; ii < trailingPath.length; ii++) {
                 const key = trailingPath[ii]
 
-                const expandedKey = context.expandTerm(key, true)
-
-
                 // For the last element, we change the JSON accessor to "->>" to access its text content:
+                // ATTENTION: Property values are not expanded accoring to M. Bauer 2021-04-30!
+
                 if (ii == trailingPath.length - 1) {
-                    jsonFullPathSql += `->>'${expandedKey}'`
+                    jsonFullPathSql += `->>'${key}'`
                 }
                 else {
-                    jsonFullPathSql += `->'${expandedKey}'`
+                    jsonFullPathSql += `->'${key}'`
                 }
             }
         }
@@ -338,9 +332,6 @@ export class NgsiLdQueryParser {
 
         // Begin construction of SQL query string:
         let result = `SELECT eid FROM ${attrTable} WHERE ${attrTable}.attr_name = '${firstPathPiece}' `
-
-
-
 
         const range = rightSide.split("..")
 
@@ -390,7 +381,8 @@ export class NgsiLdQueryParser {
                 break
             }
             case CompareValueType.QUOTEDSTR: {
-                // NOTE: With the substr(), we remove the beginning and end quotes:
+                // NOTE: With the substr(), we remove the beginning and end quotes:                
+
                 result += `(${jsonFullPathSql})::text ${op} '${range[0].substr(1, range[0].length - 2)}'`
                 break
             }
@@ -399,8 +391,6 @@ export class NgsiLdQueryParser {
                 // write the Relationship expression below if test1 == null.
                 // NOTE: For Relationship queries, the trailing path does not play a role:
                 
-                //result += `${jsonAttrPathSql}->>'@type' = 'https://uri.etsi.org/ngsi-ld/Relationship' AND ${jsonAttrPathSql}->>'https://uri.etsi.org/ngsi-ld/hasObject' = '${range[0]}'`
-
                 result += `${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Relationship')} AND ${jsonAttrPathSql}->>'https://uri.etsi.org/ngsi-ld/hasObject' = '${range[0]}'`
                 break
             }
