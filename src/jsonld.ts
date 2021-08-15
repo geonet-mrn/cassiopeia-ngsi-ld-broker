@@ -2,6 +2,7 @@ import * as ldcp from 'jsonld-context-parser'
 import * as fs from 'fs'
 import axios from 'axios'
 import * as md5 from 'md5'
+import { errorTypes } from './errorTypes'
 
 
 export const contextParser = new ldcp.ContextParser()
@@ -191,9 +192,8 @@ export async function httpFetchContexts(context: any): Promise<Array<any>> {
 
             if (!fs.existsSync(fileName)) {
 
-                const response = await axios.get(url).catch((e) => {
-                    console.log("ERROR when trying to fetch context document")
-                    console.log(e)
+                const response = await axios.get(url).catch((e) => {                    
+                    throw errorTypes.LdContextNotAvailable.withDetail("Failed to retrieve context from URL: " + url)
                 })
 
                 if (response != undefined) {
