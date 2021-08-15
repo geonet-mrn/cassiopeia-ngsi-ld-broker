@@ -147,6 +147,14 @@ describe('6.4.3.2 GET /entities/', function () {
 
 
 
+    it("should return the number of matching entities in a response header if the query parameter 'count' is set to 'true', regardless of how many entites are actually returned due to possible 'limit' parameter (Spec 6.3.13)", async function () {
+
+        let queryResponse = await axiosGet(testConfig.base_url + 'entities/?count=true', config)
+        
+        expect(queryResponse.headers["ngsild-results-count"]).to.not.be.undefined
+    })
+
+
 
     it("should return the expected entities for the passed NGSI-LD queries that contain a trailing path", async function () {
 
