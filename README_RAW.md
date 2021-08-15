@@ -31,7 +31,9 @@ The Cassiopeia project currently aims to implement version 1.3.1 of the NGSI-LD 
 
 # A Note About Current Limitations 
 
-Please note that Cassiopeia is still in a very early stage of development. It does currently not implement the full NGSI-LD specification. However, it does already implement what we think are the most important parts of it, including support for spatial (NGSI-LD Geo-query language) and temporal (NGSI-LD Temporal Query Language) queries. If you need a more stable and complete NGSI-LD broker, consider using **Scorpio** (https://github.com/ScorpioBroker/ScorpioBroker), **Stellio** (https://github.com/stellio-hub/stellio-context-broker) or **Orion-LD** (https://github.com/FIWARE/context.Orion-LD).
+Please note that Cassiopeia is still in a very early stage of development. It does currently not implement the full NGSI-LD specification. However, it does already implement what we think are the most important parts of it, including support for spatial (NGSI-LD Geo-query language) and temporal (NGSI-LD Temporal Query Language) queries. The NGSI-LD query language to specify matching patterns for generic property values is currently partially implemented. Some features like full support for value lists or regular expressions are still missing. Also, the parser has some limitations when dealing with quoted string compare values, which can produce invalid query results.
+
+If you need a more stable and complete NGSI-LD broker, consider using **Scorpio** (https://github.com/ScorpioBroker/ScorpioBroker), **Stellio** (https://github.com/stellio-hub/stellio-context-broker) or **Orion-LD** (https://github.com/FIWARE/context.Orion-LD).
 
 **PLEASE DO NOT RUN CASSIOPEIA IN A PRODUCTION ENVIRONMENT! EXPECT BUGS, SECURITY ISSUES AND DEVIATIONS FROM THE NGSI-LD SPECIFICATION! ALSO, READ THE LICENSE INFORMATION CAREFULLY!**
 
