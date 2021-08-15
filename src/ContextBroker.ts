@@ -281,7 +281,7 @@ export class ContextBroker {
         }
         //################## END Determine actual datasetId to use ################
 
-        await this.deleteAttribute(entityId, false, attributeId_compacted, useDatasetId_compacted, undefined, contextUrl)
+        await this.deleteAttribute(entityId, attributeId_compacted, useDatasetId_compacted, undefined, contextUrl)
     }
 
 
@@ -702,7 +702,7 @@ export class ContextBroker {
         //################## END Determine actual datasetId to use ################
 
 
-        await this.deleteAttribute(entityId, true, attributeId_compacted, useDatasetId_compacted, undefined, contextUrl)
+        await this.deleteAttribute(entityId, attributeId_compacted, useDatasetId_compacted, undefined, contextUrl)
     }
 
 
@@ -776,17 +776,20 @@ export class ContextBroker {
         let sql_transaction = "BEGIN;"
 
         sql_transaction += this.makeUpdateAttributeInstanceQuery(instanceId_number, instance, false)
-        sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityMetadata.id)
+
+        sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityMetadata.id)        
         sql_transaction += "COMMIT;"
 
         const queryResult = await this.runSqlQuery(sql_transaction)
+
+        await this.refreshMaterializedViews()
     }
 
 
     // Spec 5.6.15
     async api_5_6_15_deleteAttributeInstanceOfTemporalEntity(entityId: string, attributeId_compacted: string, instanceId_compacted: string, contextUrl: string | undefined) {
 
-        await this.deleteAttribute(entityId, true, attributeId_compacted, undefined, instanceId_compacted, contextUrl)
+        await this.deleteAttribute(entityId, attributeId_compacted, undefined, instanceId_compacted, contextUrl)
     }
 
 
@@ -984,7 +987,8 @@ export class ContextBroker {
     // Spec 5.7.5
     async api_5_7_5_retrieveAvailableEntityTypes() {
 
-        const queryResult = await this.runSqlQuery(`SELECT DISTINCT ${tableCfg.COL_ENT_TYPE} FROM ${tableCfg.TBL_ENT}`)
+        const sql_select = `SELECT DISTINCT ${tableCfg.COL_ENT_TYPE} FROM ${tableCfg.TBL_ENT}`
+        const queryResult = await this.runSqlQuery(sql_select)
 
         let result = new EntityTypeList()
 
@@ -999,9 +1003,9 @@ export class ContextBroker {
     // Spec 5.7.6
     async api_5_7_6_retrieveAvailableEntityTypeDetails() {
 
-        const sql = `SELECT DISTINCT ${tableCfg.COL_ENT_TYPE}, ${tableCfg.COL_ATTR_NAME} FROM ${tableCfg.TBL_ENT} AS t1, ${tableCfg.TBL_ATTR} AS t2 WHERE t1.${tableCfg.COL_ENT_INTERNAL_ID} = t2.eid`
+        const sql_select = `SELECT DISTINCT ${tableCfg.COL_ENT_TYPE}, ${tableCfg.COL_ATTR_NAME} FROM ${tableCfg.TBL_ENT} AS t1, ${tableCfg.TBL_ATTR} AS t2 WHERE t1.${tableCfg.COL_ENT_INTERNAL_ID} = t2.eid`
 
-        const queryResult = await this.runSqlQuery(sql)
+        const queryResult = await this.runSqlQuery(sql_select)
 
         const types = new Map<String, EntityType>()
 
@@ -1036,6 +1040,8 @@ export class ContextBroker {
     // Spec 5.7.7
     async api_5_7_7_retrieveAvailableEntityTypeInformation(type: string) {
 
+
+        // TODO: Read from temporal table or only from most recent attributes table?
         let sql_count = `SELECT COUNT(*) FROM ${tableCfg.TBL_ENT} WHERE ${tableCfg.COL_ENT_TYPE} = '${type}'`
 
 
@@ -1044,9 +1050,9 @@ export class ContextBroker {
 
         const entityCount = sqlResult_count.rows[0].count
 
-        const sql = `SELECT DISTINCT ${tableCfg.COL_ATTR_NAME} FROM ${tableCfg.TBL_ENT} as t1, ${tableCfg.TBL_ATTR} as t2 WHERE t1.${tableCfg.COL_ENT_INTERNAL_ID} = t2.eid AND ${tableCfg.COL_ENT_TYPE} = '${type}'`
+        const sql_select = `SELECT DISTINCT ${tableCfg.COL_ATTR_NAME} FROM ${tableCfg.TBL_ENT} as t1, ${tableCfg.TBL_ATTR} as t2 WHERE t1.${tableCfg.COL_ENT_INTERNAL_ID} = t2.eid AND ${tableCfg.COL_ENT_TYPE} = '${type}'`
 
-        const sqlResult = await this.runSqlQuery(sql)
+        const sqlResult = await this.runSqlQuery(sql_select)
 
         const result = new EntityTypeInfo(type, entityCount)
 
@@ -1069,9 +1075,9 @@ export class ContextBroker {
 
         const attrNames_expanded = new AttributeList()
 
-        const sql = `SELECT DISTINCT ${tableCfg.COL_ATTR_NAME} FROM ${tableCfg.TBL_ATTR}`
+        const sql_select = `SELECT DISTINCT ${tableCfg.COL_ATTR_NAME} FROM ${tableCfg.TBL_ATTR}`
 
-        const sqlResult = await this.runSqlQuery(sql)
+        const sqlResult = await this.runSqlQuery(sql_select)
 
         for (const row of sqlResult.rows) {
             attrNames_expanded.attributeList.push(row[tableCfg.COL_ATTR_NAME])
@@ -1098,9 +1104,9 @@ export class ContextBroker {
 
         const result = new AttributeList()
 
-        const sql = `SELECT DISTINCT ${tableCfg.COL_ATTR_NAME} FROM ${tableCfg.TBL_ATTR}`
+        const sql_select = `SELECT DISTINCT ${tableCfg.COL_ATTR_NAME} FROM ${tableCfg.TBL_ATTR}`
 
-        const sqlResult = await this.runSqlQuery(sql)
+        const sqlResult = await this.runSqlQuery(sql_select)
 
         for (const row of sqlResult.rows) {
             result.attributeList.push(row[tableCfg.COL_ATTR_NAME])
@@ -1131,8 +1137,13 @@ export class ContextBroker {
 
     //############################ BEGIN Inofficial API methods ############################
     async api_inofficial_deleteAllEntities() {
-        await this.runSqlQuery(`DELETE FROM ${tableCfg.TBL_ATTR}`)
-        await this.runSqlQuery(`DELETE FROM ${tableCfg.TBL_ENT}`)
+        let sql_transaction_delete_all = "BEGIN;"
+        sql_transaction_delete_all += `DELETE FROM ${tableCfg.TBL_ENT};`
+        sql_transaction_delete_all += `DELETE FROM ${tableCfg.TBL_ATTR};`
+        sql_transaction_delete_all += `DELETE FROM ${tableCfg.TBL_LATEST_ATTR2};`
+        sql_transaction_delete_all += "COMMIT;"
+
+        await this.runSqlQuery(sql_transaction_delete_all)
     }
 
 
@@ -1151,7 +1162,7 @@ export class ContextBroker {
 
 
 
-    private async deleteAttribute(entityId: string, temporal: boolean, attributeId_compacted: string, datasetId_compacted: string | null | undefined, instanceId_expanded: string | undefined, contextUrl: any) {
+    private async deleteAttribute(entityId: string, attributeId_compacted: string, datasetId_compacted: string | null | undefined, instanceId_expanded: string | undefined, contextUrl: any) {
 
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
@@ -1190,37 +1201,79 @@ export class ContextBroker {
         //######## END Read target entity from database to get its internal ID, which is required for the delete call ##########
 
 
-        let sql = `DELETE FROM ${tableCfg.TBL_ATTR} WHERE eid = ${entityInternalId} `
+        let sql_transaction_delete = "BEGIN;"
+
+        //################# BEGIN Delete from temporal attributes table ##################
+        sql_transaction_delete += `DELETE FROM ${tableCfg.TBL_ATTR} WHERE eid = ${entityInternalId} `
 
         // Match attribute ID:
-        sql += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
+        sql_transaction_delete += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
 
 
         // Match instance ID if provided:
         if (instanceId_expanded != undefined) {
             // NOTE: We assume that the attribute instances is passed in the form "urn:ngsi-ld:InstanceId:instance_<number>"
             const instanceId_number = parseFloat(instanceId_expanded.split("_")[1])
-
-            // TODO: 1 Make function to get instance number from instance ID string
-            sql += ` AND ${tableCfg.COL_INSTANCE_ID} = '${instanceId_number}'`
+            
+            sql_transaction_delete += ` AND ${tableCfg.COL_INSTANCE_ID} = '${instanceId_number}'`
         }
 
 
         // Match dataset ID if provided:
         // ATTENTION: It is REQUIRED to compare with a "!==" here! We must NOT use a "!="!
         if (datasetId_expanded !== undefined) {
-            sql += this.makeSqlCondition_datasetId(datasetId_expanded)
+            sql_transaction_delete += this.makeSqlCondition_datasetId(datasetId_expanded)
         }
+        
+        sql_transaction_delete += ";"
+        //################# END Delete from temporal attributes table ##################
 
-        const queryResult = await this.runSqlQuery(sql)
+
+        
+
+         //################# BEGIN Delete from latest attributes table ##################
+         sql_transaction_delete += `DELETE FROM ${tableCfg.TBL_LATEST_ATTR2} WHERE eid = ${entityInternalId} `
+
+         // Match attribute ID:
+         sql_transaction_delete += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
+ 
+         // Match instance ID if provided:
+         if (instanceId_expanded != undefined) {
+             // NOTE: We assume that the attribute instances is passed in the form "urn:ngsi-ld:InstanceId:instance_<number>"
+             const instanceId_number = parseFloat(instanceId_expanded.split("_")[1])
+             
+             sql_transaction_delete += ` AND ${tableCfg.COL_INSTANCE_ID} = '${instanceId_number}'`
+         }
+ 
+ 
+         // Match dataset ID if provided:
+         // ATTENTION: It is REQUIRED to compare with a "!==" here! We must NOT use a "!="!
+         if (datasetId_expanded !== undefined) {
+             sql_transaction_delete += this.makeSqlCondition_datasetId(datasetId_expanded)
+         }
+
+         sql_transaction_delete += ";"
+         //################# END Delete from latest attributes table ##################
+ 
+ 
+
+
+        sql_transaction_delete += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
+        
+        sql_transaction_delete += ";COMMIT;"
+
+        const queryResult = await this.runSqlQuery(sql_transaction_delete)
 
         if (queryResult.rowCount == 0) {
             throw errorTypes.ResourceNotFound.withDetail(`Failed to delete attribute instance. No attribute instance with the following properties exists: Entity ID = '${entityId}', Attribute ID ='${attributeId_expanded}', Instance ID = '${instanceId_expanded}'.`)
         }
+        else {
+            await this.refreshMaterializedViews()
+        }
     }
 
 
-    private async appendEntityAttributes(entityInternalId: any, fragment_expanded: any, overwrite: boolean, append: boolean, temporal: boolean, attributeIdToUpdate: string | undefined) {
+    private async appendEntityAttributes(entityInternalId: number, fragment_expanded: any, overwrite: boolean, append: boolean, temporal: boolean, attributeIdToUpdate: string | undefined) {
 
         const result = new UpdateResult()
 
@@ -1295,11 +1348,11 @@ export class ContextBroker {
                 }
 
                 // TODO 3: Order and limit to improve performance?
-                let sql_existing_instances = `SELECT * FROM ${tableCfg.TBL_ATTR} WHERE eid = ${entityInternalId} `
-                sql_existing_instances += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}'`
-                sql_existing_instances += this.makeSqlCondition_datasetId(datasetId_expanded_sql)
+                let sql_select_existing_instances = `SELECT * FROM ${tableCfg.TBL_ATTR} WHERE eid = ${entityInternalId} `
+                sql_select_existing_instances += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}'`
+                sql_select_existing_instances += this.makeSqlCondition_datasetId(datasetId_expanded_sql)
 
-                const sqlResult = await this.runSqlQuery(sql_existing_instances)
+                const sqlResult = await this.runSqlQuery(sql_select_existing_instances)
 
                 const existingInstances = sqlResult.rows
                 //###################### END Get existing instances #####################
@@ -1343,9 +1396,13 @@ export class ContextBroker {
             if (updated) {
                 result.updated.push(attributeId_expanded)
 
-                sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
+                sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityInternalId)                
+            
                 sql_transaction += "COMMIT;"
+
                 await this.runSqlQuery(sql_transaction)
+
+                await this.refreshMaterializedViews()
             }
             else {
                 result.notUpdated.push(new NotUpdatedDetails(attributeId_expanded, "Attribute instance(s) already exist and no overwrite was ordered."))
@@ -1370,18 +1427,15 @@ export class ContextBroker {
         queryBuilder.add(tableCfg.COL_ENT_MODIFIED_AT, now.toISOString())
         //############## END Build INSERT query for entities table ###########
 
-
-        //################# BEGIN Create entities table entry #################
-        const queryResult = await this.runSqlQuery(queryBuilder.getStringForTable(tableCfg.TBL_ENT, "id")).catch((error: any) => { })
-
+        const sql_insert = queryBuilder.getStringForTable(tableCfg.TBL_ENT, "id")
+        
+        const queryResult = await this.runSqlQuery(sql_insert).catch((error: any) => { })
 
         if (queryResult == undefined) {
             return -1
         }
 
-
         const insertId = queryResult.rows[0].id
-        //################# END Create entities table entry #################
 
         await this.appendEntityAttributes(insertId, entity_expanded, true, true, false, undefined)
 
@@ -1415,6 +1469,7 @@ export class ContextBroker {
         // Add queries to delete all of the entity's attributes to the transaction:
         for (const row of queryResult1.rows) {
             sql_delete_attributes += `DELETE FROM ${tableCfg.TBL_ATTR} WHERE eid = ${row[tableCfg.COL_ENT_INTERNAL_ID]};`
+            sql_delete_attributes += `DELETE FROM ${tableCfg.TBL_LATEST_ATTR2} WHERE eid = ${row[tableCfg.COL_ENT_INTERNAL_ID]};`
         }
 
         sql_delete_attributes += "COMMIT;"
@@ -1430,9 +1485,9 @@ export class ContextBroker {
     async getAttributeInfo(attributeId_expanded: string): Promise<Attribute> {
 
 
-        const sql = `SELECT ${tableCfg.COL_ENT_TYPE}, ${tableCfg.COL_ATTR_TYPE} FROM ${tableCfg.TBL_ENT} as t1, ${tableCfg.TBL_ATTR} as t2 WHERE t1.${tableCfg.COL_ENT_INTERNAL_ID} = t2.eid AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}'`
+        const sql_select = `SELECT ${tableCfg.COL_ENT_TYPE}, ${tableCfg.COL_ATTR_TYPE} FROM ${tableCfg.TBL_ENT} as t1, ${tableCfg.TBL_ATTR} as t2 WHERE t1.${tableCfg.COL_ENT_INTERNAL_ID} = t2.eid AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}'`
 
-        let sqlResult = await this.runSqlQuery(sql)
+        let sqlResult = await this.runSqlQuery(sql_select)
 
         let result = new Attribute(attributeId_expanded, attributeId_expanded, sqlResult.rows.length)
 
@@ -1457,9 +1512,9 @@ export class ContextBroker {
 
     async getEntityMetadata(entityId: string): Promise<any> {
 
-        const sql = `SELECT * FROM ${tableCfg.TBL_ENT} WHERE ${tableCfg.COL_ENT_ID} = '${entityId}'`
+        const sql_select = `SELECT * FROM ${tableCfg.TBL_ENT} WHERE ${tableCfg.COL_ENT_ID} = '${entityId}'`
 
-        const sqlResult = await this.runSqlQuery(sql)
+        const sqlResult = await this.runSqlQuery(sql_select)
 
         // No entitiy with passed ID was found:
         if (sqlResult.rows.length == 0) {
@@ -1490,34 +1545,24 @@ export class ContextBroker {
 
         const queryBuilder = new InsertQueryBuilder()
 
-        //#################### BEGIN Add entity id to insert query #################### 
 
-        // NOTE: By passing -1 as the value for entityInternalId, this method will use the id that was
-        // last used in an insert query on the 'entities' table. We use this when we create new entities
-        // and add their attributes in one transactional query 
-        // (i.e. INSERT on 'entities' table + INSERT(s) on 'attributes' table in one transaction).
 
-        if (entityInternalId == -1) {
-            queryBuilder.add("eid", "currval('entities_id_seq')", true)
-        }
-        else {
-            queryBuilder.add("eid", entityInternalId)
-        }
-        //###################### END Add entity id to insert query ################## 
+        queryBuilder.add(tableCfg.COL_ATTR_EID, entityInternalId)
+        queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId)
+        queryBuilder.add(tableCfg.COL_DATASET_ID, instance_expanded[uri_datasetId])
 
 
         //############ BEGIN Clean up JSON for write and write it ##############
         const cleaned_up_instance_for_write = JSON.parse(JSON.stringify(instance_expanded))
 
-
         delete (cleaned_up_instance_for_write["@type"])
         delete (cleaned_up_instance_for_write["https://uri.etsi.org/ngsi-ld/observedAt"])
         delete (cleaned_up_instance_for_write[uri_datasetId])
 
-
         queryBuilder.add(tableCfg.COL_INSTANCE_JSON, JSON.stringify(cleaned_up_instance_for_write))
         //############ END Clean up JSON for write and write it ##############
 
+      
         //################# BEGIN Write attribute type ################
         const attributeTypeIndex = this.attributeTypes.indexOf(instance_expanded['@type'])
 
@@ -1529,10 +1574,8 @@ export class ContextBroker {
         //################# END Write attribute type ################
 
 
-        queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId)
-        queryBuilder.add(tableCfg.COL_DATASET_ID, instance_expanded[uri_datasetId])
 
-        // Write 'geom' column:
+        // ###################### BEGIN Write 'geom' column #######################
         if (instance_expanded['@type'] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
 
             // ATTENTION: Since property values are not expanded, we don't need to re-compact
@@ -1542,6 +1585,8 @@ export class ContextBroker {
                         
             queryBuilder.add("geom", `ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`, true)
         }
+        // ###################### END Write 'geom' column #######################
+
 
         // Write 'observed_at' column:
         if (isDateTimeUtcString(instance_expanded["https://uri.etsi.org/ngsi-ld/observedAt"])) {
@@ -1556,14 +1601,10 @@ export class ContextBroker {
 
         let sql = queryBuilder.getStringForTable(tableCfg.TBL_ATTR)
 
-        // Add SQL query to update entity:
 
-        // NOTE: If multiple attribute create queries are performed in a request, the update of the
-        // entity's modified_at field will be performed as many times redundantly. 
-        // This is probably not a problem, but it should be mentioned.
-
-        sql += `UPDATE ${tableCfg.TBL_ENT} SET ${tableCfg.COL_ENT_MODIFIED_AT} = '${now.toISOString()}' WHERE ${tableCfg.COL_ENT_INTERNAL_ID} = ${entityInternalId};`
-
+        // NOTE: We don't add a query to update the modifiedAt timestamp of the affected entity here.
+        // This is expected to be done in the function where this function is used.
+        
         return sql
     }
 
@@ -1659,7 +1700,7 @@ export class ContextBroker {
     // Spec 5.7.2
     async queryEntities(query: Query, temporal: boolean, includeSysAttrs: boolean, context: JsonLdContextNormalized): Promise<Array<any>> {
 
-        const attr_table = temporal ? tableCfg.TBL_ATTR : "latest_attributes"
+        const attr_table = temporal ? tableCfg.TBL_ATTR : tableCfg.VIEW_LATEST_ATTR
 
 
         //########################### BEGIN Validation ###########################      
@@ -1817,19 +1858,19 @@ export class ContextBroker {
         fields.push(`${tableCfg.COL_ATTR_MODIFIED_AT} at time zone 'utc' as attr_modified_at`)
         fields.push(`${tableCfg.COL_ATTR_OBSERVED_AT} at time zone 'utc' as attr_observed_at`)
 
-        let sql = `SELECT ${fields.join(',')} FROM ${tableCfg.TBL_ENT} AS t1, ${attr_table} AS t2 WHERE t1.${tableCfg.COL_ENT_INTERNAL_ID} = t2.eid ${sql_where}`
+        let sql_select = `SELECT ${fields.join(',')} FROM ${tableCfg.TBL_ENT} AS t1, ${attr_table} AS t2 WHERE t1.${tableCfg.COL_ENT_INTERNAL_ID} = t2.eid ${sql_where}`
 
         // If lastN is defined, wrap limiting query around the original query:
         // See https://stackoverflow.com/questions/1124603/grouped-limit-in-postgresql-show-the-first-n-rows-for-each-group
 
         if (temporal && typeof (lastN) == "number" && lastN > 0) {
-            sql = `SELECT * FROM (SELECT ROW_NUMBER() OVER (PARTITION BY ent_id, attr_name ${orderBySql}) AS r, t.* FROM (${sql}) t) x WHERE x.r <= ${lastN};`
+            sql_select = `SELECT * FROM (SELECT ROW_NUMBER() OVER (PARTITION BY ent_id, attr_name ${orderBySql}) AS r, t.* FROM (${sql_select}) t) x WHERE x.r <= ${lastN};`
         }
 
 
-        console.log(sql)
+        console.log(sql_select)
 
-        const queryResult = await this.runSqlQuery(sql)
+        const queryResult = await this.runSqlQuery(sql_select)
 
 
         const entitiesByNgsiId: any = {}
@@ -1943,6 +1984,13 @@ export class ContextBroker {
 
 
         return result
+    }
+
+
+    private async refreshMaterializedViews() {
+        let sql_refresh = `REFRESH MATERIALIZED VIEW ${tableCfg.TBL_LATEST_ATTR_MATERIALIZED};`
+
+        //await this.runSqlQuery(sql_refresh)
     }
 
 
