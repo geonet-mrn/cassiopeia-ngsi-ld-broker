@@ -1,5 +1,4 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios'
-import { error } from 'console';
 import { testConfig } from './testConfig'
 
 
@@ -24,7 +23,7 @@ export async function axiosGet(url: string, config: AxiosRequestConfig): Promise
         response = errorResponse
     }
 
-    console.log(response.status)
+    //console.log(response.status)
 
     return response
 }
