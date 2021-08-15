@@ -87,7 +87,7 @@ export class ContextBroker {
 
         let entity_expanded = await expandObject(entity_from_payload, context)
 
-        entity_expanded = util.unpackGeoPropertyValues(entity_expanded)
+        entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
 
 
         const entityCheckResults = checkEntity(entity_expanded, true)
@@ -119,7 +119,9 @@ export class ContextBroker {
         const context = await getNormalizedContext(actualContext)
 
 
-        const fragment_expanded = expandObject(fragment_compacted, context)
+        let fragment_expanded = expandObject(fragment_compacted, context)
+
+        fragment_expanded = util.unpackGeoPropertyStringValues(fragment_expanded)
 
         const entityCheckResults = checkEntity(fragment_expanded, true)
 
@@ -150,8 +152,9 @@ export class ContextBroker {
         const actualContext = appendCoreContext(nonNormalizedContext)
         const context = await getNormalizedContext(actualContext)
 
-        const fragment_expanded = expandObject(fragment_compacted, context)
+        let fragment_expanded = expandObject(fragment_compacted, context)
 
+        fragment_expanded = util.unpackGeoPropertyStringValues(fragment_expanded)
 
         //################### BEGIN Validation ################
         if (!isUri(entityId)) {
@@ -196,7 +199,10 @@ export class ContextBroker {
         const actualContext = appendCoreContext(nonNormalizedContext)
         const context = await getNormalizedContext(actualContext)
 
-        const fragment_expanded = expandObject(fragment_compacted, context)
+        let fragment_expanded = expandObject(fragment_compacted, context)
+
+        fragment_expanded = util.unpackGeoPropertyStringValues(fragment_expanded)
+
         const attributeId_expanded = expandObject(attributeId_compacted, context)
 
         //################### BEGIN Input validation ##################
@@ -305,12 +311,16 @@ export class ContextBroker {
 
         const entities_expanded = []
 
-        for (const ec of entities_compacted) {
-            const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : ec['@context']
+        for (const entity_compacted of entities_compacted) {
+            const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : entity_compacted['@context']
             const actualContext = appendCoreContext(nonNormalizedContext)
             const context = await getNormalizedContext(actualContext)
 
-            entities_expanded.push(expandObject(ec, context))
+            let entity_expanded = expandObject(entity_compacted, context)
+
+            entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
+
+            entities_expanded.push(entity_expanded)
         }
 
         let checkResult = checkArrayOfEntities(entities_expanded, true, true)
@@ -324,13 +334,13 @@ export class ContextBroker {
         //######## BEGIN Iterate over list of uploaded entities and try to write them to the database ########
         const result = new BatchOperationResult()
 
-        for (const ec of entities_compacted) {
+        for (const entity_compacted of entities_compacted) {
 
-            const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : ec['@context']
+            const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : entity_compacted['@context']
             const actualContext = appendCoreContext(nonNormalizedContext)
             const context = await getNormalizedContext(actualContext)
 
-            const entity_expanded = expandObject(ec, context)
+            const entity_expanded = expandObject(entity_compacted, context)
 
             const resultCode = await this.createEntity(entity_expanded, false)
 
@@ -365,12 +375,17 @@ export class ContextBroker {
 
         const entities_expanded = []
 
-        for (const ec of entities_compacted) {
-            const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : ec['@context']
+        for (const entity_compacted of entities_compacted) {
+            const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : entity_compacted['@context']
             const actualContext = appendCoreContext(nonNormalizedContext)
             const context = await getNormalizedContext(actualContext)
+            
 
-            entities_expanded.push(expandObject(ec, context))
+            let entity_expanded = expandObject(entity_compacted, context)
+
+            entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
+
+            entities_expanded.push(entity_expanded)
         }
 
         const checkResult = checkArrayOfEntities(entities_expanded, true, true)
@@ -490,12 +505,17 @@ export class ContextBroker {
 
         const entities_expanded = []
 
-        for (const ec of entities_compacted) {
-            const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : ec['@context']
+        for (const entity_compacted of entities_compacted) {
+            const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : entity_compacted['@context']
             const actualContext = appendCoreContext(nonNormalizedContext)
             const context = await getNormalizedContext(actualContext)
 
-            entities_expanded.push(expandObject(ec, context))
+            
+            let entity_expanded = expandObject(entity_compacted, context)
+
+            entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
+
+            entities_expanded.push(entity_expanded)
         }
 
         //############### BEGIN Validate input ###############
@@ -578,8 +598,10 @@ export class ContextBroker {
         const actualContext = appendCoreContext(nonNormalizedContext)
         const context = await getNormalizedContext(actualContext)
 
-        const entity_expanded = expandObject(entity_compacted, context)
+        let entity_expanded = expandObject(entity_compacted, context)
 
+
+        entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
 
         //################# BEGIN Validate input ##################
         const entityCheckResults = checkEntity(entity_expanded, false)
@@ -635,9 +657,12 @@ export class ContextBroker {
         const actualContext = appendCoreContext(nonNormalizedContext)
         const context = await getNormalizedContext(actualContext)
 
-        const fragment_expanded = expandObject(fragment_compacted, context)
+        let fragment_expanded = expandObject(fragment_compacted, context)
 
 
+        fragment_expanded = util.unpackGeoPropertyStringValues(fragment_expanded)
+
+        
         const entityCheckResults = checkEntity(fragment_expanded, false)
 
         if (entityCheckResults.length > 0) {
