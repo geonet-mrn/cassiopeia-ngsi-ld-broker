@@ -7,8 +7,7 @@
 // TODO: 2 Add GeoJSON output for post query requests
 // TODO: 3 Implement 4.6.2 (limitation of supported names)
 // TODO: 3 Spec 6.3.4 vervollständigen (v.a. check von Accept Headers)
-// TODO: 3 Spec 6.3.5 (Extract context from request)
-// TODO: 3 Spec 6.3.6 (Response context representation)
+// TODO: 3 Spec 6.3.6
 
 // TODO: 3 Validation: Make sure that all attribute instances have the same type
 // TODO: 3 Automatically add "createdAt" and "modifiedAt" to all Attributes in JSON 
@@ -17,15 +16,15 @@
 // TODO: 3 GeoJSON response headers (spec 6.3.6)
 // TODO: 3 5.7.2.4 Match ID patterns
 
-// TODO: 4 PERFORMANCE: Implement "latest_attributes" as a materialized view
+
 // TODO: 4 Complete criteria in Spec 5.5.4 (context and null)
-// TODO: 4 Spec 4.5.9 (simplified temporal representation of entities)
+
 // TODO: 4 Print context parse errors in response
 // TODO: 4 Spec 5.7.2.4 Context header in GeoJSON response?
-// TODO: 4 Implement "limit" / pagination (spec 6.3.10)
+// TODO: 4 Implement "limit" / pagination (spec 5.5.9 / 6.3.10)
+// TODO: 4 Spec 4.5.9 / 6.3.12 (simplified or aggregated temporal representation of entities)
 
-// TODO: 5 Spec 5.5.9 (pagination)
-// TODO: 5 Spec 6.3.12
+// TODO: 5 PERFORMANCE: Implement "latest_attributes" as a materialized view
 
 import * as Koa from "koa"
 import * as compress from "koa-compress"
@@ -44,7 +43,6 @@ import * as fs from 'fs'
 import * as auth from 'basic-auth'
 import { FeatureCollection } from "./dataTypes/FeatureCollection"
 import { compactedEntityToGeoJsonFeature } from "./util"
-//import createStatsCollector = require("mocha/lib/stats-collector")
 
 
 export class HttpBinding {
@@ -78,7 +76,6 @@ export class HttpBinding {
 
         await this.broker.api_5_6_1_createEntity(ctx.request.rawBody, contextUrl)
         ctx.status = 201
-
 
         await next()
     }
