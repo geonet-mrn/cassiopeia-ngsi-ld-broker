@@ -1774,19 +1774,7 @@ export class ContextBroker {
 
         // TODO: 2 - "the entity is available at the Context Source(s) that match the context source filter conditions."
 
-        // TODO: 2 - "if the Attribute list is present, in order for an Entity to match, 
-        //            it shall contain at least one of the Attributes in the Attribute list."
-
-        // NOTE that this is related to:
-
-        // TODO: 2 Ask/understand what is the difference between
-
-        // "- attribute matches any of the expanded attribute(s) in the list that is passed as parameter;"
-
-        // and
-
-        // "if the Attribute list is present, in order for an Entity to match, 
-        // it shall contain at least one of the Attributes in the Attribute list."
+        
 
 
         // TODO: 4 "Pagination logic shall be in place as mandated by clause 5.5.9."
@@ -1812,20 +1800,6 @@ export class ContextBroker {
             lastN = query.temporalQ.lastN
         }
         //################### END Match temporal query ######################
-
-
-        /*
-        // Run query and return result:
-        return await this.getEntitiesBySqlWhere(sql_where, includeSysAttrs, orderBySql, lastN, attrNames_expanded, temporal)
-    }
-
-    // NOTE: The code parts above and under this comment were formerly separated functions, but are for now
-    // merged for simplity.
-
-    async getEntitiesBySqlWhere(sql_where: string, includeSysAttrs: boolean, orderBySql: string | undefined,
-        lastN: number | undefined, attrNames_expanded: Array<string> | undefined, temporal: boolean): Promise<Array<any>> {
-        */
-        // ATTENTION: The 'sql_where' string must begin with and "AND"!
 
         const fields = Array<string>()
 
@@ -1853,7 +1827,7 @@ export class ContextBroker {
         }
 
 
-        //console.log(sql)
+        console.log(sql)
 
         const queryResult = await this.runSqlQuery(sql)
 
@@ -1904,7 +1878,7 @@ export class ContextBroker {
 
             //############### BEGIN Restore JSON fields that have their own database column ##############
 
-            // TODO: 1 Add method to create instance ID string from number
+            // TODO: 4 Add method to create instance ID string from number
 
             // ATTENTION: The returned instance ID value string MUST contain an "_" (underscore) because we
             // use it in PsqlBackend::deleteAttribute() as a string separator character to extract the

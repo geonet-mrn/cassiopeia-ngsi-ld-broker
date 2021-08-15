@@ -1,7 +1,7 @@
 // NGSI-LD Version 1.3.1
 // https://www.etsi.org/deliver/etsi_gs/CIM/001_099/009/01.03.01_60/gs_CIM009v010301p.pdf
 
-
+// TODO: 1 Make NGSI-LD "range" and "valueList" compare types safe to use with quoted strings that contain ".." or ","
 // TODO: 1 Test PostgreSQL connection at broker startup
 // TODO: 2 Correct implementation for what to expand and what not
 // TODO: 2 Add GeoJSON output for post query requests
@@ -959,11 +959,7 @@ export class HttpBinding {
 
         const ngsiLdCoreContext = await getNormalizedContext([NGSI_LD_CORE_CONTEXT_URL])
 
-        //    const psql = new PsqlBackend(this.config, ngsiLdCoreContext)
-
         this.broker = new ContextBroker(this.config, ngsiLdCoreContext)
-
-
 
         this.setUpRoutes()
 
@@ -973,6 +969,8 @@ export class HttpBinding {
                 try {
                     await next();
                 } catch (error) {
+
+                    console.log(error)
 
                     ctx.status = error.status || 500;
 

@@ -1,4 +1,4 @@
-// TODO: ValueList
+// TODO: Complete implementation of ValueList
 
 // TODO: patternOp / noPatternOp
 
@@ -6,6 +6,9 @@
 // (e.g. matches ["blue","red","green"]). ("inverse value list", so to say)
 
 // TODO: Perhaps create new query parser object for each query and make context a class member
+
+// TODO: " If the data type of the target value and the data type of the Query Term value are different, 
+// then they shall be considered unequal.""
 
 import { Query } from "./dataTypes/Query"
 import { errorTypes } from "./errorTypes"
@@ -42,7 +45,7 @@ export class NgsiLdQueryParser {
     private readonly operators = ['!~=', '==', '!=', '>=', '<=', '~=', '>', '<', ';', '|']
 
 
-    private readonly ERROR_STRING_INTRO = "Invalid query string: "
+    private readonly ERROR_STRING_INTRO = "Invalid NGSI-LD query string: "
 
     private readonly nonReifiedDefaultProperties = ["https://uri.etsi.org/ngsi-ld/createdAt",
         "https://uri.etsi.org/ngsi-ld/modifiedAt",
@@ -148,14 +151,13 @@ export class NgsiLdQueryParser {
             // Check existence of non-reified property:
             if (this.nonReifiedDefaultProperties.includes(lastPathPiece_expanded)) {
                 result += `${attrTable}.${this.tableCfg.COL_INSTANCE_JSON}${attrPathSql} is not null `
-
             }
 
             // Check existence of reified Property or Relationship:
             else {
 
                 //########### BEGIN Check existence of Property ##############
-                result += "("                
+                result += "("
                 result += `${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Property')}`
 
                 result += " AND "
@@ -166,7 +168,7 @@ export class NgsiLdQueryParser {
                 result += " OR "
 
                 //########### BEGIN Check existence of Relationship ##############
-                result += "("                
+                result += "("
                 result += `${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Relationship')}`
                 result += " AND "
                 result += `${attrTable}.${this.tableCfg.COL_INSTANCE_JSON}${attrPathSql}->'https://uri.etsi.org/ngsi-ld/hasObject' is not null`
@@ -184,6 +186,7 @@ export class NgsiLdQueryParser {
             let left = ast[0]
             let op = ast[1]
             let right = ast[2]
+
 
             switch (op) {
 
@@ -221,12 +224,12 @@ export class NgsiLdQueryParser {
                     break
                 }
                 default: {
-                    throw errorTypes.InvalidRequest.withDetail("Invalid query string: Query term operator unknown: '" + op + "'.")
+                    throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "Unknown query term operator: '" + op + "'.")
                 }
             }
         }
         else {
-            throw errorTypes.InvalidRequest.withDetail(`Invalid query string: Invalid query term: '${ast.toString()}'`)
+            throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + `Invalid query term: '${ast.toString()}'`)
         }
 
 
@@ -248,6 +251,7 @@ export class NgsiLdQueryParser {
         // (e.g. matches ["blue","red","green"]). ("inverse value list", so to say)
 
         // (also for other operators)
+
         // Split complete attribute path in main part and trailing path:
         const mainPathAndTrailingPath = leftSide.split("[")
 
@@ -328,21 +332,57 @@ export class NgsiLdQueryParser {
         }
         //############# END Build Complete attribute path expression (with trailing path) ##############           
 
-        const firstPathPiece = context.expandTerm(attrPath[0], true)
 
-        // Begin construction of SQL query string:
+
+        // Start the SQL query with making sure that the the attribute name matches:
+        const firstPathPiece = context.expandTerm(attrPath[0], true)
         let result = `SELECT eid FROM ${attrTable} WHERE ${attrTable}.attr_name = '${firstPathPiece}' `
 
-        const range = rightSide.split("..")
+        // ... then continue with the value condition:
 
-        if (range.length == 1) {
-            result += this.buildSingleValueCompare(range, op, jsonFullPathSql, jsonAttrPathSql, attrTable)
+
+        let range: Array<string> | null = rightSide.split("..")
+
+        let valueList: Array<string> | null = rightSide.split(",")
+
+        valueList = rightSide.match(/(?:[^,"]+|"[^"]*")+/g)
+        // range = rightSide.match(/(?:[^(..)"]+|"[^"]*")+/g) 
+
+        if (valueList == null) {
+            throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "Invalid value list: " + rightSide)
         }
+
+        if (range == null) {
+            throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "Invalid range: " + rightSide)
+        }
+
+        //############## BEGIN Validation ##############
+        if (range.length > 1 && valueList.length > 1) {
+            throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "ranges and value lists must not be mixed")
+        }
+
+        if (range.length > 2) {
+            throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "A range must contain only one instance of '..'.")
+        }
+        //############## END Validation ##############
+
+        result += " AND "
+
+        // Single value compare:
+        if (range.length == 1 && valueList.length == 1) {
+            result += this.buildSingleValueCompare(range[0], op, jsonFullPathSql, jsonAttrPathSql, attrTable)
+        }
+        // Range compare:
         else if (range.length == 2) {
             result += this.buildRangeCompare(range, op, jsonFullPathSql)
         }
+
+        // Value list compare:
+        else if (valueList.length > 1) {
+            result += this.buildValueListCompare(valueList, op, jsonFullPathSql, jsonAttrPathSql, attrTable)
+        }
         else {
-            throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "A range must contain only one instance of '..'.")
+            throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "Could not determine structure of compare value: " + rightSide)
         }
 
         //################ END Compare expression ################
@@ -351,51 +391,135 @@ export class NgsiLdQueryParser {
     }
 
 
-    private buildSingleValueCompare(range: Array<any>, op: String, jsonFullPathSql: string, jsonAttrPathSql: string, attrTable : string) {
 
-        let result = " AND "
 
-        const compareType = this.figureOutValueType(range)
+    private buildValueListCompare(valueList: Array<string>, op: String, jsonFullPathSql: string, jsonAttrPathSql: string, attrTable: string) {
+
+        let result = "("
+
+        const compareType = this.figureOutValueType(valueList)
+
+        if (compareType == CompareValueType.UNKNOWN) {
+            throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "Failed to determine compare value type for value list: " + JSON.stringify(valueList))
+        }
+
+        //################ BEGIN Compare expresision ################      
+
+        switch (compareType) {
+
+            // TODO: 3 Complete this
+            /*
+            case CompareValueType.DATE: {
+                result += `(${jsonFullPathSql})::timestamp ${op} '${compareValue}'`
+                break
+            }
+            case CompareValueType.TIME: {
+                result += `(${jsonFullPathSql})::timestamp::time ${op} '${compareValue}'`
+                break
+            }
+            case CompareValueType.DATETIME: {
+                result += `(${jsonFullPathSql})::timestamp ${op} '${compareValue}'`
+                break
+            }
+            */
+            case CompareValueType.NUMBER: {
+
+                const sql_op = (op = "==") ? "IN" : "NOT IN"
+
+                result += `(${jsonFullPathSql})::numeric ${sql_op} (${valueList.join(",")})`
+                break
+            }
+
+            case CompareValueType.QUOTEDSTR: {
+
+                const sql_op = (op = "==") ? "IN" : "NOT IN"
+
+                let pieces = Array<string>()
+
+                // Replace double quotes with single quotes at beginning and end:
+                for (const item of valueList) {
+                    pieces.push("'" + item.substr(1, item.length - 2) + "'")
+                }
+
+                // TODO: 2 Implement:
+                // "The target value includes any of the Query Term values, if the target value is an array (e.g. matches ["red","blue"]).""
+
+                // Spec 4.9: "The target value is identical or equivalent to any of the list values (e.g. matches "red")."
+                result += `(${jsonFullPathSql})::text ${sql_op} (${pieces.join(",")})`
+                break
+            }
+
+            // TODO: Implement value list support for relationships:
+            /*
+            case CompareValueType.URI: {
+                // NOTE: Compare expression for Relationships is different, so we don't set test1 here and
+                // write the Relationship expression below if test1 == null.
+                // NOTE: For Relationship queries, the trailing path does not play a role:
+                
+                result += `${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Relationship')} AND ${jsonAttrPathSql}->>'https://uri.etsi.org/ngsi-ld/hasObject' = '${compareValue}'`
+                break
+            }
+            */
+            default: {
+                throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "Unsupported compare type: " + compareType)
+            }
+        }
+
+        result += ")"
+
+        return result
+    }
+
+
+    private buildSingleValueCompare(compareValue: string, op: String, jsonFullPathSql: string, jsonAttrPathSql: string, attrTable: string) {
+
+        let result = ""
+
+        const compareType = this.figureOutValueType([compareValue])
+
+        if (compareType == CompareValueType.UNKNOWN) {
+            throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "Failed to determine compare value type for value: " + JSON.stringify(compareValue))
+        }
 
         //################ BEGIN Compare expresision ################      
 
         switch (compareType) {
             case CompareValueType.BOOLEAN: {
-                result += `(${jsonFullPathSql})::boolean ${op} ${range[0]}`
+                result += `(${jsonFullPathSql})::boolean ${op} ${compareValue}`
                 break
             }
             case CompareValueType.DATE: {
-                result += `(${jsonFullPathSql})::timestamp ${op} '${range[0]}'`
+                result += `(${jsonFullPathSql})::timestamp ${op} '${compareValue}'`
                 break
             }
             case CompareValueType.TIME: {
-                result += `(${jsonFullPathSql})::timestamp::time ${op} '${range[0]}'`
+                result += `(${jsonFullPathSql})::timestamp::time ${op} '${compareValue}'`
                 break
             }
             case CompareValueType.DATETIME: {
-                result += `(${jsonFullPathSql})::timestamp ${op} '${range[0]}'`
+                result += `(${jsonFullPathSql})::timestamp ${op} '${compareValue}'`
                 break
             }
             case CompareValueType.NUMBER: {
-                result += `(${jsonFullPathSql})::numeric ${op} ${range[0]}`
+                result += `(${jsonFullPathSql})::numeric ${op} ${compareValue}`
                 break
             }
             case CompareValueType.QUOTEDSTR: {
                 // NOTE: With the substr(), we remove the beginning and end quotes:                
 
-                result += `(${jsonFullPathSql})::text ${op} '${range[0].substr(1, range[0].length - 2)}'`
+                result += `(${jsonFullPathSql})::text ${op} '${compareValue.substr(1, compareValue.length - 2)}'`
                 break
             }
             case CompareValueType.URI: {
                 // NOTE: Compare expression for Relationships is different, so we don't set test1 here and
                 // write the Relationship expression below if test1 == null.
                 // NOTE: For Relationship queries, the trailing path does not play a role:
-                
-                result += `${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Relationship')} AND ${jsonAttrPathSql}->>'https://uri.etsi.org/ngsi-ld/hasObject' = '${range[0]}'`
+
+                result += `${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Relationship')} AND ${jsonAttrPathSql}->>'https://uri.etsi.org/ngsi-ld/hasObject' = '${compareValue}'`
                 break
             }
             default: {
-                throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "Unable to determine type of compare value: " + range[0])
+                throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "Unable to determine type of compare value: " + compareValue)
             }
         }
 
@@ -410,7 +534,12 @@ export class NgsiLdQueryParser {
 
         const compareType = this.figureOutValueType(range)
 
-        let result = " AND "
+        if (compareType == CompareValueType.UNKNOWN) {
+            throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "Failed to determine compare value type for range: " + JSON.stringify(range))
+        }
+
+
+        let result = ""
 
         //########## BEGIN Apply operator #############
         if (op == "!=") {
@@ -448,10 +577,10 @@ export class NgsiLdQueryParser {
             }
             case CompareValueType.QUOTEDSTR: {
                 // NOTE: With the substr(), we remove the beginning and end quotes:
-                const cv1 = range[0].substr(1, range[0].length - 2)
-                const cv2 = range[1].substr(1, range[1].length - 2)
+                const cv0 = range[0].substr(1, range[0].length - 2)
+                const cv1 = range[1].substr(1, range[1].length - 2)
 
-                result += `(${jsonFullPathSql})::text >= '${cv1}' AND (${jsonFullPathSql})::text <= '${cv2}`
+                result += `(${jsonFullPathSql})::text >= '${cv0}' AND (${jsonFullPathSql})::text <= '${cv1}'`
                 break
             }
             case CompareValueType.URI: {
@@ -471,7 +600,7 @@ export class NgsiLdQueryParser {
 
 
 
-    private figureOutValueType(range: Array<string>) {
+    private figureOutValueType(range: Array<string>): CompareValueType {
 
         // NOTE: He, we do two things:
         // 1. Determine the value type of the range expression
@@ -480,7 +609,7 @@ export class NgsiLdQueryParser {
         // Also not that the type determined here is used for individual compare values as well 
         // (i.e. consider individual compare values as "ranges with same min and max").
 
-        let rightSideType = CompareValueType.UNKNOWN
+        let previousType = CompareValueType.UNKNOWN
 
         for (const item of range) {
 
@@ -511,14 +640,14 @@ export class NgsiLdQueryParser {
                 throw errorTypes.InternalError.withDetail(this.ERROR_STRING_INTRO + "Failed to determine value type")
             }
 
-            if (rightSideType != CompareValueType.UNKNOWN && newType != rightSideType) {
-                throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "Types of range min and max values must be equal.")
+            if (previousType != CompareValueType.UNKNOWN && newType != previousType) {
+                throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "Types of invidivual values in ranges and value lists must be equal.")
             }
 
-            rightSideType = newType
+            previousType = newType
         }
 
-        return rightSideType
+        return previousType
     }
 
 
@@ -611,19 +740,27 @@ export class NgsiLdQueryParser {
 
         let collected = ""
 
+        let insideQuotedString = false
+
         while (query.length > 0) {
 
             let symbolFound = null
 
             //########### BEGIN Test for known symbol #########
 
+            if (query.substr(0, 1) == '"') {
+                insideQuotedString = !insideQuotedString
+            }
+
             // ATTENTION: The following for loop only works correctly if self.symbols is ordered by item string length!
 
-            for (let symbol of this.tokenizerDetectableSymbols) {
+            if (!insideQuotedString) {
+                for (const symbol of this.tokenizerDetectableSymbols) {
 
-                if (query.substr(0, symbol.length) == symbol) {
-                    symbolFound = symbol
-                    break
+                    if (query.substr(0, symbol.length) == symbol) {
+                        symbolFound = symbol
+                        break
+                    }
                 }
             }
             //########### END Test for known symbol #########
@@ -643,6 +780,10 @@ export class NgsiLdQueryParser {
                 collected += query.substr(0, 1)
                 query = query.substr(1)
             }
+        }
+
+        if (insideQuotedString) {
+            throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "The query string contains invalid quotes strings: " + query)
         }
 
         // Add last token to result:
