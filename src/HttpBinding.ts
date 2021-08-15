@@ -10,7 +10,7 @@
 // TODO: 3 Spec 6.3.6 (Response context representation)
 // TODO: 3 Support GeoJSON for GeoProperty as string
 // TODO: 3 Correct implementation for what to expand and what not
-
+// TODO: 3 Validation: Make sure that all attribute instances have the same type
 // TODO: 3 Automatically add "createdAt" and "modifiedAt" to all Attributes in JSON 
 // so that these fields can be queried with the query language. Remove them from output if not explicitly requested.
 
@@ -60,7 +60,7 @@ export class HttpBinding {
 
     private readonly ERROR_MSG_NOT_IMPLEMENTED_YET = "This operation is not implemented yet."
 
-    private readonly catchExceptions = false
+    private readonly catchExceptions = true
 
     // NOTE: The HTTP handler methods must be defined as arrow functions in order to work!
 

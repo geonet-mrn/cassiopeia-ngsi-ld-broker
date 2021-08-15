@@ -85,7 +85,10 @@ export class ContextBroker {
         const actualContext = appendCoreContext(nonNormalizedContext)
         const context = await getNormalizedContext(actualContext)
 
-        const entity_expanded = await expandObject(entity_from_payload, context)
+        let entity_expanded = await expandObject(entity_from_payload, context)
+
+        entity_expanded = util.unpackGeoPropertyValues(entity_expanded)
+
 
         const entityCheckResults = checkEntity(entity_expanded, true)
 
