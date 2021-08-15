@@ -28,6 +28,7 @@ import { EntityTypeList } from "./dataTypes/EntityTypeList"
 import { JsonLdContextNormalized } from "jsonld-context-parser/lib/JsonLdContextNormalized"
 import { makeGeoQueryCondition } from "./makeGeoQueryCondition"
 import { makeTemporalQueryCondition } from "./makeTemporalQueryCondition"
+import { table } from 'console'
 
 
 
@@ -379,7 +380,7 @@ export class ContextBroker {
             const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : entity_compacted['@context']
             const actualContext = appendCoreContext(nonNormalizedContext)
             const context = await getNormalizedContext(actualContext)
-            
+
 
             let entity_expanded = expandObject(entity_compacted, context)
 
@@ -510,7 +511,7 @@ export class ContextBroker {
             const actualContext = appendCoreContext(nonNormalizedContext)
             const context = await getNormalizedContext(actualContext)
 
-            
+
             let entity_expanded = expandObject(entity_compacted, context)
 
             entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
@@ -775,9 +776,10 @@ export class ContextBroker {
 
         let sql_transaction = "BEGIN;"
 
-        sql_transaction += this.makeUpdateAttributeInstanceQuery(instanceId_number, instance, false)
+        sql_transaction += this.makeUpdateAttributeInstanceQuery(instanceId_number, instance, false, tableCfg.TBL_ATTR)
+        sql_transaction += this.makeUpdateAttributeInstanceQuery(instanceId_number, instance, false, tableCfg.TBL_LATEST_ATTR2)
 
-        sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityMetadata.id)        
+        sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityMetadata.id)
         sql_transaction += "COMMIT;"
 
         const queryResult = await this.runSqlQuery(sql_transaction)
@@ -876,16 +878,16 @@ export class ContextBroker {
         if (keyValues) {
 
             const entities_simplified = []
-            
+
             for (const entity of entities_expanded) {
                 entities_simplified.push(util.simplifyEntity(entity))
             }
 
-            entities_expanded = entities_simplified            
+            entities_expanded = entities_simplified
         }
         //#################### END Create simplified representation if requested ##################
 
-        
+
         //############### BEGIN Compact the result #################
         const result = Array<any>()
 
@@ -969,7 +971,7 @@ export class ContextBroker {
 
         // Fetch entities
         const entities_expanded = await this.queryEntities(query, true, includeSysAttrs, context)
-        
+
         //############### BEGIN Compact the result #################
         const result = Array<any>()
 
@@ -1214,7 +1216,7 @@ export class ContextBroker {
         if (instanceId_expanded != undefined) {
             // NOTE: We assume that the attribute instances is passed in the form "urn:ngsi-ld:InstanceId:instance_<number>"
             const instanceId_number = parseFloat(instanceId_expanded.split("_")[1])
-            
+
             sql_transaction_delete += ` AND ${tableCfg.COL_INSTANCE_ID} = '${instanceId_number}'`
         }
 
@@ -1224,42 +1226,42 @@ export class ContextBroker {
         if (datasetId_expanded !== undefined) {
             sql_transaction_delete += this.makeSqlCondition_datasetId(datasetId_expanded)
         }
-        
+
         sql_transaction_delete += ";"
         //################# END Delete from temporal attributes table ##################
 
 
-        
 
-         //################# BEGIN Delete from latest attributes table ##################
-         sql_transaction_delete += `DELETE FROM ${tableCfg.TBL_LATEST_ATTR2} WHERE eid = ${entityInternalId} `
 
-         // Match attribute ID:
-         sql_transaction_delete += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
- 
-         // Match instance ID if provided:
-         if (instanceId_expanded != undefined) {
-             // NOTE: We assume that the attribute instances is passed in the form "urn:ngsi-ld:InstanceId:instance_<number>"
-             const instanceId_number = parseFloat(instanceId_expanded.split("_")[1])
-             
-             sql_transaction_delete += ` AND ${tableCfg.COL_INSTANCE_ID} = '${instanceId_number}'`
-         }
- 
- 
-         // Match dataset ID if provided:
-         // ATTENTION: It is REQUIRED to compare with a "!==" here! We must NOT use a "!="!
-         if (datasetId_expanded !== undefined) {
-             sql_transaction_delete += this.makeSqlCondition_datasetId(datasetId_expanded)
-         }
+        //################# BEGIN Delete from latest attributes table ##################
+        sql_transaction_delete += `DELETE FROM ${tableCfg.TBL_LATEST_ATTR2} WHERE eid = ${entityInternalId} `
 
-         sql_transaction_delete += ";"
-         //################# END Delete from latest attributes table ##################
- 
- 
+        // Match attribute ID:
+        sql_transaction_delete += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
+
+        // Match instance ID if provided:
+        if (instanceId_expanded != undefined) {
+            // NOTE: We assume that the attribute instances is passed in the form "urn:ngsi-ld:InstanceId:instance_<number>"
+            const instanceId_number = parseFloat(instanceId_expanded.split("_")[1])
+
+            sql_transaction_delete += ` AND ${tableCfg.COL_INSTANCE_ID} = '${instanceId_number}'`
+        }
+
+
+        // Match dataset ID if provided:
+        // ATTENTION: It is REQUIRED to compare with a "!==" here! We must NOT use a "!="!
+        if (datasetId_expanded !== undefined) {
+            sql_transaction_delete += this.makeSqlCondition_datasetId(datasetId_expanded)
+        }
+
+        sql_transaction_delete += ";"
+        //################# END Delete from latest attributes table ##################
+
+
 
 
         sql_transaction_delete += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
-        
+
         sql_transaction_delete += ";COMMIT;"
 
         const queryResult = await this.runSqlQuery(sql_transaction_delete)
@@ -1348,23 +1350,34 @@ export class ContextBroker {
                 }
 
                 // TODO 3: Order and limit to improve performance?
-                let sql_select_existing_instances = `SELECT * FROM ${tableCfg.TBL_ATTR} WHERE eid = ${entityInternalId} `
-                sql_select_existing_instances += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}'`
-                sql_select_existing_instances += this.makeSqlCondition_datasetId(datasetId_expanded_sql)
 
-                const sqlResult = await this.runSqlQuery(sql_select_existing_instances)
+                let sql_select_existing_temporal_instances = `SELECT * FROM ${tableCfg.TBL_ATTR} WHERE eid = ${entityInternalId} `
+                sql_select_existing_temporal_instances += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}'`
+                sql_select_existing_temporal_instances += this.makeSqlCondition_datasetId(datasetId_expanded_sql)
 
-                const existingInstances = sqlResult.rows
+                const sqlResultTemporal = await this.runSqlQuery(sql_select_existing_temporal_instances)
+
+                const existingTemporalInstances = sqlResultTemporal.rows
+
+                /*
+                let sql_select_existing_normal_instances = `SELECT * FROM ${tableCfg.TBL_LATEST_ATTR2} WHERE eid = ${entityInternalId} `
+                sql_select_existing_normal_instances += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}'`
+                sql_select_existing_normal_instances += this.makeSqlCondition_datasetId(datasetId_expanded_sql)
+
+                const sqlResultNormal = await this.runSqlQuery(sql_select_existing_normal_instances)
+
+                const existingNormalInstances = sqlResultNormal.rows
+                */
                 //###################### END Get existing instances #####################
 
 
-                if (temporal || (this.cfg_autoHistory && overwrite && existingInstances.length > 0)) {
+                if (temporal || (this.cfg_autoHistory && overwrite && existingTemporalInstances.length > 0)) {
                     sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
                     updated = true
                 }
                 else {
 
-                    if (existingInstances.length == 0) {
+                    if (existingTemporalInstances.length == 0) {
 
                         if (append) {
                             sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
@@ -1377,14 +1390,15 @@ export class ContextBroker {
 
                             let lastCreatedInstance: any = null
 
-                            for (const exInst of existingInstances) {
+                            for (const exInst of existingTemporalInstances) {
                                 if (lastCreatedInstance == null || exInst.instance_id > lastCreatedInstance.instance_id) {
                                     lastCreatedInstance = exInst
                                 }
                             }
 
                             if (lastCreatedInstance != null) {
-                                sql_transaction += this.makeUpdateAttributeInstanceQuery(lastCreatedInstance.instance_id, instance_expanded, true)
+                                sql_transaction += this.makeUpdateAttributeInstanceQuery(lastCreatedInstance.instance_id, instance_expanded, true, tableCfg.TBL_ATTR)
+                                sql_transaction += this.makeUpdateAttributeInstanceQuery(lastCreatedInstance.instance_id, instance_expanded, true, tableCfg.TBL_LATEST_ATTR2)
                                 updated = true
                             }
                         }
@@ -1396,8 +1410,8 @@ export class ContextBroker {
             if (updated) {
                 result.updated.push(attributeId_expanded)
 
-                sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityInternalId)                
-            
+                sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
+
                 sql_transaction += "COMMIT;"
 
                 await this.runSqlQuery(sql_transaction)
@@ -1427,8 +1441,8 @@ export class ContextBroker {
         queryBuilder.add(tableCfg.COL_ENT_MODIFIED_AT, now.toISOString())
         //############## END Build INSERT query for entities table ###########
 
-        const sql_insert = queryBuilder.getStringForTable(tableCfg.TBL_ENT, "id")
-        
+        const sql_insert = queryBuilder.getStringForTable(tableCfg.TBL_ENT, "id") + ";"
+
         const queryResult = await this.runSqlQuery(sql_insert).catch((error: any) => { })
 
         if (queryResult == undefined) {
@@ -1562,7 +1576,7 @@ export class ContextBroker {
         queryBuilder.add(tableCfg.COL_INSTANCE_JSON, JSON.stringify(cleaned_up_instance_for_write))
         //############ END Clean up JSON for write and write it ##############
 
-      
+
         //################# BEGIN Write attribute type ################
         const attributeTypeIndex = this.attributeTypes.indexOf(instance_expanded['@type'])
 
@@ -1582,7 +1596,7 @@ export class ContextBroker {
             // the GeoJSON object here:
 
             const geojson_string = JSON.stringify(instance_expanded['https://uri.etsi.org/ngsi-ld/hasValue'])
-                        
+
             queryBuilder.add("geom", `ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`, true)
         }
         // ###################### END Write 'geom' column #######################
@@ -1599,12 +1613,59 @@ export class ContextBroker {
         queryBuilder.add(tableCfg.COL_ATTR_MODIFIED_AT, now.toISOString())
 
 
-        let sql = queryBuilder.getStringForTable(tableCfg.TBL_ATTR)
+        let sql = queryBuilder.getStringForTable(tableCfg.TBL_ATTR) + ";"
 
+  
+
+        //###################### BEGIN Add upsert query ##########################
+        /*
+        queryBuilder.add("instance_id", "currval('attributes_id_seq')", true)
+
+        let sql_upsert = queryBuilder.getStringForTable(tableCfg.TBL_LATEST_ATTR2)
+
+        sql_upsert += " ON CONFLICT ON CONSTRAINT unique_dataset_id DO UPDATE SET "
+
+
+        sql_upsert += `${tableCfg.COL_INSTANCE_JSON} = '${JSON.stringify(cleaned_up_instance_for_write)}'`
+        sql_upsert += `, ${tableCfg.COL_INSTANCE_ID} = currval('attributes_id_seq') `
+
+        // Write 'geom' column:
+        if (instance_expanded['@type'] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
+
+            // ATTENTION: Since property values are not expanded, we don't need to re-compact
+            // the GeoJSON object here:
+
+            const geojson_string = JSON.stringify(instance_expanded['https://uri.etsi.org/ngsi-ld/hasValue'])
+
+            sql_upsert += `, geom = ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`
+        }
+
+        // Write 'modified_at' column:            
+        sql_upsert += `, ${tableCfg.COL_ATTR_MODIFIED_AT} = '${now.toISOString()}'`
+
+        // Write attribute type column.
+        sql_upsert += `, ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance_expanded['@type'])}`
+
+
+        // Write 'observed_at' column:
+        if (isDateTimeUtcString(instance_expanded["https://uri.etsi.org/ngsi-ld/observedAt"])) {
+            sql_upsert += `, ${tableCfg.COL_ATTR_OBSERVED_AT} = '${instance_expanded["https://uri.etsi.org/ngsi-ld/observedAt"]}'`
+        }
+
+       // sql_upsert += ` WHERE ${tableCfg.TBL_LATEST_ATTR2}.${tableCfg.COL_ATTR_EID} = ${entityInternalId} AND ${tableCfg.COL_ATTR_NAME} = '${attributeId}' `
+
+      //  sql_upsert += this.makeSqlCondition_datasetId(instance_expanded[uri_datasetId])
+
+        sql_upsert += ";"
+
+        console.log(sql_upsert)
+        sql += sql_upsert
+        */
+        //###################### END Add upsert query ##########################
 
         // NOTE: We don't add a query to update the modifiedAt timestamp of the affected entity here.
         // This is expected to be done in the function where this function is used.
-        
+
         return sql
     }
 
@@ -1626,7 +1687,8 @@ export class ContextBroker {
     makeUpdateAttributeInstanceQuery(
         instanceId: number,
         instance_expanded: any,
-        allowAttributeTypeChange: boolean): string {
+        allowAttributeTypeChange: boolean,
+        table: string): string {
 
         // NOTE: This method returns a Promise that contains the number of updated attribute instances.
 
@@ -1642,7 +1704,10 @@ export class ContextBroker {
 
 
         //################# BEGIN Build SQL query to update attribute instance #####################
-        let sql = `UPDATE ${tableCfg.TBL_ATTR} SET ${tableCfg.COL_INSTANCE_JSON} = '${JSON.stringify(cleaned_up_instance_for_write)}'`
+
+        let sql = `UPDATE ${table} SET `
+        
+        sql += `${tableCfg.COL_INSTANCE_JSON} = '${JSON.stringify(cleaned_up_instance_for_write)}'`
 
         // Write 'geom' column:
         if (instance_expanded['@type'] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
@@ -1651,7 +1716,7 @@ export class ContextBroker {
             // the GeoJSON object here:
 
             const geojson_string = JSON.stringify(instance_expanded['https://uri.etsi.org/ngsi-ld/hasValue'])
-            
+
             sql += `, geom = ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`
         }
 
@@ -1701,6 +1766,7 @@ export class ContextBroker {
     async queryEntities(query: Query, temporal: boolean, includeSysAttrs: boolean, context: JsonLdContextNormalized): Promise<Array<any>> {
 
         const attr_table = temporal ? tableCfg.TBL_ATTR : tableCfg.VIEW_LATEST_ATTR
+        //const attr_table = temporal ? tableCfg.TBL_ATTR : tableCfg.TBL_LATEST_ATTR2
 
 
         //########################### BEGIN Validation ###########################      
@@ -1815,7 +1881,7 @@ export class ContextBroker {
 
         // TODO: 2 - "the entity is available at the Context Source(s) that match the context source filter conditions."
 
-        
+
 
 
         // TODO: 4 "Pagination logic shall be in place as mandated by clause 5.5.9."

@@ -31,7 +31,7 @@ export class InsertQueryBuilder {
             result += " returning " + returnField
         }
 
-        result += ";"
+        //result += ";"
         
         return result
     }
