@@ -41,6 +41,8 @@ export async function axiosPost(url: string, payload: any, config: AxiosRequestC
 
     if (errorResponse != undefined) {
         response = errorResponse
+
+        console.log(response.data)
     }
 
 

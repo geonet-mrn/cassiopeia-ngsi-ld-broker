@@ -191,7 +191,7 @@ describe('6.23.3.1 POST /entityOperations/query with GeoQuery', function () {
 
 
 
-    beforeEach(async () => {
+    before(async () => {
         await prep.deleteAllEntities()
 
         await createEntities()
@@ -199,7 +199,7 @@ describe('6.23.3.1 POST /entityOperations/query with GeoQuery', function () {
     })
 
 
-    afterEach(async () => {
+    after(async () => {
         await prep.deleteAllEntities()
 
 
