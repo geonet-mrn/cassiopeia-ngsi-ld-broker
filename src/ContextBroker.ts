@@ -662,7 +662,7 @@ export class ContextBroker {
 
         fragment_expanded = util.unpackGeoPropertyStringValues(fragment_expanded)
 
-        
+
         const entityCheckResults = checkEntity(fragment_expanded, false)
 
         if (entityCheckResults.length > 0) {
@@ -820,7 +820,7 @@ export class ContextBroker {
         const includeSysAttrs = options.includes("sysAttrs")
 
 
-        const query = new Query([new EntityInfo(entityId, undefined, undefined)], attrs_compacted, undefined, undefined, undefined, undefined, undefined, undefined, undefined)
+        const query = new Query([new EntityInfo(entityId, undefined, undefined)], attrs_compacted, undefined, undefined, undefined, undefined)
         const entities = await this.queryEntities(query, false, includeSysAttrs, context)
 
         if (entities.length == 0) {
@@ -855,15 +855,10 @@ export class ContextBroker {
 
 
     // Spec 5.7.2
-    async api_5_7_2_queryEntities(query: Query, contextUrl: string | undefined): Promise<Array<any> | FeatureCollection> {
+    async api_5_7_2_queryEntities(query: Query, contextUrl: string | undefined, options: Array<string>): Promise<Array<any>> {
 
-        let includeSysAttrs = false
-        let keyValues = false
-
-        if (query.options instanceof Array) {
-            includeSysAttrs = query.options.includes("sysAttrs")
-            keyValues = query.options.includes("keyValues")
-        }
+        let includeSysAttrs = options.includes("sysAttrs")
+        let keyValues = options.includes("keyValues")
 
 
         const actualContext = appendCoreContext(contextUrl)
@@ -874,55 +869,31 @@ export class ContextBroker {
         // Fetch entities
         let entities_expanded = await this.queryEntities(query, false, includeSysAttrs, context)
 
+        //#################### BEGIN Create simplified representation if requested ##################
         if (keyValues) {
 
-            //#################### BEGIN Create simplified representation ##################
-
-            let result = []
-
-            // TODO: Move to helper function
+            const entities_simplified = []
+            
             for (const entity of entities_expanded) {
-                result.push(util.simplifyEntity(entity))
+                entities_simplified.push(util.simplifyEntity(entity))
             }
 
-            entities_expanded = result
-            //#################### END Create simplified representation ##################
+            entities_expanded = entities_simplified            
         }
+        //#################### END Create simplified representation if requested ##################
 
-        // NOTE: Here, we enable GeoJSON output if the query parameter 'geometryProperty' is defined.
-        // This does not follow the NGSI-LD spec. Correctly, GeoJSON output is enabled through setting
-        // of the request accept header "application/geo+json" (see spec 6.3.15):
+        
+        //############### BEGIN Compact the result #################
+        const result = Array<any>()
 
-        let result: any = null
-
-        // If no GeoJSON output is requested, return normal NGSI-LD:
-        if (query.geometryProperty == undefined) {
-
-            result = Array<any>()
-
-            for (const ex of entities_expanded) {
-                let ec = compactObject(ex, context)
-                ec['@context'] = actualContext
-                result.push(ec)
-            }
+        for (const entity_expanded of entities_expanded) {
+            let entity_compacted = compactObject(entity_expanded, context)
+            entity_compacted['@context'] = actualContext
+            result.push(entity_compacted)
         }
-        else {
-            // Otherwise, return GeoJSON:
-            result = new FeatureCollection()
+        //############### END Compact the result #################
 
-            //const geometryProperty_expanded = expandObject(query.geometryProperty, context)
-
-            const geometryProperty_compacted = query.geometryProperty
-
-            for (const entity_expanded of entities_expanded) {
-
-                const entity_compacted = compactObject(entity_expanded, context)
-                entity_compacted['@context'] = actualContext
-
-                const feature = compactedEntityToGeoJsonFeature(entity_compacted, geometryProperty_compacted, query.datasetId)
-                result.features.push(feature)
-            }
-        }
+        // NOTE: The conversion to GeoJSON representation is implemented in the HTTPBinding class.
 
         return result
     }
@@ -951,7 +922,7 @@ export class ContextBroker {
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
 
-        const query = new Query([new EntityInfo(entityId, undefined, undefined)], attrs_compacted, undefined, undefined, undefined, temporalQ, undefined, undefined, undefined)
+        const query = new Query([new EntityInfo(entityId, undefined, undefined)], attrs_compacted, undefined, undefined, undefined, temporalQ)
         const entities = await this.queryEntities(query, true, includeSysAttrs, context)
 
 
@@ -967,7 +938,7 @@ export class ContextBroker {
 
 
     // Spec 5.7.4
-    async api_5_7_4_queryTemporalEntities(query: Query, contextUrl: string | undefined) {
+    async api_5_7_4_queryTemporalEntities(query: Query, contextUrl: string | undefined, options: Array<string>) {
 
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
@@ -988,48 +959,25 @@ export class ContextBroker {
         //################ END Validation ################# 
 
 
-        let includeSysAttrs = false
 
-        if (query.options instanceof Array) {
-            includeSysAttrs = query.options.includes("sysAttrs")
-        }
+        let includeSysAttrs = options.includes("sysAttrs")
+
 
 
         // Fetch entities
         const entities_expanded = await this.queryEntities(query, true, includeSysAttrs, context)
+        
+        //############### BEGIN Compact the result #################
+        const result = Array<any>()
 
-        // NOTE: Here, we enable GeoJSON output if the query parameter 'geometryProperty' is defined.
-        // This does not follow the NGSI-LD spec. Correctly, GeoJSON output is enabled through setting
-        // of the request accept header "application/geo+json" (see spec 6.3.15):
-
-        // If no GeoJSON output is requested, return normal NGSI-LD:
-        if (query.geometryProperty == undefined) {
-
-            const entities_compacted = compactObject(entities_expanded, context)
-
-            for (const ec of entities_compacted) {
-                ec['@context'] = actualContext
-            }
-
-            return entities_compacted
-        }
-
-
-        // Otherwise, return GeoJSON:
-
-        let geojsonResult = new FeatureCollection()
-
-        //############ BEGIN Iterate over returned entities to build GeoJSON response ############
         for (const entity_expanded of entities_expanded) {
-
-            const entity_compacted = compactObject(entities_expanded, context)
+            let entity_compacted = compactObject(entity_expanded, context)
             entity_compacted['@context'] = actualContext
-            const feature = compactedEntityToGeoJsonFeature(entity_compacted, query.geometryProperty, query.datasetId)
-            geojsonResult.features.push(feature)
+            result.push(entity_compacted)
         }
-        //############ END Iterate over returned entities to build GeoJSON response ############
+        //############### END Compact the result #################
 
-        return geojsonResult
+        return result
     }
 
 

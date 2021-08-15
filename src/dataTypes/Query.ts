@@ -14,14 +14,6 @@ export class Query {
         public q : string|undefined,
         public geoQ : GeoQuery|undefined,
         public csf : string|undefined,
-        public temporalQ : TemporalQuery|undefined,
-
-        // NOTE: 'geometryProperty', 'datasetId', 'options' and '@context' are not official members 
-        // of the Query class, but it makes sense to add them.
-        // TODO: Ask NEC about this.
-        public geometryProperty : string|undefined,
-        public datasetId : string|undefined,
-        public options : Array<string>|undefined,
-        
+        public temporalQ : TemporalQuery|undefined 
     ) {}
 }
