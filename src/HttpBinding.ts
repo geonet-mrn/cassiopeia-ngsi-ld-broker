@@ -26,9 +26,6 @@
 
 // TODO: 5 Spec 5.5.9 (pagination)
 // TODO: 5 Spec 6.3.12
-// TODO: 5 Spec 6.3.13 (results count header)
-
-
 
 import * as Koa from "koa"
 import * as compress from "koa-compress"
@@ -41,7 +38,7 @@ import { errorTypes } from "./errorTypes"
 import { EntityInfo } from "./dataTypes/EntityInfo"
 import { Query } from "./dataTypes/Query"
 import { TemporalQuery } from "./dataTypes/TemporalQuery"
-import { compactObject, getNormalizedContext, NGSI_LD_CORE_CONTEXT_URL } from "./jsonld"
+import { getNormalizedContext, NGSI_LD_CORE_CONTEXT_URL } from "./jsonld"
 
 import * as fs from 'fs'
 import * as auth from 'basic-auth'
@@ -96,6 +93,7 @@ export class HttpBinding {
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
 
         const options = (typeof (ctx.request.query.options) == "string") ? (ctx.request.query.options as string).split(",") : []
+        const count = ctx.request.query.count == "true" // spec 6.3.13
 
         //############## BEGIN Build EntityInfo array ###############
         const entityIds = (typeof (ctx.request.query.id) == "string") ? (ctx.request.query.id as string).split(",") : []
@@ -122,7 +120,7 @@ export class HttpBinding {
         const georel = ctx.request.query.georel
         const geometry = ctx.request.query.geometry
         const geoproperty = ctx.request.query.geoproperty
-        const count = ctx.request.count // spec 6.3.13
+        
 
         let coordinates = undefined
 
@@ -167,7 +165,13 @@ export class HttpBinding {
         const query = new Query(entities, attrs, q, geoQ, csf, undefined)
 
         // Perform query:
-        const entities_compacted = await this.broker.api_5_7_2_queryEntities(query, contextUrl,options)
+        const entities_compacted = await this.broker.api_5_7_2_queryEntities(query, contextUrl, options)
+
+
+        if (count) {
+            console.log("COUNT IS SET")
+            ctx.set("NGSILD-Results-Count", entities_compacted.length)
+        }
 
         ctx.status = 200
         
