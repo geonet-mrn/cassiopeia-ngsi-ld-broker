@@ -1,7 +1,6 @@
 // NGSI-LD Version 1.3.1
 // https://www.etsi.org/deliver/etsi_gs/CIM/001_099/009/01.03.01_60/gs_CIM009v010301p.pdf
 
-// TODO: 1 Make NGSI-LD "range" and "valueList" compare types safe to use with quoted strings that contain ".." or ","
 // TODO: 1 Test PostgreSQL connection at broker startup
 // TODO: 2 Correct implementation for what to expand and what not
 // TODO: 2 Add GeoJSON output for post query requests
@@ -24,7 +23,6 @@
 // TODO: 4 Implement "limit" / pagination (spec 5.5.9 / 6.3.10)
 // TODO: 4 Spec 4.5.9 / 6.3.12 (simplified or aggregated temporal representation of entities)
 
-// TODO: 5 PERFORMANCE: Implement "latest_attributes" as a materialized view
 
 import * as Koa from "koa"
 import * as compress from "koa-compress"

@@ -10,7 +10,7 @@ import { Query } from "./dataTypes/Query"
 import { TemporalQuery } from "./dataTypes/TemporalQuery"
 import { UpdateResult } from "./dataTypes/UpdateResult"
 import { errorTypes } from "./errorTypes"
-import { checkArrayOfEntities, checkArrayOfUris, checkReifiedAttribute, checkEntity, isUri, isDateTimeUtcString, checkGeoQuery, checkQuery } from "./validate"
+import { checkArrayOfEntities, checkArrayOfUris, checkReifiedAttribute, checkEntity, isUri, isDateTimeUtcString, checkGeoQuery, checkQuery, isReifiedAttribute } from "./validate"
 import { appendCoreContext, compactObject, expandObject, getNormalizedContext } from "./jsonld"
 import { parseJson, compactedEntityToGeoJsonFeature as compactedEntityToGeoJsonFeature } from "./util"
 import * as util from './util'
@@ -38,7 +38,7 @@ const uri_modifiedAt = "https://uri.etsi.org/ngsi-ld/modifiedAt"
 const uri_datasetId = "https://uri.etsi.org/ngsi-ld/datasetId"
 const uri_createdAt = "https://uri.etsi.org/ngsi-ld/createdAt"
 const uri_instanceId = "https://uri.etsi.org/ngsi-ld/instanceId"
-
+const uri_value = "https://uri.etsi.org/ngsi-ld/hasValue"
 
 
 const tableCfg = new PsqlTableConfig()
@@ -1559,22 +1559,14 @@ export class ContextBroker {
 
         const queryBuilder = new InsertQueryBuilder()
 
-
-
         queryBuilder.add(tableCfg.COL_ATTR_EID, entityInternalId)
         queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId)
         queryBuilder.add(tableCfg.COL_DATASET_ID, instance_expanded[uri_datasetId])
 
 
-        //############ BEGIN Clean up JSON for write and write it ##############
-        const cleaned_up_instance_for_write = JSON.parse(JSON.stringify(instance_expanded))
-
-        delete (cleaned_up_instance_for_write["@type"])
-        delete (cleaned_up_instance_for_write["https://uri.etsi.org/ngsi-ld/observedAt"])
-        delete (cleaned_up_instance_for_write[uri_datasetId])
-
+        // Write JSON:
+        const cleaned_up_instance_for_write = this.cleanUpAttributeInstanceForWrite(instance_expanded)
         queryBuilder.add(tableCfg.COL_INSTANCE_JSON, JSON.stringify(cleaned_up_instance_for_write))
-        //############ END Clean up JSON for write and write it ##############
 
 
         //################# BEGIN Write attribute type ################
@@ -1684,42 +1676,59 @@ export class ContextBroker {
     }
 
 
+    cleanUpAttributeInstanceForWrite(instance_expanded : any) : any {
+        let cleanedInstance : any = {}
+
+        if (instance_expanded["@type"] == "https://uri.etsi.org/ngsi-ld/Property" || instance_expanded["@type"] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
+            cleanedInstance[uri_value] = instance_expanded[uri_value]
+        }
+        else if (instance_expanded["@type"] == "https://uri.etsi.org/ngsi-ld/Relationship") {
+            cleanedInstance["https://uri.etsi.org/ngsi-ld/hasObject"] = instance_expanded["https://uri.etsi.org/ngsi-ld/hasObject"]
+        }
+
+        if (typeof instance_expanded["https://uri.etsi.org/ngsi-ld/unitCode"] == "string") {
+            cleanedInstance["https://uri.etsi.org/ngsi-ld/unitCode"] = instance_expanded["https://uri.etsi.org/ngsi-ld/unitCode"]
+        }
+
+        for(const key in instance_expanded) {
+            if (isReifiedAttribute(instance_expanded[key], key)) {
+                cleanedInstance[key] = instance_expanded[key]
+            }
+        }
+
+        return cleanedInstance
+    }
+
     makeUpdateAttributeInstanceQuery(
         instanceId: number,
         instance_expanded: any,
         allowAttributeTypeChange: boolean,
         table: string): string {
 
-        // NOTE: This method returns a Promise that contains the number of updated attribute instances.
+          
 
-        //############# BEGIN Clean up JSON before writing it to the database ############
-
-        let cleaned_up_instance_for_write = JSON.parse(JSON.stringify(instance_expanded))
-
-        delete (cleaned_up_instance_for_write["@type"])
-        delete (cleaned_up_instance_for_write["https://uri.etsi.org/ngsi-ld/observedAt"])
-        delete (cleaned_up_instance_for_write[uri_datasetId])
-
-        //############# END Clean up JSON before writing it to the database ############
-
+        const cleanedInstance = this.cleanUpAttributeInstanceForWrite(instance_expanded)
 
         //################# BEGIN Build SQL query to update attribute instance #####################
 
         let sql = `UPDATE ${table} SET `
         
-        sql += `${tableCfg.COL_INSTANCE_JSON} = '${JSON.stringify(cleaned_up_instance_for_write)}'`
+        // Write JSON column:
+        sql += `${tableCfg.COL_INSTANCE_JSON} = '${JSON.stringify(cleanedInstance)}'`
 
         // Write 'geom' column:
         if (instance_expanded['@type'] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
 
-            // ATTENTION: Since property values are not expanded, we don't need to re-compact
-            // the GeoJSON object here:
+            // ATTENTION: 
+            // Since property values are not expanded, we don't need to re-compact the GeoJSON object here:
 
             const geojson_string = JSON.stringify(instance_expanded['https://uri.etsi.org/ngsi-ld/hasValue'])
 
             sql += `, geom = ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`
         }
 
+        // Write attribute type column.
+        sql += `, ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance_expanded['@type'])}`
 
         // Write 'dataset_id' column:    
         sql += `, ${tableCfg.COL_DATASET_ID} = '${instance_expanded[uri_datasetId]}'`
@@ -1727,10 +1736,6 @@ export class ContextBroker {
         // Write 'modified_at' column:    
         const now = new Date()
         sql += `, ${tableCfg.COL_ATTR_MODIFIED_AT} = '${now.toISOString()}'`
-
-        // Write attribute type column.
-        sql += `, ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance_expanded['@type'])}`
-
 
         // Write 'observed_at' column:
         if (isDateTimeUtcString(instance_expanded["https://uri.etsi.org/ngsi-ld/observedAt"])) {
