@@ -19,7 +19,7 @@ import { EntityInfo } from "./dataTypes/EntityInfo"
 import { PsqlTableConfig } from "./PsqlTableConfig"
 import { NgsiLdQueryParser } from "./NgsiLdQueryParser"
 import { NotUpdatedDetails } from "./dataTypes/NotUpdatedDetails"
-import { InsertQueryBuilder } from "./InsertQueryBuilder"
+import { SqlQueryBuilder } from "./InsertQueryBuilder"
 import { Attribute } from "./dataTypes/Attribute"
 import { AttributeList } from "./dataTypes/AttributeList"
 import { EntityType } from "./dataTypes/EntityType"
@@ -1433,7 +1433,7 @@ export class ContextBroker {
         //############## BEGIN Build INSERT query for entities table ###########
         const now = new Date()
 
-        const queryBuilder = new InsertQueryBuilder()
+        const queryBuilder = new SqlQueryBuilder()
 
         queryBuilder.add(tableCfg.COL_ENT_ID, entity_expanded['@id'])
         queryBuilder.add(tableCfg.COL_ENT_TYPE, entity_expanded['@type'])
@@ -1441,7 +1441,7 @@ export class ContextBroker {
         queryBuilder.add(tableCfg.COL_ENT_MODIFIED_AT, now.toISOString())
         //############## END Build INSERT query for entities table ###########
 
-        const sql_insert = queryBuilder.getStringForTable(tableCfg.TBL_ENT, "id") + ";"
+        const sql_insert = queryBuilder.getInsertQueryForTable(tableCfg.TBL_ENT, "id") + ";"
 
         const queryResult = await this.runSqlQuery(sql_insert).catch((error: any) => { })
 
@@ -1553,61 +1553,24 @@ export class ContextBroker {
 
     makeCreateAttributeInstanceQuery(entityInternalId: number, attributeId: string, instance_expanded: any): string {
 
-        // NOTE: This is implemented as a method that returns an SQL string instead of
-        // a method which directly creates an attribute, because in some places, we want
-        // to combine multiple attribute creation queries in one transaction.
-
-        const queryBuilder = new InsertQueryBuilder()
+        const queryBuilder = this.makeUpdateQueryBuilder(instance_expanded)
 
         queryBuilder.add(tableCfg.COL_ATTR_EID, entityInternalId)
         queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId)
-        queryBuilder.add(tableCfg.COL_DATASET_ID, instance_expanded[uri_datasetId])
 
 
-        // Write JSON:
-        const cleaned_up_instance_for_write = this.cleanUpAttributeInstanceForWrite(instance_expanded)
-        queryBuilder.add(tableCfg.COL_INSTANCE_JSON, JSON.stringify(cleaned_up_instance_for_write))
-
-
-        //################# BEGIN Write attribute type ################
-        const attributeTypeIndex = this.attributeTypes.indexOf(instance_expanded['@type'])
-
-        if (attributeTypeIndex < 0) {
-            throw errorTypes.InternalError.withDetail("Invalid attribute type: " + instance_expanded['@type'])
-        }
-
-        queryBuilder.add(tableCfg.COL_ATTR_TYPE, attributeTypeIndex)
-        //################# END Write attribute type ################
-
-
-
-        // ###################### BEGIN Write 'geom' column #######################
-        if (instance_expanded['@type'] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
-
-            // ATTENTION: Since property values are not expanded, we don't need to re-compact
-            // the GeoJSON object here:
-
-            const geojson_string = JSON.stringify(instance_expanded['https://uri.etsi.org/ngsi-ld/hasValue'])
-
-            queryBuilder.add("geom", `ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`, true)
-        }
-        // ###################### END Write 'geom' column #######################
-
-
-        // Write 'observed_at' column:
-        if (isDateTimeUtcString(instance_expanded["https://uri.etsi.org/ngsi-ld/observedAt"])) {
-            queryBuilder.add(tableCfg.COL_ATTR_OBSERVED_AT, instance_expanded["https://uri.etsi.org/ngsi-ld/observedAt"])
-        }
-
-        // Write "created at" and "modified at" columns:
+        // Write "created at" column:        
         const now = new Date()
         queryBuilder.add(tableCfg.COL_ATTR_CREATED_AT, now.toISOString())
+
+        // Write "modified at" column:
         queryBuilder.add(tableCfg.COL_ATTR_MODIFIED_AT, now.toISOString())
 
 
-        let sql = queryBuilder.getStringForTable(tableCfg.TBL_ATTR) + ";"
 
-  
+        let sql = queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR) + ";"
+
+
 
         //###################### BEGIN Add upsert query ##########################
         /*
@@ -1676,8 +1639,8 @@ export class ContextBroker {
     }
 
 
-    cleanUpAttributeInstanceForWrite(instance_expanded : any) : any {
-        let cleanedInstance : any = {}
+    cleanUpAttributeInstanceForWrite(instance_expanded: any): any {
+        let cleanedInstance: any = {}
 
         if (instance_expanded["@type"] == "https://uri.etsi.org/ngsi-ld/Property" || instance_expanded["@type"] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
             cleanedInstance[uri_value] = instance_expanded[uri_value]
@@ -1690,7 +1653,7 @@ export class ContextBroker {
             cleanedInstance["https://uri.etsi.org/ngsi-ld/unitCode"] = instance_expanded["https://uri.etsi.org/ngsi-ld/unitCode"]
         }
 
-        for(const key in instance_expanded) {
+        for (const key in instance_expanded) {
             if (isReifiedAttribute(instance_expanded[key], key)) {
                 cleanedInstance[key] = instance_expanded[key]
             }
@@ -1699,60 +1662,66 @@ export class ContextBroker {
         return cleanedInstance
     }
 
-    makeUpdateAttributeInstanceQuery(
-        instanceId: number,
-        instance_expanded: any,
-        allowAttributeTypeChange: boolean,
-        table: string): string {
 
-          
+    makeUpdateQueryBuilder(instance_expanded: any): SqlQueryBuilder {
 
+        const queryBuilder = new SqlQueryBuilder()
+
+        // Write 'dataset_id' column:    
+        queryBuilder.add(tableCfg.COL_DATASET_ID, instance_expanded[uri_datasetId])
+
+        // Write JSON:
         const cleanedInstance = this.cleanUpAttributeInstanceForWrite(instance_expanded)
+        queryBuilder.add(tableCfg.COL_INSTANCE_JSON, JSON.stringify(cleanedInstance))
 
-        //################# BEGIN Build SQL query to update attribute instance #####################
-
-        let sql = `UPDATE ${table} SET `
-        
-        // Write JSON column:
-        sql += `${tableCfg.COL_INSTANCE_JSON} = '${JSON.stringify(cleanedInstance)}'`
-
-        // Write 'geom' column:
+        // ############### BEGIN Write 'geom' column ################
         if (instance_expanded['@type'] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
 
             // ATTENTION: 
             // Since property values are not expanded, we don't need to re-compact the GeoJSON object here:
 
             const geojson_string = JSON.stringify(instance_expanded['https://uri.etsi.org/ngsi-ld/hasValue'])
+            queryBuilder.add("geom", `ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`, true)
+        }
+        // ############### END Write 'geom' column ################
 
-            sql += `, geom = ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`
+
+        //################# BEGIN Write attribute type ################
+        const attributeTypeIndex = this.attributeTypes.indexOf(instance_expanded['@type'])
+
+        if (attributeTypeIndex < 0) {
+            throw errorTypes.InternalError.withDetail("Invalid attribute type: " + instance_expanded['@type'])
         }
 
-        // Write attribute type column.
-        sql += `, ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance_expanded['@type'])}`
-
-        // Write 'dataset_id' column:    
-        sql += `, ${tableCfg.COL_DATASET_ID} = '${instance_expanded[uri_datasetId]}'`
-
-        // Write 'modified_at' column:    
-        const now = new Date()
-        sql += `, ${tableCfg.COL_ATTR_MODIFIED_AT} = '${now.toISOString()}'`
+        queryBuilder.add(tableCfg.COL_ATTR_TYPE, attributeTypeIndex)
+        //################# END Write attribute type ################
 
         // Write 'observed_at' column:
         if (isDateTimeUtcString(instance_expanded["https://uri.etsi.org/ngsi-ld/observedAt"])) {
-            sql += `, ${tableCfg.COL_ATTR_OBSERVED_AT} = '${instance_expanded["https://uri.etsi.org/ngsi-ld/observedAt"]}'`
+            queryBuilder.add(tableCfg.COL_ATTR_OBSERVED_AT, instance_expanded["https://uri.etsi.org/ngsi-ld/observedAt"])
         }
 
+        return queryBuilder
+    }
+
+
+    makeUpdateAttributeInstanceQuery(
+        instanceId: number,
+        instance_expanded: any,
+        allowAttributeTypeChange: boolean,
+        table: string): string {
+
+        const queryBuilder = this.makeUpdateQueryBuilder(instance_expanded)
+
+        let sql = queryBuilder.getUpdateQueryForTable(table)
 
         // Add WHERE conditions:        
         sql += ` WHERE ${tableCfg.COL_INSTANCE_ID} = ${instanceId}`
-
 
         if (!allowAttributeTypeChange) {
             // ATTENTION: COL_ATTR_TYPE is of type smallint, so no quotes around the value here!
             sql += ` AND ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance_expanded['@type'])}`
         }
-
-        //################# END Build SQL query to update attribute instance #####################
 
         sql += ';'
 
@@ -1939,7 +1908,7 @@ export class ContextBroker {
         }
 
 
-        console.log(sql_select)
+
 
         const queryResult = await this.runSqlQuery(sql_select)
 

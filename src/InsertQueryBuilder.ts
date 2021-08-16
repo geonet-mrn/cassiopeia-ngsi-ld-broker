@@ -1,4 +1,4 @@
-export class InsertQueryBuilder {
+export class SqlQueryBuilder {
 
     private fields = Array<string>()
     private values = Array<any>()
@@ -19,20 +19,36 @@ export class InsertQueryBuilder {
         else if (typeof (value) == "string") {
             valueString = `'${value}'`
         }
+        else if (value == null || value == undefined) {
+            valueString = 'null'
+        }
 
         this.values.push(valueString)
     }
 
 
-    getStringForTable(tableName: string, returnField : string |undefined = undefined): string {
+    getInsertQueryForTable(tableName: string, returnField : string |undefined = undefined): string {
         let result =  `INSERT INTO ${tableName} (${this.fields.join(",")}) VALUES (${this.values.join(",")})`
 
         if (returnField != undefined){
             result += " returning " + returnField
         }
 
-        //result += ";"
+        return result
+    }
+
+
+
+    getUpdateQueryForTable(tableName: string): string {
         
+        let assignments = Array<any>()
+
+        for(let ii = 0; ii < this.fields.length;ii++) {
+            assignments.push(this.fields[ii] + " = " + this.values[ii])
+        }
+
+        let result =  `UPDATE ${tableName} SET ${assignments.join(", ")}`
+
         return result
     }
 }
