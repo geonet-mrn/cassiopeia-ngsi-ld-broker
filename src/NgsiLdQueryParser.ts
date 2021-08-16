@@ -27,7 +27,7 @@ enum CompareValueType {
     DATE = "date",
     DATETIME = "datetime",
     NUMBER = "number",
-    QUOTEDSTR = "quotedstr",
+    QUOTEDSTR = "quotedstr",    
     TIME = "time",
     URI = "uri"
 }
@@ -263,7 +263,7 @@ export class NgsiLdQueryParser {
         }
 
 
-        let jsonFullPathSql = ""
+        let jsonFullPathSql_property = ""
 
         //############### BEGIN Build main attribute path expression (without trailing path) ##############
 
@@ -296,15 +296,18 @@ export class NgsiLdQueryParser {
         }
 
         // We begin with the main attribute path which we have already built:
-        jsonFullPathSql = jsonAttrPathSql
+        jsonFullPathSql_property = jsonAttrPathSql
+
+        
 
         // If we have a trailing path, let's add it to the main path:
+        // NOTE: Trailing paths don't exist in relationships!
         if (trailingPath != null) {
 
             // ATTENTION: Note that we access "value" as a JSON OBJECT here ("->" operator), 
             // and not as its direct value ("->>" operator)!!
 
-            jsonFullPathSql += `->'https://uri.etsi.org/ngsi-ld/hasValue'`
+            jsonFullPathSql_property += `->'https://uri.etsi.org/ngsi-ld/hasValue'`
 
             for (let ii = 0; ii < trailingPath.length; ii++) {
                 const key = trailingPath[ii]
@@ -313,10 +316,10 @@ export class NgsiLdQueryParser {
                 // ATTENTION: Property values are not expanded accoring to M. Bauer 2021-04-30!
 
                 if (ii == trailingPath.length - 1) {
-                    jsonFullPathSql += `->>'${key}'`
+                    jsonFullPathSql_property += `->>'${key}'`
                 }
                 else {
-                    jsonFullPathSql += `->'${key}'`
+                    jsonFullPathSql_property += `->'${key}'`
                 }
             }
         }
@@ -327,7 +330,7 @@ export class NgsiLdQueryParser {
             // we access "value" as its direct value here ("->>" Operator)!         
 
             if (!(this.nonReifiedDefaultProperties.includes(attrPath[attrPath.length - 1]))) {
-                jsonFullPathSql += `->>'https://uri.etsi.org/ngsi-ld/hasValue'`
+                jsonFullPathSql_property += `->>'https://uri.etsi.org/ngsi-ld/hasValue'`
             }
         }
         //############# END Build Complete attribute path expression (with trailing path) ##############           
@@ -366,26 +369,26 @@ export class NgsiLdQueryParser {
         }
         //############## END Validation ##############
 
-        result += " AND "
+        result += " AND ("
 
         // Single value compare:
         if (range.length == 1 && valueList.length == 1) {
-            result += this.buildSingleValueCompare(range[0], op, jsonFullPathSql, jsonAttrPathSql, attrTable)
+            result += this.buildSingleValueCompare(range[0], op, jsonFullPathSql_property, jsonAttrPathSql, attrTable)
         }
         // Range compare:
         else if (range.length == 2) {
-            result += this.buildRangeCompare(range, op, jsonFullPathSql)
+            result += this.buildRangeCompare(range, op, jsonFullPathSql_property)
         }
 
         // Value list compare:
         else if (valueList.length > 1) {
-            result += this.buildValueListCompare(valueList, op, jsonFullPathSql, jsonAttrPathSql, attrTable)
+            result += this.buildValueListCompare(valueList, op, jsonFullPathSql_property, jsonAttrPathSql, attrTable)
         }
         else {
             throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "Could not determine structure of compare value: " + rightSide)
         }
 
-        //################ END Compare expression ################
+        result += ")"
 
         return result
     }
@@ -471,7 +474,7 @@ export class NgsiLdQueryParser {
     }
 
 
-    private buildSingleValueCompare(compareValue: string, op: String, jsonFullPathSql: string, jsonAttrPathSql: string, attrTable: string) {
+    private buildSingleValueCompare(compareValue: string, op: String, jsonFullPathSql_property: string, jsonAttrPathSql: string, attrTable: string) {
 
         let result = ""
 
@@ -485,34 +488,53 @@ export class NgsiLdQueryParser {
 
         switch (compareType) {
             case CompareValueType.BOOLEAN: {
-                result += `(${jsonFullPathSql})::boolean ${op} ${compareValue}`
+                result += `(${jsonFullPathSql_property})::boolean ${op} ${compareValue}`
                 break
             }
             case CompareValueType.DATE: {
-                result += `(${jsonFullPathSql})::timestamp ${op} '${compareValue}'`
+                result += `(${jsonFullPathSql_property})::timestamp ${op} '${compareValue}'`
                 break
             }
             case CompareValueType.TIME: {
-                result += `(${jsonFullPathSql})::timestamp::time ${op} '${compareValue}'`
+                result += `(${jsonFullPathSql_property})::timestamp::time ${op} '${compareValue}'`
                 break
             }
             case CompareValueType.DATETIME: {
-                result += `(${jsonFullPathSql})::timestamp ${op} '${compareValue}'`
+                result += `(${jsonFullPathSql_property})::timestamp ${op} '${compareValue}'`
                 break
             }
             case CompareValueType.NUMBER: {
-                result += `(${jsonFullPathSql})::numeric ${op} ${compareValue}`
+                result += `(${jsonFullPathSql_property})::numeric ${op} ${compareValue}`
                 break
             }
+            
             case CompareValueType.QUOTEDSTR: {
-                // NOTE: With the substr(), we remove the beginning and end quotes:                
 
-                result += `(${jsonFullPathSql})::text ${op} '${compareValue.substr(1, compareValue.length - 2)}'`
+                // ATTENTION: According to the NGSI-LD specification section 4.9, a relationship URI 
+                // in an NGSI-LD query must not be enclosed in double quotes. This case is handled in 
+                // the next 'case' block. However, apparently, at least the Orion broker supports 
+                // relationship queries with quoted URIs. For compatibility, we support this syntax, too. 
+                // In order to do so, we must compare all quoted string compare queries both against 
+                // possible instances of "Property.value" and of of "Relationship.object":
+
+                // NOTE: With the substr(), we remove the beginning and end quotes: 
+                
+                const stringWithoutQuotes = compareValue.substr(1, compareValue.length - 2)
+
+                //result += `(${jsonFullPathSql_property})::text ${op} '${stringWithoutQuotes}'`
+
+                // NOTE: We use jsonFullPathSql_property to access Property 'value' and jsonAttrPathSql to access Relationship 'object' 
+                // because Propery value queries can have a trailing path, while Relationship object queries can't have a trailing path
+
+                result += `(${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Property')} AND (${jsonFullPathSql_property})::text ${op} '${stringWithoutQuotes}')`
+                
+                result += " OR "
+
+                result += `(${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Relationship')} AND ${jsonAttrPathSql}->>'https://uri.etsi.org/ngsi-ld/hasObject' ${op} '${stringWithoutQuotes}')`
                 break
             }
             case CompareValueType.URI: {
-                // NOTE: Compare expression for Relationships is different, so we don't set test1 here and
-                // write the Relationship expression below if test1 == null.
+               
                 // NOTE: For Relationship queries, the trailing path does not play a role:
 
                 result += `${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Relationship')} AND ${jsonAttrPathSql}->>'https://uri.etsi.org/ngsi-ld/hasObject' = '${compareValue}'`
@@ -639,6 +661,16 @@ export class NgsiLdQueryParser {
             else {
                 throw errorTypes.InternalError.withDetail(this.ERROR_STRING_INTRO + "Failed to determine value type")
             }
+
+            /*
+            if (item.match('"[^"]*"')) {
+                const itemWithoutEnclosingQuotes = item.substr(1, item.length - 2) 
+              
+                if (isUri(itemWithoutEnclosingQuotes)) {
+                    newType = CompareValueType.QUOTEDURI
+                }
+            }
+            */
 
             if (previousType != CompareValueType.UNKNOWN && newType != previousType) {
                 throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "Types of invidivual values in ranges and value lists must be equal.")
