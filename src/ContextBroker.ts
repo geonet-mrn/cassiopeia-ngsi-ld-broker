@@ -774,15 +774,15 @@ export class ContextBroker {
 
         const instanceId_number = parseInt(instanceId_expanded.split("_")[1])
 
-        let sql_transaction = "BEGIN;"
+        let sql_t_update_attr = "BEGIN;"
 
-        sql_transaction += this.makeUpdateAttributeInstanceQuery(instanceId_number, instance, false, tableCfg.TBL_ATTR)
-        sql_transaction += this.makeUpdateAttributeInstanceQuery(instanceId_number, instance, false, tableCfg.TBL_LATEST_ATTR2)
+        sql_t_update_attr += this.makeUpdateAttributeInstanceQuery(instanceId_number, instance, false, tableCfg.TBL_ATTR)
+        //sql_transaction += this.makeUpdateAttributeInstanceQuery(instanceId_number, instance, false, tableCfg.TBL_LATEST_ATTR2)
 
-        sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityMetadata.id)
-        sql_transaction += "COMMIT;"
+        sql_t_update_attr += this.makeUpdateEntityModifiedAtQuery(entityMetadata.id)
+        sql_t_update_attr += "COMMIT;"
 
-        const queryResult = await this.runSqlQuery(sql_transaction)
+        const queryResult = await this.runSqlQuery(sql_t_update_attr)
 
         await this.refreshMaterializedViews()
     }
@@ -1139,13 +1139,13 @@ export class ContextBroker {
 
     //############################ BEGIN Inofficial API methods ############################
     async api_inofficial_deleteAllEntities() {
-        let sql_transaction_delete_all = "BEGIN;"
-        sql_transaction_delete_all += `DELETE FROM ${tableCfg.TBL_ENT};`
-        sql_transaction_delete_all += `DELETE FROM ${tableCfg.TBL_ATTR};`
-        sql_transaction_delete_all += `DELETE FROM ${tableCfg.TBL_LATEST_ATTR2};`
-        sql_transaction_delete_all += "COMMIT;"
+        let sql_t_delete_all = "BEGIN;"
+        sql_t_delete_all += `DELETE FROM ${tableCfg.TBL_ENT};`
+        sql_t_delete_all += `DELETE FROM ${tableCfg.TBL_ATTR};`
+        sql_t_delete_all += `DELETE FROM ${tableCfg.TBL_LATEST_ATTR2};`
+        sql_t_delete_all += "COMMIT;"
 
-        await this.runSqlQuery(sql_transaction_delete_all)
+        await this.runSqlQuery(sql_t_delete_all)
     }
 
 
@@ -1203,13 +1203,13 @@ export class ContextBroker {
         //######## END Read target entity from database to get its internal ID, which is required for the delete call ##########
 
 
-        let sql_transaction_delete = "BEGIN;"
+        let sql_t_delete = "BEGIN;"
 
         //################# BEGIN Delete from temporal attributes table ##################
-        sql_transaction_delete += `DELETE FROM ${tableCfg.TBL_ATTR} WHERE eid = ${entityInternalId} `
+        sql_t_delete += `DELETE FROM ${tableCfg.TBL_ATTR} WHERE eid = ${entityInternalId} `
 
         // Match attribute ID:
-        sql_transaction_delete += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
+        sql_t_delete += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
 
 
         // Match instance ID if provided:
@@ -1217,54 +1217,51 @@ export class ContextBroker {
             // NOTE: We assume that the attribute instances is passed in the form "urn:ngsi-ld:InstanceId:instance_<number>"
             const instanceId_number = parseFloat(instanceId_expanded.split("_")[1])
 
-            sql_transaction_delete += ` AND ${tableCfg.COL_INSTANCE_ID} = '${instanceId_number}'`
+            sql_t_delete += ` AND ${tableCfg.COL_INSTANCE_ID} = '${instanceId_number}'`
         }
 
 
         // Match dataset ID if provided:
         // ATTENTION: It is REQUIRED to compare with a "!==" here! We must NOT use a "!="!
         if (datasetId_expanded !== undefined) {
-            sql_transaction_delete += this.makeSqlCondition_datasetId(datasetId_expanded)
+            sql_t_delete += this.makeSqlCondition_datasetId(datasetId_expanded)
         }
 
-        sql_transaction_delete += ";"
+        sql_t_delete += ";"
         //################# END Delete from temporal attributes table ##################
 
 
 
 
         //################# BEGIN Delete from latest attributes table ##################
-        sql_transaction_delete += `DELETE FROM ${tableCfg.TBL_LATEST_ATTR2} WHERE eid = ${entityInternalId} `
+        sql_t_delete += `DELETE FROM ${tableCfg.TBL_LATEST_ATTR2} WHERE eid = ${entityInternalId} `
 
         // Match attribute ID:
-        sql_transaction_delete += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
+        sql_t_delete += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
 
         // Match instance ID if provided:
         if (instanceId_expanded != undefined) {
             // NOTE: We assume that the attribute instances is passed in the form "urn:ngsi-ld:InstanceId:instance_<number>"
             const instanceId_number = parseFloat(instanceId_expanded.split("_")[1])
 
-            sql_transaction_delete += ` AND ${tableCfg.COL_INSTANCE_ID} = '${instanceId_number}'`
+            sql_t_delete += ` AND ${tableCfg.COL_INSTANCE_ID} = '${instanceId_number}'`
         }
 
 
         // Match dataset ID if provided:
         // ATTENTION: It is REQUIRED to compare with a "!==" here! We must NOT use a "!="!
         if (datasetId_expanded !== undefined) {
-            sql_transaction_delete += this.makeSqlCondition_datasetId(datasetId_expanded)
+            sql_t_delete += this.makeSqlCondition_datasetId(datasetId_expanded)
         }
 
-        sql_transaction_delete += ";"
+        sql_t_delete += ";"
         //################# END Delete from latest attributes table ##################
 
+        sql_t_delete += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
 
+        sql_t_delete += ";COMMIT;"
 
-
-        sql_transaction_delete += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
-
-        sql_transaction_delete += ";COMMIT;"
-
-        const queryResult = await this.runSqlQuery(sql_transaction_delete)
+        const queryResult = await this.runSqlQuery(sql_t_delete)
 
         if (queryResult.rowCount == 0) {
             throw errorTypes.ResourceNotFound.withDetail(`Failed to delete attribute instance. No attribute instance with the following properties exists: Entity ID = '${entityId}', Attribute ID ='${attributeId_expanded}', Instance ID = '${instanceId_expanded}'.`)
@@ -1300,7 +1297,7 @@ export class ContextBroker {
         //####################### BEGIN Iterate over attributes #############################
         for (const attributeId_expanded in fragment_expanded) {
 
-            let sql_transaction = "BEGIN;"
+            let sql_t_append_or_update = "BEGIN;"
 
 
             // Do not process @id, @type and @context:
@@ -1372,7 +1369,7 @@ export class ContextBroker {
 
 
                 if (temporal || (this.cfg_autoHistory && overwrite && existingTemporalInstances.length > 0)) {
-                    sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
+                    sql_t_append_or_update += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
                     updated = true
                 }
                 else {
@@ -1380,7 +1377,7 @@ export class ContextBroker {
                     if (existingTemporalInstances.length == 0) {
 
                         if (append) {
-                            sql_transaction += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
+                            sql_t_append_or_update += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
                             updated = true
                         }
                     }
@@ -1397,8 +1394,8 @@ export class ContextBroker {
                             }
 
                             if (lastCreatedInstance != null) {
-                                sql_transaction += this.makeUpdateAttributeInstanceQuery(lastCreatedInstance.instance_id, instance_expanded, true, tableCfg.TBL_ATTR)
-                                sql_transaction += this.makeUpdateAttributeInstanceQuery(lastCreatedInstance.instance_id, instance_expanded, true, tableCfg.TBL_LATEST_ATTR2)
+                                sql_t_append_or_update += this.makeUpdateAttributeInstanceQuery(lastCreatedInstance.instance_id, instance_expanded, true, tableCfg.TBL_ATTR)
+                                //sql_transaction += this.makeUpdateAttributeInstanceQuery(lastCreatedInstance.instance_id, instance_expanded, true, tableCfg.TBL_LATEST_ATTR2)
                                 updated = true
                             }
                         }
@@ -1410,11 +1407,11 @@ export class ContextBroker {
             if (updated) {
                 result.updated.push(attributeId_expanded)
 
-                sql_transaction += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
+                sql_t_append_or_update += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
 
-                sql_transaction += "COMMIT;"
+                sql_t_append_or_update += "COMMIT;"
 
-                await this.runSqlQuery(sql_transaction)
+                await this.runSqlQuery(sql_t_append_or_update)
 
                 await this.refreshMaterializedViews()
             }
@@ -1441,9 +1438,9 @@ export class ContextBroker {
         queryBuilder.add(tableCfg.COL_ENT_MODIFIED_AT, now.toISOString())
         //############## END Build INSERT query for entities table ###########
 
-        const sql_insert = queryBuilder.getInsertQueryForTable(tableCfg.TBL_ENT, "id") + ";"
+        const sql_insert_ent = queryBuilder.getInsertQueryForTable(tableCfg.TBL_ENT, "id") + ";"
 
-        const queryResult = await this.runSqlQuery(sql_insert).catch((error: any) => { })
+        const queryResult = await this.runSqlQuery(sql_insert_ent).catch((error: any) => { })
 
         if (queryResult == undefined) {
             return -1
@@ -1567,56 +1564,7 @@ export class ContextBroker {
         queryBuilder.add(tableCfg.COL_ATTR_MODIFIED_AT, now.toISOString())
 
 
-
         let sql = queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR) + ";"
-
-
-
-        //###################### BEGIN Add upsert query ##########################
-        /*
-        queryBuilder.add("instance_id", "currval('attributes_id_seq')", true)
-
-        let sql_upsert = queryBuilder.getStringForTable(tableCfg.TBL_LATEST_ATTR2)
-
-        sql_upsert += " ON CONFLICT ON CONSTRAINT unique_dataset_id DO UPDATE SET "
-
-
-        sql_upsert += `${tableCfg.COL_INSTANCE_JSON} = '${JSON.stringify(cleaned_up_instance_for_write)}'`
-        sql_upsert += `, ${tableCfg.COL_INSTANCE_ID} = currval('attributes_id_seq') `
-
-        // Write 'geom' column:
-        if (instance_expanded['@type'] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
-
-            // ATTENTION: Since property values are not expanded, we don't need to re-compact
-            // the GeoJSON object here:
-
-            const geojson_string = JSON.stringify(instance_expanded['https://uri.etsi.org/ngsi-ld/hasValue'])
-
-            sql_upsert += `, geom = ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`
-        }
-
-        // Write 'modified_at' column:            
-        sql_upsert += `, ${tableCfg.COL_ATTR_MODIFIED_AT} = '${now.toISOString()}'`
-
-        // Write attribute type column.
-        sql_upsert += `, ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance_expanded['@type'])}`
-
-
-        // Write 'observed_at' column:
-        if (isDateTimeUtcString(instance_expanded["https://uri.etsi.org/ngsi-ld/observedAt"])) {
-            sql_upsert += `, ${tableCfg.COL_ATTR_OBSERVED_AT} = '${instance_expanded["https://uri.etsi.org/ngsi-ld/observedAt"]}'`
-        }
-
-       // sql_upsert += ` WHERE ${tableCfg.TBL_LATEST_ATTR2}.${tableCfg.COL_ATTR_EID} = ${entityInternalId} AND ${tableCfg.COL_ATTR_NAME} = '${attributeId}' `
-
-      //  sql_upsert += this.makeSqlCondition_datasetId(instance_expanded[uri_datasetId])
-
-        sql_upsert += ";"
-
-        console.log(sql_upsert)
-        sql += sql_upsert
-        */
-        //###################### END Add upsert query ##########################
 
         // NOTE: We don't add a query to update the modifiedAt timestamp of the affected entity here.
         // This is expected to be done in the function where this function is used.
