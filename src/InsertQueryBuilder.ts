@@ -7,10 +7,12 @@ export class SqlQueryBuilder {
 
     add(field: string, value: any, noQuotes: boolean = false) {
 
-        this.fields.push(field)
+        if (value === undefined) {
+            return
+        }
 
         // TODO: 4 How to handle unexpected/unsupported values?
-        let valueString = "null"
+        let valueString : string|undefined = undefined
 
         if (typeof (value) == "number" || (typeof (value) == "string" && noQuotes)) {
             valueString = `${value}`
@@ -19,10 +21,11 @@ export class SqlQueryBuilder {
         else if (typeof (value) == "string") {
             valueString = `'${value}'`
         }
-        else if (value == null || value == undefined) {
+        else if (value === null) {
             valueString = 'null'
         }
 
+        this.fields.push(field)
         this.values.push(valueString)
     }
 
