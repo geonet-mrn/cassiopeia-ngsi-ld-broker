@@ -1844,7 +1844,7 @@ export class ContextBroker {
 
         const existingInstancesOfAllAttributes = sqlResultTemporal.rows
 
-        console.log(existingInstancesOfAllAttributes)
+        
         //###################### END Get existing attribute instances #####################
 
 
@@ -1915,7 +1915,9 @@ export class ContextBroker {
                 }
                 else if (existingInstancesWithSameDatasetId.length == 1) {
 
-                    if (overwrite) {                        
+                    //console.log(JSON.stringifyexistingInstancesWithSameDatasetId[0]["json"] + "\n\n" + this.cleanUpAttributeInstanceForWrite(instance_expanded))
+
+                    if (overwrite && JSON.stringify(existingInstancesWithSameDatasetId[0]["json"]) != JSON.stringify(this.cleanUpAttributeInstanceForWrite(instance_expanded))) {                        
 
                         sql_t_append_or_update += queryBuilder.getUpdateQueryForTable(tableCfg.TBL_ATTR_LATEST)
 
