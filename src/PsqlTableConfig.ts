@@ -8,6 +8,7 @@ export class PsqlTableConfig {
 
     
     readonly COL_ATTR_EID = "eid"
+    readonly COL_ATTR_GEOM = "geom"
     readonly COL_ATTR_NAME = "attr_name"
     readonly COL_ATTR_TYPE = "attr_type"
     readonly COL_DATASET_ID = "dataset_id"

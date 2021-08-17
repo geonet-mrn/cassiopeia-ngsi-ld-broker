@@ -27,6 +27,7 @@ import { EntityTypeList } from "./dataTypes/EntityTypeList"
 import { JsonLdContextNormalized } from "jsonld-context-parser/lib/JsonLdContextNormalized"
 import { makeGeoQueryCondition } from "./makeGeoQueryCondition"
 import { makeTemporalQueryCondition } from "./makeTemporalQueryCondition"
+import { error } from 'console'
 
 
 
@@ -794,7 +795,7 @@ export class ContextBroker {
         //################ END Update temporal table ################
 
 
-
+        /*
         //################ BEGIN Update last created table ################
         sql_update += queryBuilder.getUpdateQueryForTable(tableCfg.TBL_ATTR_LATEST)
 
@@ -809,7 +810,7 @@ export class ContextBroker {
         //################ END Update last created table ################
 
         // TODO: Error message if attribute type change was attempted?
-
+        */
 
 
         sql_update += this.makeUpdateEntityModifiedAtQuery(entityMetadata.id)
@@ -1302,9 +1303,12 @@ export class ContextBroker {
         //###################### BEGIN Get existing attribute instances #####################
         let sql_getExistingInstances = `SELECT * FROM ${tableCfg.TBL_ATTR_LATEST} WHERE eid = ${entityInternalId} `
 
+
         const sqlResultTemporal = await this.runSqlQuery(sql_getExistingInstances)
 
         const existingInstances = sqlResultTemporal.rows
+
+        //console.log(existingInstances)
         //###################### END Get existing attribute instances #####################
 
 
@@ -1337,116 +1341,72 @@ export class ContextBroker {
 
                 let datasetId_sql = (datasetId_expanded === undefined) ? null : datasetId_expanded
 
-                let doIt = false
+                
+
+                let numExistingInstancesWithSameDatasetId = 0
+
+                for (const inst of existingInstances) {
+                    if (inst["attr_name"] == attributeId_expanded && inst["dataset_id"] == datasetId_sql) {
+                        numExistingInstancesWithSameDatasetId++
+                    }
+                }
 
                 // For temporal, we always create a new instance:
+                /*
+                let doIt = false
                 if (temporal) {
                     doIt = true
                 }
-                else {
-
-                    let numExistingInstancesWithSameDatasetId = 0
-
-                    for (const inst of existingInstances) {
-                        if (inst["attr_name"] == attributeId_expanded && inst["dataset_id"] == datasetId_expanded) {
-                            numExistingInstancesWithSameDatasetId++
-                        }
-                    }
+                */
 
 
-                    // For not temporal, and if no other instances already exist:
-                    if (numExistingInstancesWithSameDatasetId == 0) {
-                        if (append) {
-                            doIt = true
-                        }
-                    }
-                    // For not temporal, and if other instances already exist:
-                    else if (numExistingInstancesWithSameDatasetId == 1) {
-                        if (overwrite) {
-                            doIt = true
-                        }
-                    }
-                    else if (numExistingInstancesWithSameDatasetId > 1) {
-                        throw errorTypes.InternalError.withDetail("More than one attribute instance with same datasetId found. This is a database inconsistency and should never happen!")
-                    }
-                }
+                /*
+                  //################ BEGIN Update temporal table ################
+                  const queryBuilder = this.makeQueryBuilder(instance_expanded)
 
-                if (doIt) {
+                  queryBuilder.add(tableCfg.COL_ATTR_EID, entityInternalId, true)
+                  queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId_expanded)
+                  queryBuilder.add(tableCfg.COL_ATTR_CREATED_AT, now.toISOString())
+                  queryBuilder.add(tableCfg.COL_ATTR_MODIFIED_AT, now.toISOString())
 
-                    // TODO: Implement this with update on conflict instead of delete + insert
+                  sql_t_append_or_update += queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR_TEMPORAL) + ";"
+                  //################ END Update temporal table ################
+*/
 
-                    //################ BEGIN Update temporal table ################
-                    const queryBuilder = this.makeQueryBuilder(instance_expanded)
-
-                    queryBuilder.add(tableCfg.COL_ATTR_EID, entityInternalId)
-                    queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId_expanded)
-                    queryBuilder.add(tableCfg.COL_ATTR_CREATED_AT, now.toISOString())
-                    queryBuilder.add(tableCfg.COL_ATTR_MODIFIED_AT, now.toISOString())
-
-                    sql_t_append_or_update += queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR_TEMPORAL) + ";"
-                    //################ END Update temporal table ################
+                //################## BEGIN Build upsert query for latest attributes table #####################
 
 
-                    //################## BEGIN Build upsert query for latest attributes table #####################
+                const queryBuilder2 = this.makeQueryBuilder(instance_expanded)
 
-                    // First, delete all attribute instances with the same datasetId from the table that holds
-                    // the most recent attribute states. There should always exist at most one attribute instance
-                    // with one specific dataset ID in this table, but the delete query will delete all of them if
-                    // there are multiple, which can be considered as a sort of extra consistency keeping:
+                queryBuilder2.add(tableCfg.COL_ATTR_MODIFIED_AT, now.toISOString())
 
-                    let sql_delete_attr = `DELETE FROM ${tableCfg.TBL_ATTR_LATEST} WHERE ${tableCfg.COL_ATTR_EID} = ${entityInternalId} AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
-                    sql_delete_attr += this.makeSqlCondition_datasetId(datasetId_sql)
-                    sql_delete_attr += ";"
+                if (numExistingInstancesWithSameDatasetId == 0 && append) {
 
-                    sql_t_append_or_update += sql_delete_attr
+                    queryBuilder2.add(tableCfg.COL_ATTR_EID, entityInternalId, true)
+                    queryBuilder2.add(tableCfg.COL_ATTR_NAME, attributeId_expanded)
+                    queryBuilder2.add(tableCfg.COL_ATTR_CREATED_AT, now.toISOString())
 
-                    // Now we create the insert query. We reuse the query builder for the insert query into the
-                    // temporal table, but add the instance ID. The instance IDs in the table with the most
-                    // recent attribute states are not auto-incremented, but copied from the temporal table
-                    // to ensure consistency:
-                    queryBuilder.add(tableCfg.COL_INSTANCE_ID, "currval('attributes_id_seq')", true)
-
-                    sql_t_append_or_update += queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR_LATEST) + ";"
-
-
-                    //################## END Build upsert query for latest attributes table #####################
-
-
-
-                    // Attempt to implement an alternative with "ON CONFLICT UPDATE". Is perhaps faster, but does not work yet:
-                    /*
-                    //################### BEGIN Upsert version ###################
-                    queryBuilder.add(tableCfg.COL_INSTANCE_ID, "currval('attributes_id_seq')", true)
-    
-                    let sql_upsert_latest = queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR_LATEST) 
-                    sql_upsert_latest += " ON CONFLICT ON CONSTRAINT latest_attributes_eid_attr_name_dataset_id_key DO UPDATE SET "                    
-                    
-                    sql_upsert_latest += queryBuilder.getCommaPairs()    
-                    
-                    
-                    sql_upsert_latest += ` WHERE ${tableCfg.TBL_ATTR_LATEST}.${tableCfg.COL_ATTR_EID} = ${entityInternalId} AND ${tableCfg.TBL_ATTR_LATEST}.${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}'`                        
-    
-                    if (datasetId_sql == null) {
-                        sql_upsert_latest += ` AND ${tableCfg.TBL_ATTR_LATEST}.${tableCfg.COL_DATASET_ID} is null`
-                    }
-                    else if (datasetId_sql === undefined) {
-                        sql_upsert_latest +=  ` AND ${tableCfg.TBL_ATTR_LATEST}.${tableCfg.COL_DATASET_ID} is null`
-                    }
-                    else {
-                        sql_upsert_latest += ` AND ${tableCfg.TBL_ATTR_LATEST}.${tableCfg.COL_DATASET_ID} = '${datasetId_sql}'`
-                    }
-                    
-                    sql_upsert_latest += ";"
-                    
-                    //################### END Upsert version ###################
-                
-                    console.log(sql_upsert_latest)
-    
-                    sql_t_append_or_update += sql_upsert_latest
-                    */
+                    sql_t_append_or_update += queryBuilder2.getInsertQueryForTable(tableCfg.TBL_ATTR_LATEST) + ";"
 
                     updated = true
                 }
+                if (numExistingInstancesWithSameDatasetId == 1 && overwrite) {
+
+                    sql_t_append_or_update += queryBuilder2.getUpdateQueryForTable(tableCfg.TBL_ATTR_LATEST)
+
+                    sql_t_append_or_update += ` WHERE ${tableCfg.COL_ATTR_EID} = ${entityInternalId} AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
+                    sql_t_append_or_update += this.makeSqlCondition_datasetId(existingInstances[0]["dataset_id"])
+                    sql_t_append_or_update += ";"
+
+                    updated = true
+                }
+                if (numExistingInstancesWithSameDatasetId > 1) {
+                    throw errorTypes.InternalError.withDetail("Multiple instances with same datasetId")
+                }
+                //################## END Build upsert query for latest attributes table #####################
+
+                
+
             }
             //################## END Iterate over attribute instances #######################
 
@@ -1469,6 +1429,8 @@ export class ContextBroker {
 
         return result
     }
+
+
 
 
     private async createEntity(entity_expanded: any, temporal: boolean): Promise<number> {
@@ -1637,7 +1599,7 @@ export class ContextBroker {
         const queryBuilder = new SqlQueryBuilder()
 
         // Write 'dataset_id' column:    
-        let datasetId_sql = instance_expanded[uri_datasetId] == undefined ? null : instance_expanded[uri_datasetId]
+        let datasetId_sql = instance_expanded[uri_datasetId] === undefined ? null : instance_expanded[uri_datasetId]
         queryBuilder.add(tableCfg.COL_DATASET_ID, datasetId_sql)
 
         // Write JSON:
