@@ -54,4 +54,15 @@ export class SqlQueryBuilder {
 
         return result
     }
+
+
+    getCommaPairs(): string {
+        let assignments = Array<any>()
+
+        for(let ii = 0; ii < this.fields.length;ii++) {
+            assignments.push(this.fields[ii] + " = " + this.values[ii])
+        }
+
+        return assignments.join(" , ")
+    }
 }

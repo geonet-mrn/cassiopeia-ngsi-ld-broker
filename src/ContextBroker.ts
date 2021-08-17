@@ -640,9 +640,9 @@ export class ContextBroker {
             // the existing Entity as mandated by clause 5.6.12.":
 
             // NOTE: If "temporal" (last parameter) is true, then "overwrite" (second-last parameter)
-            // has no effect. We set it to false, but setting it to true wouldn't change the result.
+            // has no effect. We set it to true, but setting it to false wouldn't change the result.
             // In temporal mode, attribute instances are always appended and never overwritten.
-            await this.appendEntityAttributes(entityMetadata.id, entity_expanded, false, true, true, undefined)
+            await this.appendEntityAttributes(entityMetadata.id, entity_expanded, true, true, true, undefined)
 
             return 204
         }
@@ -680,7 +680,7 @@ export class ContextBroker {
         //###################### END Try to fetch existing entity ########################
 
 
-        await this.appendEntityAttributes(entityMetadata.id, fragment_expanded, false, true, true, undefined)
+        await this.appendEntityAttributes(entityMetadata.id, fragment_expanded, true, true, true, undefined)
     }
 
 
@@ -774,28 +774,49 @@ export class ContextBroker {
 
         const instanceId_number = parseInt(instanceId_expanded.split("_")[1])
 
+
+
         const queryBuilder = this.makeQueryBuilder(instance_expanded)
 
-        let sql = "BEGIN;"
+        let sql_update = "BEGIN;"
 
-        //sql += this.makeUpdateAttributeInstanceQuery(attributeId_expanded, instanceId_number, instance, false, tableCfg.TBL_ATTR)
-
-
-        sql += queryBuilder.getUpdateQueryForTable(tableCfg.TBL_ATTR)
+      
+        //################ BEGIN Update temporal table ################
+        sql_update += queryBuilder.getUpdateQueryForTable(tableCfg.TBL_ATTR)
 
         // Add WHERE conditions:    
 
-        sql += ` WHERE ${tableCfg.COL_INSTANCE_ID} = ${instanceId_number}`
+        sql_update += ` WHERE ${tableCfg.COL_INSTANCE_ID} = ${instanceId_number}`
 
+        // Don't allow attribute type change:
         // ATTENTION: COL_ATTR_TYPE is of type smallint, so no quotes around the value here!
-        sql += ` AND ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance_expanded['@type'])}`
+        sql_update += ` AND ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance_expanded['@type'])}`
+        sql_update += ';'
+        //################ END Update temporal table ################
 
-        sql += ';'
 
-        sql += this.makeUpdateEntityModifiedAtQuery(entityMetadata.id)
-        sql += "COMMIT;"
 
-        await this.runSqlQuery(sql)
+        //################ BEGIN Update last created table ################
+        sql_update += queryBuilder.getUpdateQueryForTable(tableCfg.TBL_LATEST_ATTR2)
+
+        // Add WHERE conditions:    
+
+        sql_update += ` WHERE ${tableCfg.COL_INSTANCE_ID} = ${instanceId_number}`
+
+        // Don't allow attribute type change:
+        // ATTENTION: COL_ATTR_TYPE is of type smallint, so no quotes around the value here!
+        sql_update += ` AND ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance_expanded['@type'])}`
+        sql_update += ';'
+        //################ END Update last created table ################
+
+        // TODO: Error message if attribute type change was attempted?
+
+
+
+        sql_update += this.makeUpdateEntityModifiedAtQuery(entityMetadata.id)
+        sql_update += "COMMIT;"
+
+        await this.runSqlQuery(sql_update)
 
         await this.refreshMaterializedViews()
     }
@@ -1228,7 +1249,7 @@ export class ContextBroker {
         // Match instance ID if provided:
         if (instanceId_expanded != undefined) {
             // NOTE: We assume that the attribute instances is passed in the form "urn:ngsi-ld:InstanceId:instance_<number>"
-            const instanceId_number = parseFloat(instanceId_expanded.split("_")[1])
+            const instanceId_number = parseInt(instanceId_expanded.split("_")[1])
 
             sql_t_delete += ` AND ${tableCfg.COL_INSTANCE_ID} = '${instanceId_number}'`
         }
@@ -1236,8 +1257,6 @@ export class ContextBroker {
 
         // Match dataset ID if provided:        
         sql_t_delete += this.makeSqlCondition_datasetId(datasetId_expanded)
-
-
         sql_t_delete += ";"
         //################# END Delete from temporal attributes table ##################
 
@@ -1250,21 +1269,14 @@ export class ContextBroker {
         // Match attribute ID:
         sql_t_delete += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
 
-        // Match instance ID if provided:
-        if (instanceId_expanded != undefined) {
-            // NOTE: We assume that the attribute instances is passed in the form "urn:ngsi-ld:InstanceId:instance_<number>"
-            const instanceId_number = parseFloat(instanceId_expanded.split("_")[1])
-
-            sql_t_delete += ` AND ${tableCfg.COL_INSTANCE_ID} = '${instanceId_number}'`
-        }
-
-
+        // NOTE: We don't specify the instance ID here!
+      
         // Match dataset ID if provided:        
         sql_t_delete += this.makeSqlCondition_datasetId(datasetId_expanded)
-
-
         sql_t_delete += ";"
         //################# END Delete from latest attributes table ##################
+
+
 
         sql_t_delete += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
 
@@ -1272,6 +1284,7 @@ export class ContextBroker {
 
         const queryResult = await this.runSqlQuery(sql_t_delete)
 
+        // TODO: 2 Row count does probably not work as expected here
         if (queryResult.rowCount == 0) {
             throw errorTypes.ResourceNotFound.withDetail(`Failed to delete attribute instance. No attribute instance with the following properties exists: Entity ID = '${entityId}', Attribute ID ='${attributeId_expanded}', Instance ID = '${instanceId_expanded}'.`)
         }
@@ -1282,6 +1295,8 @@ export class ContextBroker {
 
 
     private async appendEntityAttributes(entityInternalId: number, fragment_expanded: any, overwrite: boolean, append: boolean, temporal: boolean, attributeIdToUpdate: string | undefined) {
+
+        const now = new Date()
 
         const result = new UpdateResult()
 
@@ -1350,16 +1365,18 @@ export class ContextBroker {
                 const datasetId_expanded = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
 
 
-                //###################### BEGIN Get existing instances with same datasetId #####################
-                let datasetId_expanded_sql = datasetId_expanded
+                let datasetId_sql = datasetId_expanded
 
-                if (datasetId_expanded_sql === undefined) {
-                    datasetId_expanded_sql = null
+
+                if (datasetId_sql === undefined) {
+                    datasetId_sql = null
                 }
+                //###################### BEGIN Get existing instances with same datasetId #####################
+              
 
                 let sql_selectInstancesWithSameDatasetId = `SELECT * FROM ${tableCfg.TBL_ATTR} WHERE eid = ${entityInternalId} `
                 sql_selectInstancesWithSameDatasetId += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}'`
-                sql_selectInstancesWithSameDatasetId += this.makeSqlCondition_datasetId(datasetId_expanded_sql)
+                sql_selectInstancesWithSameDatasetId += this.makeSqlCondition_datasetId(datasetId_sql)
 
                 const sqlResultTemporal = await this.runSqlQuery(sql_selectInstancesWithSameDatasetId)
 
@@ -1367,12 +1384,71 @@ export class ContextBroker {
 
                 //###################### END Get existing instances with same datasetId #####################
 
+                let doIt = false
 
+                // For temporal, we always create a new instance:
+                if (temporal) {
+                    doIt = true
+                    
+                }
+                // For not temporal, and if other instances already exist:
+                else if (instancesWithSameDatasetId.length > 0) {
+
+                    if (overwrite) {
+                        doIt = true                        
+                    }
+                }
+                // For not temporal, and if no other instances already exist:
+                else if (instancesWithSameDatasetId.length == 0) {
+
+                    if (append) {
+                        doIt = true                        
+                    }
+                }
+
+
+                if (doIt) {
+
+                    // TODO: Implement this with update on conflict instead of delete + insert
+
+                    const queryBuilder = this.makeQueryBuilder(instance_expanded)
+            
+                    queryBuilder.add(tableCfg.COL_ATTR_EID, entityInternalId)
+                    queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId_expanded)
+                    queryBuilder.add(tableCfg.COL_ATTR_CREATED_AT, now.toISOString())
+                    queryBuilder.add(tableCfg.COL_ATTR_MODIFIED_AT, now.toISOString())
+            
+                    sql_t_append_or_update += queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR) + ";"
+            
+
+                    // Build upsert query:
+                    
+                    let sql_delete_attr = `DELETE FROM ${tableCfg.TBL_LATEST_ATTR2} WHERE ${tableCfg.COL_ATTR_EID} = ${entityInternalId} AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
+                    sql_delete_attr += this.makeSqlCondition_datasetId(datasetId_sql)
+                    sql_delete_attr += ";"
+
+                    sql_t_append_or_update += sql_delete_attr
+
+                    queryBuilder.add(tableCfg.COL_INSTANCE_ID, "currval('attributes_id_seq')", true)
+
+                    let sql_upsert_latest = queryBuilder.getInsertQueryForTable(tableCfg.TBL_LATEST_ATTR2) + ";"
+/*
+                    sql_upsert_latest += " ON CONFLICT ON CONSTRAINT unique_dataset_id DO UPDATE SET "
+                    //sql_upsert_latest += " ON CONFLICT DO UPDATE SET "
+                    sql_upsert_latest += queryBuilder.getCommaPairs() + "; "
+  */                  
+                    sql_t_append_or_update += sql_upsert_latest
+    
+                    
+                    updated = true
+                }
+
+                /*
                 // For temporal, we always create a new instance:
                 if (temporal) {
                     sql_t_append_or_update += this.makeCreateAttributeInstanceQuery(entityInternalId, attributeId_expanded, instance_expanded)
                     updated = true
-                }
+                }                
                 // For not temporal, and if other instances already exist:
                 else if (instancesWithSameDatasetId.length > 0) {
 
@@ -1412,6 +1488,7 @@ export class ContextBroker {
                         updated = true
                     }
                 }
+                */
             }
             //################## END Iterate over attribute instances #######################
 
@@ -1497,7 +1574,7 @@ export class ContextBroker {
         sql_delete_attributes += "COMMIT;"
 
         // Run transaction query:        
-        const queryResult2 = await this.runSqlQuery(sql_delete_attributes)
+        await this.runSqlQuery(sql_delete_attributes)
         //############ END Build and run transaction query to delete all attribute rows ###########
 
         return true
@@ -1559,21 +1636,17 @@ export class ContextBroker {
     }
 
 
+    /*
     makeCreateAttributeInstanceQuery(entityInternalId: number, attributeId_expanded: string, instance_expanded: any): string {
+
+        const now = new Date()
 
         const queryBuilder = this.makeQueryBuilder(instance_expanded)
 
         queryBuilder.add(tableCfg.COL_ATTR_EID, entityInternalId)
         queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId_expanded)
-
-
-        // Write "created at" column:        
-        const now = new Date()
         queryBuilder.add(tableCfg.COL_ATTR_CREATED_AT, now.toISOString())
-
-        // Write "modified at" column:
         queryBuilder.add(tableCfg.COL_ATTR_MODIFIED_AT, now.toISOString())
-
 
         let sql = queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR) + ";"
 
@@ -1582,8 +1655,7 @@ export class ContextBroker {
 
         return sql
     }
-
-
+    */
 
 
     makeSqlCondition_datasetId(datasetId: string | null | undefined): string {
@@ -1676,8 +1748,8 @@ export class ContextBroker {
     // Spec 5.7.2
     async queryEntities(query: Query, temporal: boolean, includeSysAttrs: boolean, context: JsonLdContextNormalized): Promise<Array<any>> {
 
-        const attr_table = temporal ? tableCfg.TBL_ATTR : tableCfg.VIEW_LATEST_ATTR
-        //const attr_table = temporal ? tableCfg.TBL_ATTR : tableCfg.TBL_LATEST_ATTR2
+        //const attr_table = temporal ? tableCfg.TBL_ATTR : tableCfg.VIEW_LATEST_ATTR
+        const attr_table = temporal ? tableCfg.TBL_ATTR : tableCfg.TBL_LATEST_ATTR2
 
 
         //########################### BEGIN Validation ###########################      
