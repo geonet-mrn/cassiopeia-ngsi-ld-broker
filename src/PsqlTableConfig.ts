@@ -1,10 +1,10 @@
 export class PsqlTableConfig {
 
     //############# BEGIN SQL table and column namen constants ###############
-    readonly TBL_ATTR = "attributes"
+    readonly TBL_ATTR_TEMPORAL = "attributes"
     readonly TBL_ENT = "entities"
     readonly VIEW_LATEST_ATTR = "view_latest_attributes"
-    readonly TBL_LATEST_ATTR2 = "latest_attributes"    
+    readonly TBL_ATTR_LATEST = "latest_attributes"    
 
     
     readonly COL_ATTR_EID = "eid"
