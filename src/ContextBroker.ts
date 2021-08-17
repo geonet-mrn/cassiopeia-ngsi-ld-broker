@@ -1423,7 +1423,7 @@ export class ContextBroker {
         if (datasetId === null) {
             return ` AND ${tableCfg.COL_DATASET_ID} is null`
         }
-        else if (datasetId === undefined) {            
+        else if (datasetId === undefined) {
             // ATTENTION: Returning nothing here is correct
             return ""
         }
@@ -1844,7 +1844,7 @@ export class ContextBroker {
 
         const existingInstancesOfAllAttributes = sqlResultTemporal.rows
 
-        
+
         //###################### END Get existing attribute instances #####################
 
 
@@ -1854,7 +1854,7 @@ export class ContextBroker {
         for (const attributeId_expanded in fragment_expanded) {
 
             const existingAttributeInstances = []
-            
+
             for (const inst of existingInstancesOfAllAttributes) {
                 if (inst["attr_name"] == attributeId_expanded) {
                     existingAttributeInstances.push(inst)
@@ -1885,7 +1885,7 @@ export class ContextBroker {
                 const datasetId_sql = (datasetId_expanded === undefined) ? null : datasetId_expanded
 
                 const existingInstancesWithSameDatasetId = []
-                
+
                 for (const inst of existingAttributeInstances) {
                     if (inst["dataset_id"] == datasetId_sql) {
                         existingInstancesWithSameDatasetId.push(inst)
@@ -1900,33 +1900,29 @@ export class ContextBroker {
 
                 queryBuilder.add(tableCfg.COL_ATTR_MODIFIED_AT, now.toISOString())
 
-                if (existingInstancesWithSameDatasetId.length == 0) {
+                if (existingInstancesWithSameDatasetId.length == 0 && append) {
 
-                    if (append) {
-                        
-                        queryBuilder.add(tableCfg.COL_ATTR_EID, entityInternalId, true)
-                        queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId_expanded)
-                        queryBuilder.add(tableCfg.COL_ATTR_CREATED_AT, now.toISOString())
+                    queryBuilder.add(tableCfg.COL_ATTR_EID, entityInternalId, true)
+                    queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId_expanded)
+                    queryBuilder.add(tableCfg.COL_ATTR_CREATED_AT, now.toISOString())
 
-                        sql_t_append_or_update += queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR_LATEST) + ";"
+                    sql_t_append_or_update += queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR_LATEST) + ";"
 
-                        instanceUpdated = true
-                    }
+                    instanceUpdated = true
+
                 }
-                else if (existingInstancesWithSameDatasetId.length == 1) {
+                else if (existingInstancesWithSameDatasetId.length == 1 && overwrite) {
+                    
+                    //if (overwrite && JSON.stringify(existingInstancesWithSameDatasetId[0]["json"]) != JSON.stringify(this.cleanUpAttributeInstanceForWrite(instance_expanded))) {                        
 
-                    //console.log(JSON.stringifyexistingInstancesWithSameDatasetId[0]["json"] + "\n\n" + this.cleanUpAttributeInstanceForWrite(instance_expanded))
+                    sql_t_append_or_update += queryBuilder.getUpdateQueryForTable(tableCfg.TBL_ATTR_LATEST)
 
-                    if (overwrite && JSON.stringify(existingInstancesWithSameDatasetId[0]["json"]) != JSON.stringify(this.cleanUpAttributeInstanceForWrite(instance_expanded))) {                        
+                    sql_t_append_or_update += ` WHERE ${tableCfg.COL_ATTR_EID} = ${entityInternalId} AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
+                    sql_t_append_or_update += this.makeSqlCondition_datasetId(existingInstancesWithSameDatasetId[0]["dataset_id"])
+                    sql_t_append_or_update += ";"
 
-                        sql_t_append_or_update += queryBuilder.getUpdateQueryForTable(tableCfg.TBL_ATTR_LATEST)
-
-                        sql_t_append_or_update += ` WHERE ${tableCfg.COL_ATTR_EID} = ${entityInternalId} AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
-                        sql_t_append_or_update += this.makeSqlCondition_datasetId(existingInstancesWithSameDatasetId[0]["dataset_id"])
-                        sql_t_append_or_update += ";"
-                        
-                        instanceUpdated = true
-                    }
+                    instanceUpdated = true
+                    //}
                 }
                 else if (existingInstancesWithSameDatasetId.length > 1) {
                     throw errorTypes.InternalError.withDetail("Multiple instances with same datasetId")
