@@ -1342,47 +1342,42 @@ export class ContextBroker {
 
                 const datasetId_expanded = instance_expanded['https://uri.etsi.org/ngsi-ld/datasetId']
 
-
-                let datasetId_sql = datasetId_expanded
-
-                if (datasetId_sql === undefined) {
-                    datasetId_sql = null
-                }
-                //###################### BEGIN Get existing instances with same datasetId #####################
-
-
-                let sql_selectInstancesWithSameDatasetId = `SELECT * FROM ${tableCfg.TBL_ATTR} WHERE eid = ${entityInternalId} `
-                sql_selectInstancesWithSameDatasetId += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}'`
-                sql_selectInstancesWithSameDatasetId += this.makeSqlCondition_datasetId(datasetId_sql)
-
-                const sqlResultTemporal = await this.runSqlQuery(sql_selectInstancesWithSameDatasetId)
-
-                const instancesWithSameDatasetId = sqlResultTemporal.rows
-
-                //###################### END Get existing instances with same datasetId #####################
+                let datasetId_sql = (datasetId_expanded === undefined) ? null : datasetId_expanded
 
                 let doIt = false
 
                 // For temporal, we always create a new instance:
                 if (temporal) {
                     doIt = true
-
                 }
-                // For not temporal, and if other instances already exist:
-                else if (instancesWithSameDatasetId.length > 0) {
+                else {
 
-                    if (overwrite) {
-                        doIt = true
+                    //###################### BEGIN Get existing instances with same datasetId #####################
+                    let sql_selectInstancesWithSameDatasetId = `SELECT * FROM ${tableCfg.TBL_LATEST_ATTR2} WHERE eid = ${entityInternalId} `
+                    sql_selectInstancesWithSameDatasetId += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}'`
+                    sql_selectInstancesWithSameDatasetId += this.makeSqlCondition_datasetId(datasetId_sql)
+
+                    const sqlResultTemporal = await this.runSqlQuery(sql_selectInstancesWithSameDatasetId)
+
+                    const instancesWithSameDatasetId = sqlResultTemporal.rows
+                    //###################### END Get existing instances with same datasetId #####################
+
+                    // For not temporal, and if no other instances already exist:
+                    if (instancesWithSameDatasetId.length == 0) {
+                        if (append) {
+                            doIt = true
+                        }
+                    }
+                    // For not temporal, and if other instances already exist:
+                    else if (instancesWithSameDatasetId.length == 1) {
+                        if (overwrite) {
+                            doIt = true
+                        }
+                    }
+                    else if (instancesWithSameDatasetId.length > 1) {
+                        throw errorTypes.InternalError.withDetail("More than one attribute instance with same datasetId found. This is a database inconsistency and should never happen!")
                     }
                 }
-                // For not temporal, and if no other instances already exist:
-                else if (instancesWithSameDatasetId.length == 0) {
-
-                    if (append) {
-                        doIt = true
-                    }
-                }
-
 
                 if (doIt) {
 
