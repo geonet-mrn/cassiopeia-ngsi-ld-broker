@@ -1423,9 +1423,9 @@ export class ContextBroker {
         if (datasetId === null) {
             return ` AND ${tableCfg.COL_DATASET_ID} is null`
         }
-        else if (datasetId === undefined) {
-            return ` AND ${tableCfg.COL_DATASET_ID} is null`
-            //return ""
+        else if (datasetId === undefined) {            
+            // ATTENTION: Returning nothing here is correct
+            return ""
         }
         else {
             return ` AND ${tableCfg.COL_DATASET_ID} = '${datasetId}'`
@@ -1903,7 +1903,7 @@ export class ContextBroker {
                 if (existingInstancesWithSameDatasetId.length == 0) {
 
                     if (append) {
-                        console.log("APPEND")
+                        
                         queryBuilder.add(tableCfg.COL_ATTR_EID, entityInternalId, true)
                         queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId_expanded)
                         queryBuilder.add(tableCfg.COL_ATTR_CREATED_AT, now.toISOString())
@@ -1915,16 +1915,14 @@ export class ContextBroker {
                 }
                 else if (existingInstancesWithSameDatasetId.length == 1) {
 
-                    if (overwrite) {
-                        console.log("OVERWRITE")
+                    if (overwrite) {                        
 
                         sql_t_append_or_update += queryBuilder.getUpdateQueryForTable(tableCfg.TBL_ATTR_LATEST)
 
                         sql_t_append_or_update += ` WHERE ${tableCfg.COL_ATTR_EID} = ${entityInternalId} AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
                         sql_t_append_or_update += this.makeSqlCondition_datasetId(existingInstancesWithSameDatasetId[0]["dataset_id"])
                         sql_t_append_or_update += ";"
-
-                        console.log(sql_t_append_or_update)
+                        
                         instanceUpdated = true
                     }
                 }
