@@ -1299,13 +1299,13 @@ export class ContextBroker {
         // TODO: Understand whether or not it could be a problem to combine the update queries for all attributes
         // into one transaction.
 
-        //###################### BEGIN Get existing instances with same datasetId #####################
+        //###################### BEGIN Get existing attribute instances #####################
         let sql_getExistingInstances = `SELECT * FROM ${tableCfg.TBL_ATTR_LATEST} WHERE eid = ${entityInternalId} `
-    
+
         const sqlResultTemporal = await this.runSqlQuery(sql_getExistingInstances)
 
         const existingInstances = sqlResultTemporal.rows
-        //###################### END Get existing instances with same datasetId #####################
+        //###################### END Get existing attribute instances #####################
 
 
         let sql_t_append_or_update = "BEGIN;"
@@ -1375,6 +1375,7 @@ export class ContextBroker {
 
                     // TODO: Implement this with update on conflict instead of delete + insert
 
+                    //################ BEGIN Update temporal table ################
                     const queryBuilder = this.makeQueryBuilder(instance_expanded)
 
                     queryBuilder.add(tableCfg.COL_ATTR_EID, entityInternalId)
@@ -1383,6 +1384,7 @@ export class ContextBroker {
                     queryBuilder.add(tableCfg.COL_ATTR_MODIFIED_AT, now.toISOString())
 
                     sql_t_append_or_update += queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR_TEMPORAL) + ";"
+                    //################ END Update temporal table ################
 
 
                     //################## BEGIN Build upsert query for latest attributes table #####################
@@ -1404,16 +1406,44 @@ export class ContextBroker {
                     // to ensure consistency:
                     queryBuilder.add(tableCfg.COL_INSTANCE_ID, "currval('attributes_id_seq')", true)
 
-                    let sql_upsert_latest = queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR_LATEST) + ";"
+                    sql_t_append_or_update += queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR_LATEST) + ";"
 
-                    // This does not work yet:
-                    /*
-                    sql_upsert_latest += " ON CONFLICT ON CONSTRAINT unique_dataset_id DO UPDATE SET "
-                    //sql_upsert_latest += " ON CONFLICT DO UPDATE SET "
-                    sql_upsert_latest += queryBuilder.getCommaPairs() + "; "
-                    */
-                    sql_t_append_or_update += sql_upsert_latest
+
                     //################## END Build upsert query for latest attributes table #####################
+
+
+
+                    // Attempt to implement an alternative with "ON CONFLICT UPDATE". Is perhaps faster, but does not work yet:
+                    /*
+                    //################### BEGIN Upsert version ###################
+                    queryBuilder.add(tableCfg.COL_INSTANCE_ID, "currval('attributes_id_seq')", true)
+    
+                    let sql_upsert_latest = queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR_LATEST) 
+                    sql_upsert_latest += " ON CONFLICT ON CONSTRAINT latest_attributes_eid_attr_name_dataset_id_key DO UPDATE SET "                    
+                    
+                    sql_upsert_latest += queryBuilder.getCommaPairs()    
+                    
+                    
+                    sql_upsert_latest += ` WHERE ${tableCfg.TBL_ATTR_LATEST}.${tableCfg.COL_ATTR_EID} = ${entityInternalId} AND ${tableCfg.TBL_ATTR_LATEST}.${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}'`                        
+    
+                    if (datasetId_sql == null) {
+                        sql_upsert_latest += ` AND ${tableCfg.TBL_ATTR_LATEST}.${tableCfg.COL_DATASET_ID} is null`
+                    }
+                    else if (datasetId_sql === undefined) {
+                        sql_upsert_latest +=  ` AND ${tableCfg.TBL_ATTR_LATEST}.${tableCfg.COL_DATASET_ID} is null`
+                    }
+                    else {
+                        sql_upsert_latest += ` AND ${tableCfg.TBL_ATTR_LATEST}.${tableCfg.COL_DATASET_ID} = '${datasetId_sql}'`
+                    }
+                    
+                    sql_upsert_latest += ";"
+                    
+                    //################### END Upsert version ###################
+                
+                    console.log(sql_upsert_latest)
+    
+                    sql_t_append_or_update += sql_upsert_latest
+                    */
 
                     updated = true
                 }
@@ -1607,7 +1637,8 @@ export class ContextBroker {
         const queryBuilder = new SqlQueryBuilder()
 
         // Write 'dataset_id' column:    
-        queryBuilder.add(tableCfg.COL_DATASET_ID, instance_expanded[uri_datasetId])
+        let datasetId_sql = instance_expanded[uri_datasetId] == undefined ? null : instance_expanded[uri_datasetId]
+        queryBuilder.add(tableCfg.COL_DATASET_ID, datasetId_sql)
 
         // Write JSON:
         const cleanedInstance = this.cleanUpAttributeInstanceForWrite(instance_expanded)
