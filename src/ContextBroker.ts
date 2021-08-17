@@ -779,7 +779,7 @@ export class ContextBroker {
 
         let sql_update = "BEGIN;"
 
-      
+
         //################ BEGIN Update temporal table ################
         sql_update += queryBuilder.getUpdateQueryForTable(tableCfg.TBL_ATTR)
 
@@ -815,7 +815,7 @@ export class ContextBroker {
         sql_update += this.makeUpdateEntityModifiedAtQuery(entityMetadata.id)
         sql_update += "COMMIT;"
 
-        await this.runSqlQuery(sql_update)        
+        await this.runSqlQuery(sql_update)
     }
 
 
@@ -1267,7 +1267,7 @@ export class ContextBroker {
         sql_t_delete += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
 
         // NOTE: We don't specify the instance ID here!
-      
+
         // Match dataset ID if provided:        
         sql_t_delete += this.makeSqlCondition_datasetId(datasetId_expanded)
         sql_t_delete += ";"
@@ -1284,7 +1284,7 @@ export class ContextBroker {
         // TODO: 2 Row count does probably not work as expected here
         if (queryResult.rowCount == 0) {
             throw errorTypes.ResourceNotFound.withDetail(`Failed to delete attribute instance. No attribute instance with the following properties exists: Entity ID = '${entityId}', Attribute ID ='${attributeId_expanded}', Instance ID = '${instanceId_expanded}'.`)
-        }      
+        }
     }
 
 
@@ -1349,7 +1349,7 @@ export class ContextBroker {
                     datasetId_sql = null
                 }
                 //###################### BEGIN Get existing instances with same datasetId #####################
-              
+
 
                 let sql_selectInstancesWithSameDatasetId = `SELECT * FROM ${tableCfg.TBL_ATTR} WHERE eid = ${entityInternalId} `
                 sql_selectInstancesWithSameDatasetId += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}'`
@@ -1366,20 +1366,20 @@ export class ContextBroker {
                 // For temporal, we always create a new instance:
                 if (temporal) {
                     doIt = true
-                    
+
                 }
                 // For not temporal, and if other instances already exist:
                 else if (instancesWithSameDatasetId.length > 0) {
 
                     if (overwrite) {
-                        doIt = true                        
+                        doIt = true
                     }
                 }
                 // For not temporal, and if no other instances already exist:
                 else if (instancesWithSameDatasetId.length == 0) {
 
                     if (append) {
-                        doIt = true                        
+                        doIt = true
                     }
                 }
 
@@ -1389,37 +1389,51 @@ export class ContextBroker {
                     // TODO: Implement this with update on conflict instead of delete + insert
 
                     const queryBuilder = this.makeQueryBuilder(instance_expanded)
-            
+
                     queryBuilder.add(tableCfg.COL_ATTR_EID, entityInternalId)
                     queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId_expanded)
                     queryBuilder.add(tableCfg.COL_ATTR_CREATED_AT, now.toISOString())
                     queryBuilder.add(tableCfg.COL_ATTR_MODIFIED_AT, now.toISOString())
-            
+
                     sql_t_append_or_update += queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR) + ";"
-            
+
 
                     //################## BEGIN Build upsert query for latest attributes table #####################
-                    
+
+                    // First, delete all attribute instances with the same datasetId from the table that holds
+                    // the most recent attribute states. There should always exist at most one attribute instance
+                    // with one specific dataset ID in this table, but the delete query will delete all of them if
+                    // there are multiple, which can be considered as a sort of extra consistency keeping:
+
                     let sql_delete_attr = `DELETE FROM ${tableCfg.TBL_LATEST_ATTR2} WHERE ${tableCfg.COL_ATTR_EID} = ${entityInternalId} AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
                     sql_delete_attr += this.makeSqlCondition_datasetId(datasetId_sql)
                     sql_delete_attr += ";"
 
                     sql_t_append_or_update += sql_delete_attr
 
+                    // Now we create the insert query. We reuse the query builder for the insert query into the
+                    // temporal table, but add the instance ID. The instance IDs in the table with the most
+                    // recent attribute states are not auto-incremented, but copied from the temporal table
+                    // to ensure consistency:
                     queryBuilder.add(tableCfg.COL_INSTANCE_ID, "currval('attributes_id_seq')", true)
 
                     let sql_upsert_latest = queryBuilder.getInsertQueryForTable(tableCfg.TBL_LATEST_ATTR2) + ";"
-                    
+
+                    // This does not work yet:
                     /*
                     sql_upsert_latest += " ON CONFLICT ON CONSTRAINT unique_dataset_id DO UPDATE SET "
                     //sql_upsert_latest += " ON CONFLICT DO UPDATE SET "
                     sql_upsert_latest += queryBuilder.getCommaPairs() + "; "
-                    */                  
+                    */
                     sql_t_append_or_update += sql_upsert_latest
                     //################## END Build upsert query for latest attributes table #####################
-                    
+
                     updated = true
                 }
+
+
+                // NOTE: With the code above, "auto-history mode" is always active. 
+                // The following disabled old code still contains the option to disable auto-history mode. 
 
                 /*
                 // For temporal, we always create a new instance:
@@ -1472,15 +1486,6 @@ export class ContextBroker {
 
             if (updated) {
                 result.updated.push(attributeId_expanded)
-
-                /*
-                sql_t_append_or_update += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
-                sql_t_append_or_update += "COMMIT;"
-
-                await this.runSqlQuery(sql_t_append_or_update)
-
-                await this.refreshMaterializedViews()
-                */
             }
             else {
                 result.notUpdated.push(new NotUpdatedDetails(attributeId_expanded, "Attribute instance(s) already exist and no overwrite was ordered."))
@@ -1488,10 +1493,12 @@ export class ContextBroker {
         }
         //####################### END Iterate over attributes #############################
 
-        sql_t_append_or_update += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
-        sql_t_append_or_update += "COMMIT;"
+        if (result.updated.length > 0) {
+            sql_t_append_or_update += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
+            sql_t_append_or_update += "COMMIT;"
 
-        await this.runSqlQuery(sql_t_append_or_update)
+            await this.runSqlQuery(sql_t_append_or_update)
+        }
 
 
         return result
