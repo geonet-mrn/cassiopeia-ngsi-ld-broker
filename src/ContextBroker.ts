@@ -4,7 +4,6 @@ import * as pg from 'pg'
 import { BatchEntityError } from "./dataTypes/BatchEntityError"
 import { BatchOperationResult } from "./dataTypes/BatchOperationResult"
 import { Feature } from "./dataTypes/Feature"
-import { FeatureCollection } from "./dataTypes/FeatureCollection"
 import { ProblemDetails } from "./dataTypes/ProblemDetails"
 import { Query } from "./dataTypes/Query"
 import { TemporalQuery } from "./dataTypes/TemporalQuery"
@@ -28,7 +27,7 @@ import { EntityTypeList } from "./dataTypes/EntityTypeList"
 import { JsonLdContextNormalized } from "jsonld-context-parser/lib/JsonLdContextNormalized"
 import { makeGeoQueryCondition } from "./makeGeoQueryCondition"
 import { makeTemporalQueryCondition } from "./makeTemporalQueryCondition"
-import { table } from 'console'
+
 
 
 
@@ -816,9 +815,7 @@ export class ContextBroker {
         sql_update += this.makeUpdateEntityModifiedAtQuery(entityMetadata.id)
         sql_update += "COMMIT;"
 
-        await this.runSqlQuery(sql_update)
-
-        await this.refreshMaterializedViews()
+        await this.runSqlQuery(sql_update)        
     }
 
 
@@ -1287,10 +1284,7 @@ export class ContextBroker {
         // TODO: 2 Row count does probably not work as expected here
         if (queryResult.rowCount == 0) {
             throw errorTypes.ResourceNotFound.withDetail(`Failed to delete attribute instance. No attribute instance with the following properties exists: Entity ID = '${entityId}', Attribute ID ='${attributeId_expanded}', Instance ID = '${instanceId_expanded}'.`)
-        }
-        else {
-            await this.refreshMaterializedViews()
-        }
+        }      
     }
 
 
@@ -1300,29 +1294,13 @@ export class ContextBroker {
 
         const result = new UpdateResult()
 
-        // NOTE:
-        // There is a theoretically important difference between creating one single transaction query for all
-        // instance updates and running this one query after the for loop over the attributes is completed,
-        // versus creating a separate transaction query for each attribute and running each query at the end
-        // of each loop iteration: 
+        // TODO: Understand whether or not it could be a problem to combine the update queries for all attributes
+        // into one transaction.
 
-        // The difference is that if we run the update query for each attribute separately,
-        // the fetching of existing attribute instances in each loop iteration might return different results,
-        // because matching attribute instances might have been created in previous loop iterations.
-        // If we run only one big update query after the loops is complete, nothing is writting to the database
-        // during the loop, and attributes which are created by the update are not known to the system while
-        // the loop is still running.
-
-        // So, in theory, doing smaller sequential updates can help to detect inconsistencies like multiple identical
-        // datasetIds. In practice, this should not be necessary since input data should be validated before
-        // it is written to the database. However, for now, we stick with the sequential step-by-step update
-        // since it adds an additional layer of consistency checking.
+        let sql_t_append_or_update = "BEGIN;"
 
         //####################### BEGIN Iterate over attributes #############################
         for (const attributeId_expanded in fragment_expanded) {
-
-            let sql_t_append_or_update = "BEGIN;"
-
 
             // Do not process @id, @type and @context:
             if (ignoreAttributes.includes(attributeId_expanded)) {
@@ -1366,7 +1344,6 @@ export class ContextBroker {
 
 
                 let datasetId_sql = datasetId_expanded
-
 
                 if (datasetId_sql === undefined) {
                     datasetId_sql = null
@@ -1421,7 +1398,7 @@ export class ContextBroker {
                     sql_t_append_or_update += queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR) + ";"
             
 
-                    // Build upsert query:
+                    //################## BEGIN Build upsert query for latest attributes table #####################
                     
                     let sql_delete_attr = `DELETE FROM ${tableCfg.TBL_LATEST_ATTR2} WHERE ${tableCfg.COL_ATTR_EID} = ${entityInternalId} AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
                     sql_delete_attr += this.makeSqlCondition_datasetId(datasetId_sql)
@@ -1432,13 +1409,14 @@ export class ContextBroker {
                     queryBuilder.add(tableCfg.COL_INSTANCE_ID, "currval('attributes_id_seq')", true)
 
                     let sql_upsert_latest = queryBuilder.getInsertQueryForTable(tableCfg.TBL_LATEST_ATTR2) + ";"
-/*
+                    
+                    /*
                     sql_upsert_latest += " ON CONFLICT ON CONSTRAINT unique_dataset_id DO UPDATE SET "
                     //sql_upsert_latest += " ON CONFLICT DO UPDATE SET "
                     sql_upsert_latest += queryBuilder.getCommaPairs() + "; "
-  */                  
+                    */                  
                     sql_t_append_or_update += sql_upsert_latest
-    
+                    //################## END Build upsert query for latest attributes table #####################
                     
                     updated = true
                 }
@@ -1495,19 +1473,26 @@ export class ContextBroker {
             if (updated) {
                 result.updated.push(attributeId_expanded)
 
+                /*
                 sql_t_append_or_update += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
-
                 sql_t_append_or_update += "COMMIT;"
 
                 await this.runSqlQuery(sql_t_append_or_update)
 
                 await this.refreshMaterializedViews()
+                */
             }
             else {
                 result.notUpdated.push(new NotUpdatedDetails(attributeId_expanded, "Attribute instance(s) already exist and no overwrite was ordered."))
             }
         }
         //####################### END Iterate over attributes #############################
+
+        sql_t_append_or_update += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
+        sql_t_append_or_update += "COMMIT;"
+
+        await this.runSqlQuery(sql_t_append_or_update)
+
 
         return result
     }
@@ -2035,12 +2020,6 @@ export class ContextBroker {
         return result
     }
 
-
-    private async refreshMaterializedViews() {
-        let sql_refresh = `REFRESH MATERIALIZED VIEW ${tableCfg.TBL_LATEST_ATTR_MATERIALIZED};`
-
-        //await this.runSqlQuery(sql_refresh)
-    }
 
 
     private async runSqlQuery(sql: string): Promise<pg.QueryResult> {

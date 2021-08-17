@@ -4,8 +4,7 @@ export class PsqlTableConfig {
     readonly TBL_ATTR = "attributes"
     readonly TBL_ENT = "entities"
     readonly VIEW_LATEST_ATTR = "view_latest_attributes"
-    readonly TBL_LATEST_ATTR2 = "latest_attributes"
-    readonly TBL_LATEST_ATTR_MATERIALIZED = "latest_attributes_materialized"
+    readonly TBL_LATEST_ATTR2 = "latest_attributes"    
 
     
     readonly COL_ATTR_EID = "eid"
