@@ -2,6 +2,7 @@ import { expect, assert } from "chai";
 import axios, { AxiosResponse } from 'axios'
 import * as prep from "./testUtil"
 import { testConfig } from './testConfig'
+import { axiosGet, axiosPost } from "./testUtil";
 
 
 const config = {
@@ -75,42 +76,34 @@ describe('6.6.3.2 PATCH entities/<entityId>/attrs/', function () {
         // For each of the Attributes included in the Fragment, if the target Entity includes a matching one (considering
         // term expansion rules as mandated by clause 5.5.7), then replace it by the one included by the Fragment:
 
-       
 
         const entityUrl = testConfig.base_url + "entities/" + originalEntity.id
 
-
-
-        //###################### BEGIN Step 1 ######################
-        let createEntityResponse = await axios.post(testConfig.base_url + "entities/", originalEntity, config).catch((e) => {
-            console.log(e)
-        }) as AxiosResponse
-
+        // Create entity:
+        let createEntityResponse = await axiosPost(testConfig.base_url + "entities/", originalEntity, config)
+        
         expect(createEntityResponse.status).equals(201)
-        //###################### END Step 1 ######################
 
 
-
-        //###################### BEGIN Step 2 ######################
+        // Patch entity:
         let updateAttributesResponse = await axios.patch(entityUrl + /attrs/, updateAttributesFragment, config).catch((e) => {
             console.log(e)
         }) as AxiosResponse
 
-        expect(updateAttributesResponse.status).equals(204)
-        //###################### END Step 2 ######################
+        expect(updateAttributesResponse.status).equals(204)        
 
 
 
-        //###################### BEGIN Step 3 ######################
+        //###################### BEGIN Step 3: Verify patch ######################
 
-        const getModifiedEntityResponse = await axios.get(entityUrl)
+        const getModifiedEntityResponse = await axiosGet(entityUrl, config)
 
         expect(getModifiedEntityResponse.status).equals(200)
 
         const modifiedEntity = getModifiedEntityResponse.data
 
         let instanceFound = false
-        let otherInstanceFound = false
+        let otherInstanceFound = false        
 
         for(const instance of modifiedEntity.testProp1) {
 
@@ -130,7 +123,7 @@ describe('6.6.3.2 PATCH entities/<entityId>/attrs/', function () {
         expect(instanceFound).equals(true)
         expect(otherInstanceFound).equals(true)
 
-        //###################### END Step 3 ######################
+        //###################### END Step 3: Verify patch ######################
 
     })
 });
