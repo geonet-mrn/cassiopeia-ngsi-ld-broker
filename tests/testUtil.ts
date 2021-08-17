@@ -10,6 +10,27 @@ export async function deleteAllEntities() {
     let response = await axios.delete(testConfig.base_url + "entities/", { auth: testConfig.auth })
 }
 
+
+
+export async function axiosDelete(url: string, config: AxiosRequestConfig): Promise<AxiosResponse> {
+
+    let errorResponse = undefined
+
+
+    let response = await axios.delete(url, config).catch((err) => {
+        errorResponse = err.response
+    }) as AxiosResponse
+
+    if (errorResponse != undefined) {
+        response = errorResponse
+    }
+
+    //console.log(response.status)
+
+    return response
+}
+
+
 export async function axiosGet(url: string, config: AxiosRequestConfig): Promise<AxiosResponse> {
 
     let errorResponse = undefined

@@ -104,6 +104,7 @@ describe('6.18.3.2 GET temporal/entities/', function () {
     })
 
 
+    /*
     it("should return an error 'BadRequestData' (HTTP 400) if no complete temporal query was passed", async function () {
 
         // Request with no temporal parameters at all:
@@ -117,8 +118,8 @@ describe('6.18.3.2 GET temporal/entities/', function () {
         // Request with only "timeAt":
         getResponse = await util.axiosGet(testConfig.base_url + "temporal/entities/?timeAt=2000-01-01T00:00:00Z", config)
         expect(getResponse.status).equals(400)
-
     })
+    */
 
 
 
