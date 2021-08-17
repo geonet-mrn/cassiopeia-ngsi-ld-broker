@@ -140,7 +140,7 @@ export class ContextBroker {
         const entityInternalId = entityMetadata.id
         //############# END Get internal ID of entity #############
 
-        return await this.appendEntityAttributes(entityInternalId, fragment_expanded, true, false, false, undefined)
+        return await this.writeAttributes(entityInternalId, fragment_expanded, true, false, undefined)
     }
 
 
@@ -185,7 +185,7 @@ export class ContextBroker {
         const entityInternalId = entityMetadata.id
         //########### END Try to fetch existing entity with same ID from the database #############
 
-        return await this.appendEntityAttributes(entityInternalId, fragment_expanded, overwrite, true, false, undefined)
+        return await this.writeAttributes(entityInternalId, fragment_expanded, overwrite, true, undefined)
 
     }
 
@@ -255,7 +255,7 @@ export class ContextBroker {
         //############# END Get internal ID of entity #############
 
 
-        const updateResult = await this.appendEntityAttributes(entityInternalId, fragment_expanded, true, false, false, attributeId_expanded)
+        const updateResult = await this.writeAttributes(entityInternalId, fragment_expanded, true, false, attributeId_expanded)
 
         // 5.6.4.4: "If the target Entity does not contain the target Attribute ... then an error of type ResourceNotFound shall be raised":
         if (updateResult.updated.length == 0) {
@@ -282,7 +282,7 @@ export class ContextBroker {
         }
         //################## END Determine actual datasetId to use ################
 
-        await this.deleteAttribute(entityId, attributeId_compacted, useDatasetId_compacted, undefined, contextUrl)
+        await this.deleteAttribute(entityId, attributeId_compacted, useDatasetId_compacted, undefined, false, contextUrl)
     }
 
 
@@ -462,7 +462,7 @@ export class ContextBroker {
 
                 else if (options == "update") {
 
-                    const updateResult = await this.appendEntityAttributes(existingEntityMetadata.id, entity_expanded, true, true, false, undefined)
+                    const updateResult = await this.writeAttributes(existingEntityMetadata.id, entity_expanded, true, true, undefined)
 
                     // TODO: 3 Add information about failed updates to result?
                     if (updateResult.notUpdated.length == 0) {
@@ -531,20 +531,20 @@ export class ContextBroker {
         const result = new BatchOperationResult()
 
         //######## BEGIN Iterate over list of uploaded entities and try to update them ########
-        for (const entity of entities_expanded) {
+        for (const entity_expanded of entities_expanded) {
 
             // NOTE: We need to stringify the entity here to pass it to appendEntityAttributes():
-            const entityJsonString = JSON.stringify(entity)
-
+            const entityJsonString = JSON.stringify(entity_expanded)
 
             // TODO: 2 Really call another top-level API method here?
-            const appendResult = await this.api_5_6_3_appendEntityAttributes(entity['@id'], entityJsonString, contextUrl, true).catch((problem) => {
-                result.errors.push(new BatchEntityError(entity['@id'], problem))
+            const appendResult = await this.api_5_6_3_appendEntityAttributes(entity_expanded['@id'], entityJsonString, contextUrl, true).catch((problem) => {
+                result.errors.push(new BatchEntityError(entity_expanded['@id'], problem))
             })
 
             if (appendResult) {
-                result.success.push(entity['@id'])
+                result.success.push(entity_expanded['@id'])
             }
+
         }
         //######## END Iterate over list of uploaded entities and try to update them ########
 
@@ -642,7 +642,7 @@ export class ContextBroker {
             // NOTE: If "temporal" (last parameter) is true, then "overwrite" (second-last parameter)
             // has no effect. We set it to true, but setting it to false wouldn't change the result.
             // In temporal mode, attribute instances are always appended and never overwritten.
-            await this.appendEntityAttributes(entityMetadata.id, entity_expanded, true, true, true, undefined)
+            await this.writeTemporalAttributes(entityMetadata.id, entity_expanded)
 
             return 204
         }
@@ -680,7 +680,7 @@ export class ContextBroker {
         //###################### END Try to fetch existing entity ########################
 
 
-        await this.appendEntityAttributes(entityMetadata.id, fragment_expanded, true, true, true, undefined)
+        await this.writeTemporalAttributes(entityMetadata.id, fragment_expanded)
     }
 
 
@@ -703,7 +703,7 @@ export class ContextBroker {
         //################## END Determine actual datasetId to use ################
 
 
-        await this.deleteAttribute(entityId, attributeId_compacted, useDatasetId_compacted, undefined, contextUrl)
+        await this.deleteAttribute(entityId, attributeId_compacted, useDatasetId_compacted, undefined, true, contextUrl)
     }
 
 
@@ -823,7 +823,7 @@ export class ContextBroker {
     // Spec 5.6.15
     async api_5_6_15_deleteAttributeInstanceOfTemporalEntity(entityId: string, attributeId_compacted: string, instanceId_compacted: string, contextUrl: string | undefined) {
 
-        await this.deleteAttribute(entityId, attributeId_compacted, undefined, instanceId_compacted, contextUrl)
+        await this.deleteAttribute(entityId, attributeId_compacted, undefined, instanceId_compacted, true, contextUrl)
     }
 
 
@@ -981,6 +981,9 @@ export class ContextBroker {
         const context = await getNormalizedContext(actualContext)
 
         //################ BEGIN Validation #################
+
+        // TODO: Only for testing. A temporal query is required according to the spec.
+        /*
         if (query.temporalQ == undefined) {
             throw errorTypes.BadRequestData.withDetail("No temporal query provided in request.")
         }
@@ -992,7 +995,7 @@ export class ContextBroker {
         if (query.temporalQ.timeAt == undefined) {
             throw errorTypes.BadRequestData.withDetail("'timeAt' is undefined")
         }
-
+        */
         //################ END Validation ################# 
 
 
@@ -1196,7 +1199,7 @@ export class ContextBroker {
 
 
 
-    private async deleteAttribute(entityId: string, attributeId_compacted: string, datasetId_compacted: string | null | undefined, instanceId_expanded: string | undefined, contextUrl: any) {
+    private async deleteAttribute(entityId: string, attributeId_compacted: string, datasetId_compacted: string | null | undefined, instanceId: string | undefined, temporal: boolean, contextUrl: any) {
 
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
@@ -1218,7 +1221,7 @@ export class ContextBroker {
             throw errorTypes.BadRequestData.withDetail("Passed dataset ID is not a valid URI.")
         }
 
-        if (instanceId_expanded != undefined && !isUri(instanceId_expanded)) {
+        if (instanceId != undefined && !isUri(instanceId)) {
             throw errorTypes.BadRequestData.withDetail("Passed instance ID is not a valid URI.")
         }
         //######################## END Input validation ##############################
@@ -1237,46 +1240,48 @@ export class ContextBroker {
 
         let sql_t_delete = "BEGIN;"
 
-        //################# BEGIN Delete from temporal attributes table ##################
-        sql_t_delete += `DELETE FROM ${tableCfg.TBL_ATTR_TEMPORAL} WHERE eid = ${entityInternalId} `
 
-        // Match attribute ID:
-        sql_t_delete += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
+        if (temporal) {
 
+            //################# BEGIN Delete from temporal attributes table ##################
+            sql_t_delete += `DELETE FROM ${tableCfg.TBL_ATTR_TEMPORAL} WHERE eid = ${entityInternalId} `
 
-        // Match instance ID if provided:
-        if (instanceId_expanded != undefined) {
-            // NOTE: We assume that the attribute instances is passed in the form "urn:ngsi-ld:InstanceId:instance_<number>"
-            const instanceId_number = parseInt(instanceId_expanded.split("_")[1])
+            // Match attribute ID:
+            sql_t_delete += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
 
-            sql_t_delete += ` AND ${tableCfg.COL_INSTANCE_ID} = '${instanceId_number}'`
+            // Match instance ID:
+
+            if (instanceId != undefined) {
+                // NOTE: We assume that the attribute instances is passed in the form "urn:ngsi-ld:InstanceId:instance_<number>"
+                const instanceId_number = parseInt(instanceId.split("_")[1])
+
+                sql_t_delete += ` AND ${tableCfg.COL_INSTANCE_ID} = '${instanceId_number}'`
+            }
+
+            // Match dataset ID if provided:        
+            sql_t_delete += this.makeSqlCondition_datasetId(datasetId_expanded)
+            sql_t_delete += ";"
+            //################# END Delete from temporal attributes table ##################
+
+            console.log("DELETE TEMPORAL")
+        }
+        else {
+
+            //################# BEGIN Delete from latest attributes table ##################
+            sql_t_delete += `DELETE FROM ${tableCfg.TBL_ATTR_LATEST} WHERE eid = ${entityInternalId} `
+
+            // Match attribute ID:
+            sql_t_delete += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
+
+            // NOTE: We don't specify the instance ID here!
+
+            // Match dataset ID if provided:        
+            sql_t_delete += this.makeSqlCondition_datasetId(datasetId_expanded)
+            sql_t_delete += ";"
+            //################# END Delete from latest attributes table ##################
         }
 
 
-        // Match dataset ID if provided:        
-        sql_t_delete += this.makeSqlCondition_datasetId(datasetId_expanded)
-        sql_t_delete += ";"
-        //################# END Delete from temporal attributes table ##################
-
-
-
-
-        //################# BEGIN Delete from latest attributes table ##################
-        sql_t_delete += `DELETE FROM ${tableCfg.TBL_ATTR_LATEST} WHERE eid = ${entityInternalId} `
-
-        // Match attribute ID:
-        sql_t_delete += ` AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
-
-        // NOTE: We don't specify the instance ID here!
-
-        // Match dataset ID if provided:        
-        sql_t_delete += this.makeSqlCondition_datasetId(datasetId_expanded)
-        sql_t_delete += ";"
-        //################# END Delete from latest attributes table ##################
-
-
-
-        sql_t_delete += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
 
         sql_t_delete += ";COMMIT;"
 
@@ -1284,152 +1289,9 @@ export class ContextBroker {
 
         // TODO: 2 Row count does probably not work as expected here
         if (queryResult.rowCount == 0) {
-            throw errorTypes.ResourceNotFound.withDetail(`Failed to delete attribute instance. No attribute instance with the following properties exists: Entity ID = '${entityId}', Attribute ID ='${attributeId_expanded}', Instance ID = '${instanceId_expanded}'.`)
+            throw errorTypes.ResourceNotFound.withDetail(`Failed to delete attribute instance. No attribute instance with the following properties exists: Entity ID = '${entityId}', Attribute ID ='${attributeId_expanded}', Instance ID = '${instanceId}'.`)
         }
     }
-
-
-    private async appendEntityAttributes(entityInternalId: number, fragment_expanded: any, overwrite: boolean, append: boolean, temporal: boolean, attributeIdToUpdate: string | undefined) {
-
-        console.log("writing fragment " + entityInternalId)
-
-        const now = new Date()
-
-        const result = new UpdateResult()
-
-        // TODO: Understand whether or not it could be a problem to combine the update queries for all attributes
-        // into one transaction.
-
-        //###################### BEGIN Get existing attribute instances #####################
-        let sql_getExistingInstances = `SELECT * FROM ${tableCfg.TBL_ATTR_LATEST} WHERE eid = ${entityInternalId} `
-
-
-        const sqlResultTemporal = await this.runSqlQuery(sql_getExistingInstances)
-
-        const existingInstances = sqlResultTemporal.rows
-
-        //console.log(existingInstances)
-        //###################### END Get existing attribute instances #####################
-
-
-        let sql_t_append_or_update = "BEGIN;"
-
-        //####################### BEGIN Iterate over attributes #############################
-        for (const attributeId_expanded in fragment_expanded) {
-
-            // Do not process @id, @type and @context:
-            if (ignoreAttributes.includes(attributeId_expanded)) {
-                continue
-            }
-
-            if (attributeIdToUpdate != undefined && attributeId_expanded != attributeIdToUpdate) {
-                continue
-            }
-
-            let attribute_expanded = (fragment_expanded as any)[attributeId_expanded]
-
-            if (!(attribute_expanded instanceof Array)) {
-                attribute_expanded = [attribute_expanded]
-            }
-
-            let updated = false
-
-            //#################### BEGIN Iterate over attribute instances #####################
-            for (const instance_expanded of attribute_expanded) {
-
-                const datasetId_expanded = instance_expanded[uri_datasetId]
-
-                let datasetId_sql = (datasetId_expanded === undefined) ? null : datasetId_expanded
-
-                
-
-                let numExistingInstancesWithSameDatasetId = 0
-
-                for (const inst of existingInstances) {
-                    if (inst["attr_name"] == attributeId_expanded && inst["dataset_id"] == datasetId_sql) {
-                        numExistingInstancesWithSameDatasetId++
-                    }
-                }
-
-                // For temporal, we always create a new instance:
-                /*
-                let doIt = false
-                if (temporal) {
-                    doIt = true
-                }
-                */
-
-
-                /*
-                  //################ BEGIN Update temporal table ################
-                  const queryBuilder = this.makeQueryBuilder(instance_expanded)
-
-                  queryBuilder.add(tableCfg.COL_ATTR_EID, entityInternalId, true)
-                  queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId_expanded)
-                  queryBuilder.add(tableCfg.COL_ATTR_CREATED_AT, now.toISOString())
-                  queryBuilder.add(tableCfg.COL_ATTR_MODIFIED_AT, now.toISOString())
-
-                  sql_t_append_or_update += queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR_TEMPORAL) + ";"
-                  //################ END Update temporal table ################
-*/
-
-                //################## BEGIN Build upsert query for latest attributes table #####################
-
-
-                const queryBuilder2 = this.makeQueryBuilder(instance_expanded)
-
-                queryBuilder2.add(tableCfg.COL_ATTR_MODIFIED_AT, now.toISOString())
-
-                if (numExistingInstancesWithSameDatasetId == 0 && append) {
-
-                    queryBuilder2.add(tableCfg.COL_ATTR_EID, entityInternalId, true)
-                    queryBuilder2.add(tableCfg.COL_ATTR_NAME, attributeId_expanded)
-                    queryBuilder2.add(tableCfg.COL_ATTR_CREATED_AT, now.toISOString())
-
-                    sql_t_append_or_update += queryBuilder2.getInsertQueryForTable(tableCfg.TBL_ATTR_LATEST) + ";"
-
-                    updated = true
-                }
-                if (numExistingInstancesWithSameDatasetId == 1 && overwrite) {
-
-                    sql_t_append_or_update += queryBuilder2.getUpdateQueryForTable(tableCfg.TBL_ATTR_LATEST)
-
-                    sql_t_append_or_update += ` WHERE ${tableCfg.COL_ATTR_EID} = ${entityInternalId} AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
-                    sql_t_append_or_update += this.makeSqlCondition_datasetId(existingInstances[0]["dataset_id"])
-                    sql_t_append_or_update += ";"
-
-                    updated = true
-                }
-                if (numExistingInstancesWithSameDatasetId > 1) {
-                    throw errorTypes.InternalError.withDetail("Multiple instances with same datasetId")
-                }
-                //################## END Build upsert query for latest attributes table #####################
-
-                
-
-            }
-            //################## END Iterate over attribute instances #######################
-
-            if (updated) {
-                result.updated.push(attributeId_expanded)
-            }
-            else {
-                result.notUpdated.push(new NotUpdatedDetails(attributeId_expanded, "Attribute was not updated."))
-            }
-        }
-        //####################### END Iterate over attributes #############################
-
-        if (result.updated.length > 0) {
-            sql_t_append_or_update += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
-            sql_t_append_or_update += "COMMIT;"
-
-            await this.runSqlQuery(sql_t_append_or_update)
-        }
-
-
-        return result
-    }
-
 
 
 
@@ -1456,7 +1318,7 @@ export class ContextBroker {
 
         const insertId = queryResult.rows[0].id
 
-        await this.appendEntityAttributes(insertId, entity_expanded, true, true, false, undefined)
+        await this.writeAttributes(insertId, entity_expanded, true, true, undefined)
 
         return 1
     }
@@ -1562,7 +1424,8 @@ export class ContextBroker {
             return ` AND ${tableCfg.COL_DATASET_ID} is null`
         }
         else if (datasetId === undefined) {
-            return ""
+            return ` AND ${tableCfg.COL_DATASET_ID} is null`
+            //return ""
         }
         else {
             return ` AND ${tableCfg.COL_DATASET_ID} = '${datasetId}'`
@@ -1962,5 +1825,211 @@ export class ContextBroker {
         })
 
         return resultPromise
+    }
+
+
+
+    private async writeAttributes(entityInternalId: number, fragment_expanded: any, overwrite: boolean, append: boolean, attributeIdToUpdate: string | undefined) {
+
+        console.log("writing fragment " + entityInternalId)
+
+        const now = new Date()
+
+        const result = new UpdateResult()
+
+        //###################### BEGIN Get existing attribute instances #####################
+        let sql_getExistingInstances = `SELECT * FROM ${tableCfg.TBL_ATTR_LATEST} WHERE eid = ${entityInternalId} `
+
+        const sqlResultTemporal = await this.runSqlQuery(sql_getExistingInstances)
+
+        const existingInstancesOfAllAttributes = sqlResultTemporal.rows
+
+        console.log(existingInstancesOfAllAttributes)
+        //###################### END Get existing attribute instances #####################
+
+
+        let sql_t_append_or_update = "BEGIN;"
+
+        //####################### BEGIN Iterate over attributes #############################
+        for (const attributeId_expanded in fragment_expanded) {
+
+            const existingAttributeInstances = []
+            
+            for (const inst of existingInstancesOfAllAttributes) {
+                if (inst["attr_name"] == attributeId_expanded) {
+                    existingAttributeInstances.push(inst)
+                }
+            }
+
+            // Do not process @id, @type and @context:
+            if (ignoreAttributes.includes(attributeId_expanded)) {
+                continue
+            }
+
+            if (attributeIdToUpdate != undefined && attributeId_expanded != attributeIdToUpdate) {
+                continue
+            }
+
+            let attribute_expanded = (fragment_expanded as any)[attributeId_expanded]
+
+            if (!(attribute_expanded instanceof Array)) {
+                attribute_expanded = [attribute_expanded]
+            }
+
+            let attributeUpdated = false
+
+            //#################### BEGIN Iterate over attribute instances #####################
+            for (const instance_expanded of attribute_expanded) {
+
+                const datasetId_expanded = instance_expanded[uri_datasetId]
+                const datasetId_sql = (datasetId_expanded === undefined) ? null : datasetId_expanded
+
+                const existingInstancesWithSameDatasetId = []
+                
+                for (const inst of existingAttributeInstances) {
+                    if (inst["dataset_id"] == datasetId_sql) {
+                        existingInstancesWithSameDatasetId.push(inst)
+                    }
+                }
+
+
+                let instanceUpdated = false
+
+                //################## BEGIN Build upsert query for latest attributes table #####################
+                const queryBuilder = this.makeQueryBuilder(instance_expanded)
+
+                queryBuilder.add(tableCfg.COL_ATTR_MODIFIED_AT, now.toISOString())
+
+                if (existingInstancesWithSameDatasetId.length == 0) {
+
+                    if (append) {
+                        console.log("APPEND")
+                        queryBuilder.add(tableCfg.COL_ATTR_EID, entityInternalId, true)
+                        queryBuilder.add(tableCfg.COL_ATTR_NAME, attributeId_expanded)
+                        queryBuilder.add(tableCfg.COL_ATTR_CREATED_AT, now.toISOString())
+
+                        sql_t_append_or_update += queryBuilder.getInsertQueryForTable(tableCfg.TBL_ATTR_LATEST) + ";"
+
+                        instanceUpdated = true
+                    }
+                }
+                else if (existingInstancesWithSameDatasetId.length == 1) {
+
+                    if (overwrite) {
+                        console.log("OVERWRITE")
+
+                        sql_t_append_or_update += queryBuilder.getUpdateQueryForTable(tableCfg.TBL_ATTR_LATEST)
+
+                        sql_t_append_or_update += ` WHERE ${tableCfg.COL_ATTR_EID} = ${entityInternalId} AND ${tableCfg.COL_ATTR_NAME} = '${attributeId_expanded}' `
+                        sql_t_append_or_update += this.makeSqlCondition_datasetId(existingInstancesWithSameDatasetId[0]["dataset_id"])
+                        sql_t_append_or_update += ";"
+
+                        console.log(sql_t_append_or_update)
+                        instanceUpdated = true
+                    }
+                }
+                else if (existingInstancesWithSameDatasetId.length > 1) {
+                    throw errorTypes.InternalError.withDetail("Multiple instances with same datasetId")
+                }
+                //################## END Build upsert query for latest attributes table #####################
+
+
+                if (instanceUpdated) {
+                    attributeUpdated = true
+
+                    //################ BEGIN Update temporal table ##############
+                    const queryBuilder2 = this.makeQueryBuilder(instance_expanded)
+
+                    queryBuilder2.add(tableCfg.COL_ATTR_EID, entityInternalId, true)
+                    queryBuilder2.add(tableCfg.COL_ATTR_NAME, attributeId_expanded)
+                    queryBuilder2.add(tableCfg.COL_ATTR_CREATED_AT, now.toISOString())
+                    queryBuilder2.add(tableCfg.COL_ATTR_MODIFIED_AT, now.toISOString())
+
+                    sql_t_append_or_update += queryBuilder2.getInsertQueryForTable(tableCfg.TBL_ATTR_TEMPORAL) + ";"
+                    //################ END Update temporal table ##############
+                }
+            }
+            //################## END Iterate over attribute instances #######################
+
+            if (attributeUpdated) {
+                result.updated.push(attributeId_expanded)
+            }
+            else {
+                result.notUpdated.push(new NotUpdatedDetails(attributeId_expanded, "Attribute was not updated."))
+            }
+        }
+        //####################### END Iterate over attributes #############################
+
+        if (result.updated.length > 0) {
+            sql_t_append_or_update += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
+            sql_t_append_or_update += "COMMIT;"
+
+            await this.runSqlQuery(sql_t_append_or_update)
+        }
+
+        return result
+    }
+
+
+
+    private async writeTemporalAttributes(entityInternalId: number, fragment_expanded: any) {
+
+
+        const now = new Date()
+
+        const result = new UpdateResult()
+
+
+        let sql_t_append_or_update = "BEGIN;"
+
+        //####################### BEGIN Iterate over attributes #############################
+        for (const attributeId_expanded in fragment_expanded) {
+
+            // Do not process @id, @type and @context:
+            if (ignoreAttributes.includes(attributeId_expanded)) {
+                continue
+            }
+
+
+
+            let attribute_expanded = (fragment_expanded as any)[attributeId_expanded]
+
+            if (!(attribute_expanded instanceof Array)) {
+                attribute_expanded = [attribute_expanded]
+            }
+
+
+
+            //#################### BEGIN Iterate over attribute instances #####################
+            for (const instance_expanded of attribute_expanded) {
+
+
+
+                //################ BEGIN Update temporal table ##############
+                const queryBuilder2 = this.makeQueryBuilder(instance_expanded)
+
+                queryBuilder2.add(tableCfg.COL_ATTR_EID, entityInternalId, true)
+                queryBuilder2.add(tableCfg.COL_ATTR_NAME, attributeId_expanded)
+                queryBuilder2.add(tableCfg.COL_ATTR_CREATED_AT, now.toISOString())
+                queryBuilder2.add(tableCfg.COL_ATTR_MODIFIED_AT, now.toISOString())
+
+                sql_t_append_or_update += queryBuilder2.getInsertQueryForTable(tableCfg.TBL_ATTR_TEMPORAL) + ";"
+                //################ END Update temporal table ##############
+
+            }
+            //################## END Iterate over attribute instances #######################
+
+
+        }
+        //####################### END Iterate over attributes #############################
+
+
+        sql_t_append_or_update += this.makeUpdateEntityModifiedAtQuery(entityInternalId)
+        sql_t_append_or_update += "COMMIT;"
+
+        await this.runSqlQuery(sql_t_append_or_update)
+
+
+        return result
     }
 }
