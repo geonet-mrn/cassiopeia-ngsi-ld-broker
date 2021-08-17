@@ -140,7 +140,7 @@ export class ContextBroker {
         const entityInternalId = entityMetadata.id
         //############# END Get internal ID of entity #############
 
-        return await this.writeAttributes(entityInternalId, fragment_expanded, true, false, undefined)
+        return await this.writeAttributes(entityInternalId, fragment_expanded, true, false)
     }
 
 
@@ -185,7 +185,7 @@ export class ContextBroker {
         const entityInternalId = entityMetadata.id
         //########### END Try to fetch existing entity with same ID from the database #############
 
-        return await this.writeAttributes(entityInternalId, fragment_expanded, overwrite, true, undefined)
+        return await this.writeAttributes(entityInternalId, fragment_expanded, overwrite, true)
 
     }
 
@@ -255,7 +255,15 @@ export class ContextBroker {
         //############# END Get internal ID of entity #############
 
 
-        const updateResult = await this.writeAttributes(entityInternalId, fragment_expanded, true, false, attributeId_expanded)
+        const fragment_reduced : any = {}
+
+        for(const key in fragment_expanded) {
+            if (key == attributeId_expanded) {
+                fragment_reduced[key] = fragment_expanded[key]
+            }
+        }
+
+        const updateResult = await this.writeAttributes(entityInternalId, fragment_reduced, true, false)
 
         // 5.6.4.4: "If the target Entity does not contain the target Attribute ... then an error of type ResourceNotFound shall be raised":
         if (updateResult.updated.length == 0) {
@@ -462,7 +470,7 @@ export class ContextBroker {
 
                 else if (options == "update") {
 
-                    const updateResult = await this.writeAttributes(existingEntityMetadata.id, entity_expanded, true, true, undefined)
+                    const updateResult = await this.writeAttributes(existingEntityMetadata.id, entity_expanded, true, true)
 
                     // TODO: 3 Add information about failed updates to result?
                     if (updateResult.notUpdated.length == 0) {
@@ -1318,7 +1326,7 @@ export class ContextBroker {
 
         const insertId = queryResult.rows[0].id
 
-        await this.writeAttributes(insertId, entity_expanded, true, true, undefined)
+        await this.writeAttributes(insertId, entity_expanded, true, true)
 
         return 1
     }
@@ -1829,7 +1837,7 @@ export class ContextBroker {
 
 
 
-    private async writeAttributes(entityInternalId: number, fragment_expanded: any, overwrite: boolean, append: boolean, attributeIdToUpdate: string | undefined) {
+    private async writeAttributes(entityInternalId: number, fragment_expanded: any, overwrite: boolean, append: boolean) {
 
         console.log("writing fragment " + entityInternalId)
 
@@ -1843,8 +1851,6 @@ export class ContextBroker {
         const sqlResultTemporal = await this.runSqlQuery(sql_getExistingInstances)
 
         const existingInstancesOfAllAttributes = sqlResultTemporal.rows
-
-
         //###################### END Get existing attribute instances #####################
 
 
@@ -1863,10 +1869,6 @@ export class ContextBroker {
 
             // Do not process @id, @type and @context:
             if (ignoreAttributes.includes(attributeId_expanded)) {
-                continue
-            }
-
-            if (attributeIdToUpdate != undefined && attributeId_expanded != attributeIdToUpdate) {
                 continue
             }
 
@@ -1921,8 +1923,7 @@ export class ContextBroker {
                     sql_t_append_or_update += this.makeSqlCondition_datasetId(existingInstancesWithSameDatasetId[0]["dataset_id"])
                     sql_t_append_or_update += ";"
 
-                    instanceUpdated = true
-                    //}
+                    instanceUpdated = true                    
                 }
                 else if (existingInstancesWithSameDatasetId.length > 1) {
                     throw errorTypes.InternalError.withDetail("Multiple instances with same datasetId")
