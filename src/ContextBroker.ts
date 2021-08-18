@@ -1,5 +1,5 @@
 import * as pg from 'pg'
-
+//import * as jsonld from 'jsonld'
 
 import { BatchEntityError } from "./dataTypes/BatchEntityError"
 import { BatchOperationResult } from "./dataTypes/BatchOperationResult"
@@ -10,7 +10,7 @@ import { TemporalQuery } from "./dataTypes/TemporalQuery"
 import { UpdateResult } from "./dataTypes/UpdateResult"
 import { errorTypes } from "./errorTypes"
 import { checkArrayOfEntities, checkArrayOfUris, checkReifiedAttribute, checkEntity, isUri, isDateTimeUtcString, checkGeoQuery, checkQuery, isReifiedAttribute } from "./validate"
-import { appendCoreContext, compactObject, expandObject, getNormalizedContext } from "./jsonld"
+import { appendCoreContext, compactObject, expandObject, getContextForContextArrayEntry, getNormalizedContext, NGSI_LD_CORE_CONTEXT_URL } from "./jsonldUtil"
 import { parseJson, compactedEntityToGeoJsonFeature as compactedEntityToGeoJsonFeature } from "./util"
 import * as util from './util'
 import { EntityInfo } from "./dataTypes/EntityInfo"
@@ -27,7 +27,6 @@ import { EntityTypeList } from "./dataTypes/EntityTypeList"
 import { JsonLdContextNormalized } from "jsonld-context-parser/lib/JsonLdContextNormalized"
 import { makeGeoQueryCondition } from "./makeGeoQueryCondition"
 import { makeTemporalQueryCondition } from "./makeTemporalQueryCondition"
-import { error } from 'console'
 
 
 
@@ -75,21 +74,99 @@ export class ContextBroker {
     // Spec 5.6.1
     async api_5_6_1_createEntity(entityJson_compacted: string, contextUrl: string | undefined) {
 
-        const entity_from_payload = parseJson(entityJson_compacted)
+        const entity_compacted = parseJson(entityJson_compacted)
 
-        if (entity_from_payload == undefined) {
+        if (entity_compacted == undefined) {
             throw errorTypes.BadRequestData.withDetail("The request payload is not valid JSON")
         }
 
+        contextUrl = "https://uri.geonet-mrn.de/xdatatogo/xdatatogo-context.jsonld"
 
-        const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : entity_from_payload['@context']
-        const actualContext = appendCoreContext(nonNormalizedContext)
-        const context = await getNormalizedContext(actualContext)
+        let providedContext = (contextUrl != undefined) ? [contextUrl] : entity_compacted['@context']
 
-        let entity_expanded = await expandObject(entity_from_payload, context)
 
-        entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
+        providedContext = appendCoreContext(providedContext)
 
+
+
+
+
+        //################## BEGIN JSON-LD experiments #######################
+        /*
+        entity_compacted['@context'] = providedContext
+
+
+        const contexts: any = {}
+
+        for (const entry of providedContext) {
+            contexts[entry] = await getContextForContextArrayEntry(entry)
+        }
+
+        //@ts-ignore
+        const nodeDocumentLoader = jsonld.documentLoaders.node();
+
+        const customLoader = async (url: string, options: any) => {
+
+            if (url in contexts) {
+                return {
+                    contextUrl: null, // this is for a context via a link header
+                    document: contexts[url], // this is the actual document that was loaded
+                    documentUrl: url // this is the actual context URL after redirects
+                };
+            }
+            // call the default documentLoader
+            return nodeDocumentLoader(url);
+        };
+
+        let entity_expanded = await jsonld.expand(entity_compacted, { documentLoader: customLoader })
+
+        
+        console.log("-------- Expanded: --------------")
+        console.log(JSON.stringify(entity_expanded))
+
+
+        let compacted2 = JSON.parse(JSON.stringify(entity_expanded))
+
+        console.log("----------------------")
+        
+        let count = 0
+        for (const key in contexts) {
+            console.log(key)
+
+            let compactArrays = (count == Object.keys(contexts).length - 1)
+            console.log(compactArrays)
+            compacted2 = await jsonld.compact(compacted2, contexts[key], {skipExpansion:true, compactArrays: compactArrays})
+
+            let foo = JSON.parse(JSON.stringify(compacted2))
+            delete(foo["@context"])
+            console.log(JSON.stringify(foo))
+            console.log("***")
+
+            count++
+        }
+
+        let compactedContext = compacted2["@context"]
+
+        delete(compacted2["@context"])
+        //console.log(compactedContext)
+
+        console.log("-------- Compacted: --------------")
+
+        console.log(JSON.stringify(compacted2))
+
+        //-------------------
+          return
+
+        */
+        //################## END JSON-LD experiments #######################
+
+      
+        
+        const context = await getNormalizedContext(providedContext)
+
+        let entity_expanded = await expandObject(entity_compacted, context)
+
+        //entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
 
         const entityCheckResults = checkEntity(entity_expanded, true)
 
@@ -122,7 +199,7 @@ export class ContextBroker {
 
         let fragment_expanded = expandObject(fragment_compacted, context)
 
-        fragment_expanded = util.unpackGeoPropertyStringValues(fragment_expanded)
+      //  fragment_expanded = util.unpackGeoPropertyStringValues(fragment_expanded)
 
         const entityCheckResults = checkEntity(fragment_expanded, true)
 
@@ -155,7 +232,7 @@ export class ContextBroker {
 
         let fragment_expanded = expandObject(fragment_compacted, context)
 
-        fragment_expanded = util.unpackGeoPropertyStringValues(fragment_expanded)
+      //  fragment_expanded = util.unpackGeoPropertyStringValues(fragment_expanded)
 
         //################### BEGIN Validation ################
         if (!isUri(entityId)) {
@@ -202,7 +279,7 @@ export class ContextBroker {
 
         let fragment_expanded = expandObject(fragment_compacted, context)
 
-        fragment_expanded = util.unpackGeoPropertyStringValues(fragment_expanded)
+     //   fragment_expanded = util.unpackGeoPropertyStringValues(fragment_expanded)
 
         const attributeId_expanded = expandObject(attributeId_compacted, context)
 
@@ -255,9 +332,9 @@ export class ContextBroker {
         //############# END Get internal ID of entity #############
 
 
-        const fragment_reduced : any = {}
+        const fragment_reduced: any = {}
 
-        for(const key in fragment_expanded) {
+        for (const key in fragment_expanded) {
             if (key == attributeId_expanded) {
                 fragment_reduced[key] = fragment_expanded[key]
             }
@@ -327,7 +404,7 @@ export class ContextBroker {
 
             let entity_expanded = expandObject(entity_compacted, context)
 
-            entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
+   //         entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
 
             entities_expanded.push(entity_expanded)
         }
@@ -392,7 +469,7 @@ export class ContextBroker {
 
             let entity_expanded = expandObject(entity_compacted, context)
 
-            entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
+       //     entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
 
             entities_expanded.push(entity_expanded)
         }
@@ -522,7 +599,7 @@ export class ContextBroker {
 
             let entity_expanded = expandObject(entity_compacted, context)
 
-            entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
+           // entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
 
             entities_expanded.push(entity_expanded)
         }
@@ -610,7 +687,7 @@ export class ContextBroker {
         let entity_expanded = expandObject(entity_compacted, context)
 
 
-        entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
+      //  entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
 
         //################# BEGIN Validate input ##################
         const entityCheckResults = checkEntity(entity_expanded, false)
@@ -669,7 +746,7 @@ export class ContextBroker {
         let fragment_expanded = expandObject(fragment_compacted, context)
 
 
-        fragment_expanded = util.unpackGeoPropertyStringValues(fragment_expanded)
+      //  fragment_expanded = util.unpackGeoPropertyStringValues(fragment_expanded)
 
 
         const entityCheckResults = checkEntity(fragment_expanded, false)
@@ -1483,7 +1560,23 @@ export class ContextBroker {
             // ATTENTION: 
             // Since property values are not expanded, we don't need to re-compact the GeoJSON object here:
 
-            const geojson_string = JSON.stringify(instance_expanded['https://uri.etsi.org/ngsi-ld/hasValue'])
+            let value = instance_expanded['https://uri.etsi.org/ngsi-ld/hasValue']
+
+            let value_prepared = undefined
+
+            switch(typeof value) {
+                case "string":
+                    value_prepared = parseJson(value)
+                    break
+                case "object":
+                value_prepared = compactObject(value, this.ngsiLdCoreContext)
+            }
+           
+            if (value_prepared === undefined) {
+                throw errorTypes.BadRequestData.withDetail("Invalid GeoJSON string: " + value)
+            }
+            const geojson_string = JSON.stringify(value_prepared)
+            
             queryBuilder.add("geom", `ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`, true)
         }
         // ############### END Write 'geom' column ################
@@ -1914,7 +2007,7 @@ export class ContextBroker {
 
                 }
                 else if (existingInstancesWithSameDatasetId.length == 1 && overwrite) {
-                    
+
                     //if (overwrite && JSON.stringify(existingInstancesWithSameDatasetId[0]["json"]) != JSON.stringify(this.cleanUpAttributeInstanceForWrite(instance_expanded))) {                        
 
                     sql_t_append_or_update += queryBuilder.getUpdateQueryForTable(tableCfg.TBL_ATTR_LATEST)
@@ -1923,7 +2016,7 @@ export class ContextBroker {
                     sql_t_append_or_update += this.makeSqlCondition_datasetId(existingInstancesWithSameDatasetId[0]["dataset_id"])
                     sql_t_append_or_update += ";"
 
-                    instanceUpdated = true                    
+                    instanceUpdated = true
                 }
                 else if (existingInstancesWithSameDatasetId.length > 1) {
                     throw errorTypes.InternalError.withDetail("Multiple instances with same datasetId")

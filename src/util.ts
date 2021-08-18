@@ -67,7 +67,7 @@ export function compactedEntityToGeoJsonFeature(entity_compacted: any, geometryP
     return new Feature(entity_compacted['@id'], geometry, properties)
 }
 
-
+/*
 export function unpackGeoPropertyStringValues(entity_expanded : any) {
 
     let result = JSON.parse(JSON.stringify(entity_expanded))
@@ -108,7 +108,7 @@ export function unpackGeoPropertyStringValues(entity_expanded : any) {
 
     return result
 }
-
+*/
 
 export function simplifyEntity(entity: any): any {
 
