@@ -1,7 +1,6 @@
-import { JsonLdContextNormalized } from "jsonld-context-parser"
 import { GeoQuery } from "./dataTypes/GeoQuery"
 import { errorTypes } from "./errorTypes"
-import { expandObject } from "./jsonldUtil"
+import { expandIri } from "./jsonLdUtil2"
 
 
 import { PsqlTableConfig } from "./PsqlTableConfig"
@@ -18,7 +17,7 @@ const spatialQueryFunctions: any = {
 
 
 
-export function makeGeoQueryCondition(geoQuery: GeoQuery, context : JsonLdContextNormalized, tableCfg : PsqlTableConfig, attrTable : string): string {
+export async function makeGeoQueryCondition(geoQuery: GeoQuery, context : any, tableCfg : PsqlTableConfig, attrTable : string): Promise<string> {
 
     //############# BEGIN Validate ###############
     const geoQueryCheck = checkGeoQuery(geoQuery)
@@ -68,7 +67,8 @@ export function makeGeoQueryCondition(geoQuery: GeoQuery, context : JsonLdContex
 
     // Make sure that the filter is connected to the specific attribute we want to check:
 
-    const geoProperty_expanded = expandObject(geoQuery.geoproperty, context)
+    //const geoProperty_expanded = expandObject(geoQuery.geoproperty, context)
+    const geoProperty_expanded = await expandIri(geoQuery.geoproperty, context)
 
     let result = `(SELECT eid FROM ${attrTable} WHERE ${attrTable}.${tableCfg.COL_ATTR_NAME} = '${geoProperty_expanded}' AND `
 

@@ -1,6 +1,7 @@
 // NGSI-LD Version 1.3.1
 // https://www.etsi.org/deliver/etsi_gs/CIM/001_099/009/01.03.01_60/gs_CIM009v010301p.pdf
 
+// TODO: 1 How to return multiple contexts in a /entities/ response (array of entities)?
 // TODO: 1 Test PostgreSQL connection at broker startup
 // TODO: 1 Difference between 5.6.2 and 5.6.4?
 // TODO: 2 Correct implementation for what to expand and what not
@@ -217,7 +218,10 @@ export class HttpBinding {
         }
 
 
-        ctx.body = await this.broker.api_5_7_1_retrieveEntity(ctx.params.entityId, attrs, geometryProperty, ctx.request.query.datasetId, options, contextUrl)
+        // TODO: Implement GeoJSON output
+
+        //ctx.body = await this.broker.api_5_7_1_retrieveEntity(ctx.params.entityId, attrs, geometryProperty, ctx.request.query.datasetId, options, contextUrl)
+        ctx.body = await this.broker.api_5_7_1_retrieveEntity(ctx.params.entityId, attrs, options, contextUrl)
         ctx.status = 200
         await next()
     }

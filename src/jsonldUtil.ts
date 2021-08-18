@@ -11,6 +11,9 @@ export const NGSI_LD_CORE_CONTEXT_URL = "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld
 const contextCacheDir = "contextCache/"
 
 
+let cachedContexts : any = {}
+
+
 export function appendCoreContext(nonNormalizedContext: any): Array<any> {
 
     let result = nonNormalizedContext
@@ -195,6 +198,10 @@ export async function getContextForContextArrayEntry(entry: any): Promise<any> {
 
     let result = undefined
 
+    if (cachedContexts[entry] != undefined) {
+        return cachedContexts[entry]
+    }
+
     if (!fs.existsSync(contextCacheDir)) {
         fs.mkdirSync(contextCacheDir);
     }
@@ -227,6 +234,9 @@ export async function getContextForContextArrayEntry(entry: any): Promise<any> {
     else {
         throw errorTypes.LdContextNotAvailable.withDetail("Invalid context: " + JSON.stringify(entry))
     }
+
+
+    cachedContexts[entry] = result
 
     return result
 }

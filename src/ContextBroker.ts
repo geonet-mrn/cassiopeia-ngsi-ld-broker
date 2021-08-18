@@ -27,9 +27,12 @@ import { EntityTypeList } from "./dataTypes/EntityTypeList"
 import { JsonLdContextNormalized } from "jsonld-context-parser/lib/JsonLdContextNormalized"
 import { makeGeoQueryCondition } from "./makeGeoQueryCondition"
 import { makeTemporalQueryCondition } from "./makeTemporalQueryCondition"
+import { checkEntity2 } from './validate2'
+import { ContextDefinition } from 'jsonld'
+import { compactIri, expandIri, getContextLoader } from './jsonLdUtil2'
 
 
-
+const ngsiLdCoreContextUrl = "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.3.jsonld"
 
 const ignoreAttributes = ["@id", "@type", "@context"]
 
@@ -71,6 +74,7 @@ export class ContextBroker {
 
     //############################### BEGIN Official API methods ##################################
 
+
     // Spec 5.6.1
     async api_5_6_1_createEntity(entityJson_compacted: string, contextUrl: string | undefined) {
 
@@ -83,70 +87,35 @@ export class ContextBroker {
         //################## BEGIN JSON-LD experiments #######################
 
         entity_compacted['@context'] = []
-
-
         entity_compacted['@context'].push("https://uri.geonet-mrn.de/xdatatogo/xdatatogo-context.jsonld")
-
-
         entity_compacted['@context'].push("https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.3.jsonld")
 
+        const customLoader = await getContextLoader(entity_compacted["@context"])
 
-        const contextblubb = await getNormalizedContext(entity_compacted['@context'])
-
-        //@ts-ignore
-        //  entity_compacted['@context'] = [contextblubb.contextRaw] //["normalized"]
+        let entity_expanded: any = await jsonld.expand(entity_compacted, { documentLoader: customLoader })
 
 
-        //################# BEGIN Define custom context loader ##################
-        const contexts: any = {}
-
-        for (const entry of entity_compacted['@context']) {
-            contexts[entry] = await getContextForContextArrayEntry(entry)
-        }
-
-        //@ts-ignore
-        const nodeDocumentLoader = jsonld.documentLoaders.node();
-
-        const customLoader = async (url: string, options: any) => {
-
-
-            if (url in contexts) {
-
-                return {
-                    contextUrl: null, // this is for a context via a link header
-                    document: contexts[url], // this is the actual document that was loaded
-                    documentUrl: url // this is the actual context URL after redirects
-                };
-            }
-            // call the default documentLoader
-            return nodeDocumentLoader(url);
-        };
-        //################# END Define custom context loader ##################
-
-
-        let entity_expanded = await jsonld.expand(entity_compacted, { documentLoader: customLoader })
-        
+        entity_expanded = entity_expanded[0]
 
         console.log("-------- Expanded: --------------")
         console.log(JSON.stringify(entity_expanded))
 
 
-        let compacted2 = JSON.parse(JSON.stringify(entity_expanded))
 
-        console.log("----------------------")
-
-
-        compacted2 = await jsonld.compact(compacted2, entity_compacted['@context'], { compactArrays: true, documentLoader: customLoader })
-
+        let compacted2 = await jsonld.compact(entity_expanded, entity_compacted['@context'], { compactArrays: true, documentLoader: customLoader })
 
         delete (compacted2["@context"])
 
         console.log("-------- Compacted: --------------")
 
         console.log(JSON.stringify(compacted2))
-        //-------------------
-        return
 
+        //  return
+        //-------------------
+
+        // Expand individual string:
+        let cc = await jsonld.expand({ "TrafficRestriction": "boo", "@context": entity_compacted['@context'] }, { documentLoader: customLoader })
+        //console.log(cc)
 
         //################## END JSON-LD experiments #######################
 
@@ -155,34 +124,54 @@ export class ContextBroker {
 
 
 
+
         /*
- 
-         const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : entity_compacted['@context']
-         const actualContext = appendCoreContext(nonNormalizedContext)
-         const context = await getNormalizedContext(actualContext)
- 
+        const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : entity_compacted['@context']
+        const actualContext = appendCoreContext(nonNormalizedContext)
+        const context = await getNormalizedContext(actualContext)
+        */
 
-                 //  const context = await getNormalizedContext(providedContext)
+        //  const context = await getNormalizedContext(providedContext)
 
-        
-                let entity_expanded = await expandObject(entity_compacted, context)
-        
-             
-                const entityCheckResults = checkEntity(entity_expanded, true)
-        
-                if (entityCheckResults.length > 0) {
-                    throw errorTypes.InvalidRequest.withDetail("The submitted data is not a valid NGSI-LD entity: " + entityCheckResults.join(" "))
-                }
-        
-        
-                const resultCode = await this.createEntity(entity_expanded, false)
-        
-                if (resultCode == -1) {
-                    throw errorTypes.AlreadyExists.withDetail(`An Entity with the ID '${entity_expanded['@id']}' already exists.`)
-                }
-                */
+
+        //let entity_expanded = await expandObject(entity_compacted, context)
+
+
+        const entityCheckResults = checkEntity2(entity_expanded, true)
+
+        if (entityCheckResults.length > 0) {
+            throw errorTypes.InvalidRequest.withDetail("The submitted data is not a valid NGSI-LD entity: " + entityCheckResults.join(" "))
+        }
+
+
+        const resultCode = await this.createEntity(entity_expanded, false)
+
+        if (resultCode == -1) {
+            throw errorTypes.AlreadyExists.withDetail(`An Entity with the ID '${entity_expanded['@id']}' already exists.`)
+        }
+
     }
 
+
+    removeSingleItemArrays(obj: any) {
+
+        for (let key in obj) {
+            let item = obj[key]
+
+
+            if (item instanceof Array && item.length < 2 && item.length > 0) {
+
+                obj[key] = this.removeSingleItemArrays(item[0])
+            }
+            else if (typeof item == "object") {
+
+                obj[key] = this.removeSingleItemArrays(item)
+            }
+        }
+
+        return obj
+
+    }
 
     // Spec 5.6.2
     async api_5_6_2_updateEntityAttributes(entityId: string, fragmentString: string, contextUrl: string | undefined): Promise<UpdateResult> {
@@ -849,7 +838,7 @@ export class ContextBroker {
 
 
 
-        const queryBuilder = this.makeQueryBuilder(instance_expanded)
+        const queryBuilder = await this.makeAtrributeWriteQueryBuilder(instance_expanded)
 
         let sql_update = "BEGIN;"
 
@@ -863,7 +852,7 @@ export class ContextBroker {
 
         // Don't allow attribute type change:
         // ATTENTION: COL_ATTR_TYPE is of type smallint, so no quotes around the value here!
-        sql_update += ` AND ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance_expanded['@type'])}`
+        sql_update += ` AND ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance_expanded['@type'][0])}`
         sql_update += ';'
         //################ END Update temporal table ################
 
@@ -900,8 +889,6 @@ export class ContextBroker {
     // Spec 5.7.1
     async api_5_7_1_retrieveEntity(entityId: string,
         attrs_compacted: Array<string> | undefined,
-        geometryProperty_compacted: string | undefined,
-        datasetId: string | undefined,
         options: Array<string>,
         contextUrl: string | undefined): Promise<any | Feature> {
 
@@ -912,8 +899,17 @@ export class ContextBroker {
         const includeSysAttrs = options.includes("sysAttrs")
 
 
+
+
+
+        let context2 = this.prepareContext(contextUrl) as any
+
+
+
+
+
         const query = new Query([new EntityInfo(entityId, undefined, undefined)], attrs_compacted, undefined, undefined, undefined, undefined)
-        const entities = await this.queryEntities(query, false, includeSysAttrs, context)
+        const entities = await this.queryEntities(query, false, includeSysAttrs, context2)
 
         if (entities.length == 0) {
             throw errorTypes.ResourceNotFound.withDetail("No entity found.")
@@ -929,6 +925,8 @@ export class ContextBroker {
             result_expanded = util.simplifyEntity(result_expanded)
         }
 
+        // TODO: 1 Reimplement in HttpBinding
+        /*
         // Return GeoJSON representation if requested:
         if (geometryProperty_compacted != undefined) {
 
@@ -937,10 +935,17 @@ export class ContextBroker {
             result_expanded = compactedEntityToGeoJsonFeature(result_expanded, geometryProperty_expanded, datasetId)
         }
 
-
         const result_compacted = compactObject(result_expanded, context)
+        */
 
-        result_compacted['@context'] = actualContext
+
+      
+        
+        const customLoader = await getContextLoader(context2)
+
+        
+        let result_compacted = await jsonld.compact(result_expanded, context2, { documentLoader: customLoader })
+
 
         return result_compacted
     }
@@ -953,14 +958,18 @@ export class ContextBroker {
         let keyValues = options.includes("keyValues")
 
 
-        const actualContext = appendCoreContext(contextUrl)
+     //   const actualContext = appendCoreContext(contextUrl)
 
-        const context = await getNormalizedContext(actualContext)
+       // const context = await getNormalizedContext(actualContext)
+
+        let context2 = this.prepareContext(contextUrl)
 
 
         // Fetch entities
-        let entities_expanded = await this.queryEntities(query, false, includeSysAttrs, context)
+        let entities_expanded = await this.queryEntities(query, false, includeSysAttrs, context2)
 
+        // TODO: 1 Reimplement
+        /*
         //#################### BEGIN Create simplified representation if requested ##################
         if (keyValues) {
 
@@ -973,23 +982,39 @@ export class ContextBroker {
             entities_expanded = entities_simplified
         }
         //#################### END Create simplified representation if requested ##################
+        */
 
 
-        //############### BEGIN Compact the result #################
+       
+        const customLoader = await getContextLoader(context2)
+
+
         const result = Array<any>()
 
         for (const entity_expanded of entities_expanded) {
-            let entity_compacted = compactObject(entity_expanded, context)
-            entity_compacted['@context'] = actualContext
+            
+            let entity_compacted = await jsonld.compact(entity_expanded, context2  as any, { documentLoader: customLoader })            
             result.push(entity_compacted)
         }
-        //############### END Compact the result #################
 
         // NOTE: The conversion to GeoJSON representation is implemented in the HTTPBinding class.
 
         return result
     }
 
+
+    prepareContext(contextUrl : string|undefined) : Array<any> {
+
+        let result = [] 
+
+        if (contextUrl != undefined && contextUrl != "") {
+            result.push(contextUrl)
+        }
+
+        result.push(ngsiLdCoreContextUrl)
+
+        return result
+    }
 
     // Spec 5.7.3
     async api_5_7_3_retrieveTemporalEntity(
@@ -1259,8 +1284,10 @@ export class ContextBroker {
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
 
+        
         const attributeId_expanded = expandObject(attributeId_compacted, context)
         const datasetId_expanded = expandObject(datasetId_compacted, context)
+        
 
 
         //######################## BEGIN Input validation ##############################
@@ -1358,7 +1385,7 @@ export class ContextBroker {
         const queryBuilder = new SqlQueryBuilder()
 
         queryBuilder.add(tableCfg.COL_ENT_ID, entity_expanded['@id'])
-        queryBuilder.add(tableCfg.COL_ENT_TYPE, entity_expanded['@type'])
+        queryBuilder.add(tableCfg.COL_ENT_TYPE, entity_expanded['@type'][0])
         queryBuilder.add(tableCfg.COL_ENT_CREATED_AT, now.toISOString())
         queryBuilder.add(tableCfg.COL_ENT_MODIFIED_AT, now.toISOString())
         //############## END Build INSERT query for entities table ###########
@@ -1512,12 +1539,12 @@ export class ContextBroker {
     }
 
 
-    makeQueryBuilder(instance_expanded: any): SqlQueryBuilder {
+    async makeAtrributeWriteQueryBuilder(instance_expanded: any): Promise<SqlQueryBuilder> {
 
         const queryBuilder = new SqlQueryBuilder()
 
         // Write 'dataset_id' column:    
-        let datasetId_sql = instance_expanded[uri_datasetId] === undefined ? null : instance_expanded[uri_datasetId]
+        let datasetId_sql = instance_expanded[uri_datasetId] === undefined ? null : instance_expanded[uri_datasetId]["@id"]
         queryBuilder.add(tableCfg.COL_DATASET_ID, datasetId_sql)
 
         // Write JSON:
@@ -1525,12 +1552,12 @@ export class ContextBroker {
         queryBuilder.add(tableCfg.COL_INSTANCE_JSON, JSON.stringify(cleanedInstance))
 
         // ############### BEGIN Write 'geom' column ################
-        if (instance_expanded['@type'] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
+        if (instance_expanded['@type'][0] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
 
             // ATTENTION: 
             // Since property values are not expanded, we don't need to re-compact the GeoJSON object here:
 
-            let value = instance_expanded['https://uri.etsi.org/ngsi-ld/hasValue']
+            let value = instance_expanded['https://uri.etsi.org/ngsi-ld/hasValue'][0]["@value"]
 
             let value_prepared = undefined
 
@@ -1539,7 +1566,8 @@ export class ContextBroker {
                     value_prepared = parseJson(value)
                     break
                 case "object":
-                    value_prepared = compactObject(value, this.ngsiLdCoreContext)
+                    //value_prepared = compactObject(value, this.ngsiLdCoreContext)
+                    value_prepared = await compactIri(value, [ngsiLdCoreContextUrl])
             }
 
             if (value_prepared === undefined) {
@@ -1553,10 +1581,10 @@ export class ContextBroker {
 
 
         //################# BEGIN Write attribute type ################
-        const attributeTypeIndex = this.attributeTypes.indexOf(instance_expanded['@type'])
+        const attributeTypeIndex = this.attributeTypes.indexOf(instance_expanded['@type'][0])
 
         if (attributeTypeIndex < 0) {
-            throw errorTypes.InternalError.withDetail("Invalid attribute type: " + instance_expanded['@type'])
+            throw errorTypes.InternalError.withDetail("Invalid attribute type: " + instance_expanded['@type'][0])
         }
 
         queryBuilder.add(tableCfg.COL_ATTR_TYPE, attributeTypeIndex)
@@ -1579,7 +1607,7 @@ export class ContextBroker {
 
 
     // Spec 5.7.2
-    async queryEntities(query: Query, temporal: boolean, includeSysAttrs: boolean, context: JsonLdContextNormalized): Promise<Array<any>> {
+    async queryEntities(query: Query, temporal: boolean, includeSysAttrs: boolean, context: any): Promise<Array<any>> {
 
         const attr_table = temporal ? tableCfg.TBL_ATTR_TEMPORAL : tableCfg.TBL_ATTR_LATEST
 
@@ -1625,7 +1653,8 @@ export class ContextBroker {
             for (const ei of query.entities) {
 
                 if (typeof (ei.type) == "string") {
-                    entityTypes_expanded.push(expandObject(ei.type, context))
+                    //entityTypes_expanded.push(expandObject(ei.type, context))
+                    entityTypes_expanded.push(await expandIri(ei.type, context))
                 }
 
                 if (typeof (ei.id) == "string") {
@@ -1661,9 +1690,15 @@ export class ContextBroker {
         // parameter shall be included."
 
 
+        
         if (query.attrs instanceof Array && query.attrs.length > 0) {
 
-            const attrs_expanded = expandObject(query.attrs, context)
+            const attrs_expanded = []
+
+            for(const attr of query.attrs) {
+                attrs_expanded.push(await expandIri(attr, context))
+            }
+            //const attrs_expanded = expandObject(query.attrs, context)
 
             sql_where += ` AND t2.${tableCfg.COL_ATTR_NAME} IN ('${attrs_expanded.join("','")}')`
         }
@@ -1690,7 +1725,8 @@ export class ContextBroker {
         // it is sufficient if any of these instances meets the geospatial restrictions":
 
         if (query.geoQ != undefined) {
-            sql_where += ` AND t1.${tableCfg.COL_ENT_INTERNAL_ID} IN ${makeGeoQueryCondition(query.geoQ, context, tableCfg, attr_table)}`
+            const geoQueryCondition = await makeGeoQueryCondition(query.geoQ, context, tableCfg, attr_table)
+            sql_where += ` AND t1.${tableCfg.COL_ENT_INTERNAL_ID} IN ${geoQueryCondition}`
         }
         //####################### END Match GeoQuery #######################
 
@@ -1730,6 +1766,7 @@ export class ContextBroker {
         fields.push(tableCfg.COL_ENT_ID)
         fields.push(tableCfg.COL_ATTR_NAME)
         fields.push(tableCfg.COL_ATTR_EID)
+        fields.push(tableCfg.COL_ATTR_TYPE)
         fields.push(tableCfg.COL_INSTANCE_ID)
         fields.push(tableCfg.COL_DATASET_ID)
         fields.push(tableCfg.COL_INSTANCE_JSON)
@@ -1750,6 +1787,8 @@ export class ContextBroker {
 
 
 
+        console.log("------------ SELECT -------------")
+        console.log(sql_select)
 
         const queryResult = await this.runSqlQuery(sql_select)
 
@@ -1814,6 +1853,7 @@ export class ContextBroker {
             // because we need it to find the most recently modified attribute instance if this is not a
             // temporal API query:
 
+            console.log(row["attr_type"])
             instance["@type"] = this.attributeTypes[row["attr_type"]]
 
             if (row["dataset_id"] != null) {
@@ -1850,7 +1890,15 @@ export class ContextBroker {
         // "For the avoidance of doubt, if for a requested Attribute no instance fulfils the temporal query, 
         // then an empty Array of instances shall be provided as the representation for such Attribute.":
 
-        const attrNames_expanded = expandObject(query.attrs, context) as Array<string>
+        //const attrNames_expanded = expandObject(query.attrs, context) as Array<string>
+
+        const attrNames_expanded = []
+
+        if (query.attrs != undefined) {
+        for(const attr of query.attrs) {
+            attrNames_expanded.push(await expandIri(attr, context))
+        }
+    }
 
         if (attrNames_expanded instanceof Array && attrNames_expanded.length > 0) {
             for (const entity of result) {
@@ -1961,7 +2009,7 @@ export class ContextBroker {
                 let instanceUpdated = false
 
                 //################## BEGIN Build upsert query for latest attributes table #####################
-                const queryBuilder = this.makeQueryBuilder(instance_expanded)
+                const queryBuilder = await this.makeAtrributeWriteQueryBuilder(instance_expanded)
 
                 queryBuilder.add(tableCfg.COL_ATTR_MODIFIED_AT, now.toISOString())
 
@@ -1998,7 +2046,7 @@ export class ContextBroker {
                     attributeUpdated = true
 
                     //################ BEGIN Update temporal table ##############
-                    const queryBuilder2 = this.makeQueryBuilder(instance_expanded)
+                    const queryBuilder2 = await this.makeAtrributeWriteQueryBuilder(instance_expanded)
 
                     queryBuilder2.add(tableCfg.COL_ATTR_EID, entityInternalId, true)
                     queryBuilder2.add(tableCfg.COL_ATTR_NAME, attributeId_expanded)
@@ -2066,7 +2114,7 @@ export class ContextBroker {
 
 
                 //################ BEGIN Update temporal table ##############
-                const queryBuilder2 = this.makeQueryBuilder(instance_expanded)
+                const queryBuilder2 = await this.makeAtrributeWriteQueryBuilder(instance_expanded)
 
                 queryBuilder2.add(tableCfg.COL_ATTR_EID, entityInternalId, true)
                 queryBuilder2.add(tableCfg.COL_ATTR_NAME, attributeId_expanded)
