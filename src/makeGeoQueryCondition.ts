@@ -1,7 +1,8 @@
 import { JsonLdContextNormalized } from "jsonld-context-parser"
 import { GeoQuery } from "./dataTypes/GeoQuery"
 import { errorTypes } from "./errorTypes"
-import { expandObject } from "./jsonld"
+import { expandObject } from "./jsonldUtil"
+
 
 import { PsqlTableConfig } from "./PsqlTableConfig"
 import { checkGeoQuery } from "./validate"

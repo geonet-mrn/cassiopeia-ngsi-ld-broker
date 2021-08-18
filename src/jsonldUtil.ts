@@ -37,7 +37,7 @@ export function compactObject(obj: any, normalizedContext: ldcp.JsonLdContextNor
     }
 
     else if (typeof (obj) === 'string') {
-        return normalizedContext.compactIri(obj, true)
+        return normalizedContext.compactIri(obj, true)        
     }
 
     else if (typeof (obj) === 'number') {
@@ -96,7 +96,7 @@ export function expandObject(obj: any, normalizedContext: ldcp.JsonLdContextNorm
     }
 
     else if (typeof (obj) === 'string') {
-        return normalizedContext.expandTerm(obj, true)
+        return normalizedContext.expandTerm(obj, true)        
     }
 
     else if (typeof (obj) === 'number') {
@@ -145,10 +145,14 @@ export function expandObject(obj: any, normalizedContext: ldcp.JsonLdContextNorm
 
             // TODO: 2 Properly decide what is expanded and what not.
 
-//            if (key != "value" && key != "https://uri.etsi.org/ngsi-ld/hasValue") {
+            
 
+            if (!(key == "value" || key == "https://uri.etsi.org/ngsi-ld/hasValue") && typeof result[key] == "string") {
                 result[key] = expandObject(result[key], normalizedContext)
-  //          }
+            }
+
+            
+            
         }
         //############ END Iterate over all keys ###########
 
@@ -169,23 +173,17 @@ export async function getNormalizedContext(nonNormalizedContext: any): Promise<l
 }
 
 
-export async function httpFetchContexts(context: any): Promise<Array<any>> {
+export async function httpFetchContexts(contextArray: any): Promise<Array<any>> {
 
 
     let result: Array<any> = []
 
-    if (!(context instanceof Array)) {
-        context = [context]
+    if (!(contextArray instanceof Array)) {
+        contextArray = [contextArray]
     }
 
-
-
-
-
-    for (let entry of context) {
-
-        result.push(getContextForContextArrayEntry(entry))
-      
+    for (let entry of contextArray) {
+        result.push(await getContextForContextArrayEntry(entry))
     }
 
     return result
@@ -201,31 +199,33 @@ export async function getContextForContextArrayEntry(entry: any): Promise<any> {
         fs.mkdirSync(contextCacheDir);
     }
 
-    if (typeof (entry) == "string" && ((entry.startsWith("https://") || entry.startsWith("http://")))) {
+    if (typeof (entry) == "string") {
 
-        const url = entry
-        const fileName = contextCacheDir + md5(url) + ".jsonld"
+        // TODO: 1 Handle empty strings
+        if (entry.startsWith("https://") || entry.startsWith("http://")) {
+            const url = entry
+            const fileName = contextCacheDir + md5(url) + ".jsonld"
 
 
-        if (!fs.existsSync(fileName)) {
+            if (!fs.existsSync(fileName)) {
 
-            const response = await axios.get(url).catch((e) => {
-                throw errorTypes.LdContextNotAvailable.withDetail("Failed to retrieve context from URL: " + url)
-            })
+                const response = await axios.get(url).catch((e) => {
+                    throw errorTypes.LdContextNotAvailable.withDetail("Failed to retrieve context from URL: " + url)
+                })
 
-            if (response != undefined) {
-                fs.writeFileSync(fileName, JSON.stringify(response.data))
+                if (response != undefined) {
+                    fs.writeFileSync(fileName, JSON.stringify(response.data))
+                }
             }
-        }
 
-        result = JSON.parse(fs.readFileSync(fileName).toString())
+            result = JSON.parse(fs.readFileSync(fileName).toString())
+        }
     }
     else if (typeof (entry) == "object") {
         result = entry
     }
     else {
         throw errorTypes.LdContextNotAvailable.withDetail("Invalid context: " + JSON.stringify(entry))
-        //console.log("Invalid context entry: " + entry)
     }
 
     return result

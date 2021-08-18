@@ -1,5 +1,5 @@
 import * as pg from 'pg'
-//import * as jsonld from 'jsonld'
+import * as jsonld from 'jsonld'
 
 import { BatchEntityError } from "./dataTypes/BatchEntityError"
 import { BatchOperationResult } from "./dataTypes/BatchOperationResult"
@@ -10,7 +10,7 @@ import { TemporalQuery } from "./dataTypes/TemporalQuery"
 import { UpdateResult } from "./dataTypes/UpdateResult"
 import { errorTypes } from "./errorTypes"
 import { checkArrayOfEntities, checkArrayOfUris, checkReifiedAttribute, checkEntity, isUri, isDateTimeUtcString, checkGeoQuery, checkQuery, isReifiedAttribute } from "./validate"
-import { appendCoreContext, compactObject, expandObject, getContextForContextArrayEntry, getNormalizedContext, NGSI_LD_CORE_CONTEXT_URL } from "./jsonldUtil"
+import { appendCoreContext, compactObject, expandObject, getContextForContextArrayEntry, getNormalizedContext } from "./jsonldUtil"
 import { parseJson, compactedEntityToGeoJsonFeature as compactedEntityToGeoJsonFeature } from "./util"
 import * as util from './util'
 import { EntityInfo } from "./dataTypes/EntityInfo"
@@ -80,25 +80,27 @@ export class ContextBroker {
             throw errorTypes.BadRequestData.withDetail("The request payload is not valid JSON")
         }
 
-        contextUrl = "https://uri.geonet-mrn.de/xdatatogo/xdatatogo-context.jsonld"
-
-        let providedContext = (contextUrl != undefined) ? [contextUrl] : entity_compacted['@context']
-
-
-        providedContext = appendCoreContext(providedContext)
-
-
-
-
-
         //################## BEGIN JSON-LD experiments #######################
-        /*
-        entity_compacted['@context'] = providedContext
+
+        entity_compacted['@context'] = []
 
 
+        entity_compacted['@context'].push("https://uri.geonet-mrn.de/xdatatogo/xdatatogo-context.jsonld")
+
+
+        entity_compacted['@context'].push("https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.3.jsonld")
+
+
+        const contextblubb = await getNormalizedContext(entity_compacted['@context'])
+
+        //@ts-ignore
+        //  entity_compacted['@context'] = [contextblubb.contextRaw] //["normalized"]
+
+
+        //################# BEGIN Define custom context loader ##################
         const contexts: any = {}
 
-        for (const entry of providedContext) {
+        for (const entry of entity_compacted['@context']) {
             contexts[entry] = await getContextForContextArrayEntry(entry)
         }
 
@@ -107,7 +109,9 @@ export class ContextBroker {
 
         const customLoader = async (url: string, options: any) => {
 
+
             if (url in contexts) {
+
                 return {
                     contextUrl: null, // this is for a context via a link header
                     document: contexts[url], // this is the actual document that was loaded
@@ -117,10 +121,12 @@ export class ContextBroker {
             // call the default documentLoader
             return nodeDocumentLoader(url);
         };
+        //################# END Define custom context loader ##################
+
 
         let entity_expanded = await jsonld.expand(entity_compacted, { documentLoader: customLoader })
-
         
+
         console.log("-------- Expanded: --------------")
         console.log(JSON.stringify(entity_expanded))
 
@@ -128,58 +134,53 @@ export class ContextBroker {
         let compacted2 = JSON.parse(JSON.stringify(entity_expanded))
 
         console.log("----------------------")
-        
-        let count = 0
-        for (const key in contexts) {
-            console.log(key)
 
-            let compactArrays = (count == Object.keys(contexts).length - 1)
-            console.log(compactArrays)
-            compacted2 = await jsonld.compact(compacted2, contexts[key], {skipExpansion:true, compactArrays: compactArrays})
 
-            let foo = JSON.parse(JSON.stringify(compacted2))
-            delete(foo["@context"])
-            console.log(JSON.stringify(foo))
-            console.log("***")
+        compacted2 = await jsonld.compact(compacted2, entity_compacted['@context'], { compactArrays: true, documentLoader: customLoader })
 
-            count++
-        }
 
-        let compactedContext = compacted2["@context"]
-
-        delete(compacted2["@context"])
-        //console.log(compactedContext)
+        delete (compacted2["@context"])
 
         console.log("-------- Compacted: --------------")
 
         console.log(JSON.stringify(compacted2))
-
         //-------------------
-          return
+        return
 
-        */
+
         //################## END JSON-LD experiments #######################
 
-      
+
+
+
+
+
+        /*
+ 
+         const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : entity_compacted['@context']
+         const actualContext = appendCoreContext(nonNormalizedContext)
+         const context = await getNormalizedContext(actualContext)
+ 
+
+                 //  const context = await getNormalizedContext(providedContext)
+
         
-        const context = await getNormalizedContext(providedContext)
-
-        let entity_expanded = await expandObject(entity_compacted, context)
-
-        //entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
-
-        const entityCheckResults = checkEntity(entity_expanded, true)
-
-        if (entityCheckResults.length > 0) {
-            throw errorTypes.InvalidRequest.withDetail("The submitted data is not a valid NGSI-LD entity: " + entityCheckResults.join(" "))
-        }
-
-
-        const resultCode = await this.createEntity(entity_expanded, false)
-
-        if (resultCode == -1) {
-            throw errorTypes.AlreadyExists.withDetail(`An Entity with the ID '${entity_expanded['@id']}' already exists.`)
-        }
+                let entity_expanded = await expandObject(entity_compacted, context)
+        
+             
+                const entityCheckResults = checkEntity(entity_expanded, true)
+        
+                if (entityCheckResults.length > 0) {
+                    throw errorTypes.InvalidRequest.withDetail("The submitted data is not a valid NGSI-LD entity: " + entityCheckResults.join(" "))
+                }
+        
+        
+                const resultCode = await this.createEntity(entity_expanded, false)
+        
+                if (resultCode == -1) {
+                    throw errorTypes.AlreadyExists.withDetail(`An Entity with the ID '${entity_expanded['@id']}' already exists.`)
+                }
+                */
     }
 
 
@@ -199,7 +200,6 @@ export class ContextBroker {
 
         let fragment_expanded = expandObject(fragment_compacted, context)
 
-      //  fragment_expanded = util.unpackGeoPropertyStringValues(fragment_expanded)
 
         const entityCheckResults = checkEntity(fragment_expanded, true)
 
@@ -231,8 +231,6 @@ export class ContextBroker {
         const context = await getNormalizedContext(actualContext)
 
         let fragment_expanded = expandObject(fragment_compacted, context)
-
-      //  fragment_expanded = util.unpackGeoPropertyStringValues(fragment_expanded)
 
         //################### BEGIN Validation ################
         if (!isUri(entityId)) {
@@ -278,8 +276,6 @@ export class ContextBroker {
         const context = await getNormalizedContext(actualContext)
 
         let fragment_expanded = expandObject(fragment_compacted, context)
-
-     //   fragment_expanded = util.unpackGeoPropertyStringValues(fragment_expanded)
 
         const attributeId_expanded = expandObject(attributeId_compacted, context)
 
@@ -404,8 +400,6 @@ export class ContextBroker {
 
             let entity_expanded = expandObject(entity_compacted, context)
 
-   //         entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
-
             entities_expanded.push(entity_expanded)
         }
 
@@ -468,8 +462,6 @@ export class ContextBroker {
 
 
             let entity_expanded = expandObject(entity_compacted, context)
-
-       //     entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
 
             entities_expanded.push(entity_expanded)
         }
@@ -599,8 +591,6 @@ export class ContextBroker {
 
             let entity_expanded = expandObject(entity_compacted, context)
 
-           // entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
-
             entities_expanded.push(entity_expanded)
         }
 
@@ -687,7 +677,6 @@ export class ContextBroker {
         let entity_expanded = expandObject(entity_compacted, context)
 
 
-      //  entity_expanded = util.unpackGeoPropertyStringValues(entity_expanded)
 
         //################# BEGIN Validate input ##################
         const entityCheckResults = checkEntity(entity_expanded, false)
@@ -746,7 +735,6 @@ export class ContextBroker {
         let fragment_expanded = expandObject(fragment_compacted, context)
 
 
-      //  fragment_expanded = util.unpackGeoPropertyStringValues(fragment_expanded)
 
 
         const entityCheckResults = checkEntity(fragment_expanded, false)
@@ -878,24 +866,6 @@ export class ContextBroker {
         sql_update += ` AND ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance_expanded['@type'])}`
         sql_update += ';'
         //################ END Update temporal table ################
-
-
-        /*
-        //################ BEGIN Update last created table ################
-        sql_update += queryBuilder.getUpdateQueryForTable(tableCfg.TBL_ATTR_LATEST)
-
-        // Add WHERE conditions:    
-
-        sql_update += ` WHERE ${tableCfg.COL_INSTANCE_ID} = ${instanceId_number}`
-
-        // Don't allow attribute type change:
-        // ATTENTION: COL_ATTR_TYPE is of type smallint, so no quotes around the value here!
-        sql_update += ` AND ${tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf(instance_expanded['@type'])}`
-        sql_update += ';'
-        //################ END Update last created table ################
-
-        // TODO: Error message if attribute type change was attempted?
-        */
 
 
         sql_update += this.makeUpdateEntityModifiedAtQuery(entityMetadata.id)
@@ -1564,19 +1534,19 @@ export class ContextBroker {
 
             let value_prepared = undefined
 
-            switch(typeof value) {
+            switch (typeof value) {
                 case "string":
                     value_prepared = parseJson(value)
                     break
                 case "object":
-                value_prepared = compactObject(value, this.ngsiLdCoreContext)
+                    value_prepared = compactObject(value, this.ngsiLdCoreContext)
             }
-           
+
             if (value_prepared === undefined) {
                 throw errorTypes.BadRequestData.withDetail("Invalid GeoJSON string: " + value)
             }
             const geojson_string = JSON.stringify(value_prepared)
-            
+
             queryBuilder.add("geom", `ST_SetSRID(ST_GeomFromGeoJSON('${geojson_string}'), 4326)`, true)
         }
         // ############### END Write 'geom' column ################

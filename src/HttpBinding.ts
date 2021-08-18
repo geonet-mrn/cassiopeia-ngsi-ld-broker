@@ -36,7 +36,7 @@ import { errorTypes } from "./errorTypes"
 import { EntityInfo } from "./dataTypes/EntityInfo"
 import { Query } from "./dataTypes/Query"
 import { TemporalQuery } from "./dataTypes/TemporalQuery"
-import { getNormalizedContext, NGSI_LD_CORE_CONTEXT_URL } from "./jsonld"
+import { getNormalizedContext, NGSI_LD_CORE_CONTEXT_URL } from "./jsonldUtil"
 
 import * as fs from 'fs'
 import * as auth from 'basic-auth'
@@ -164,8 +164,7 @@ export class HttpBinding {
         const entities_compacted = await this.broker.api_5_7_2_queryEntities(query, contextUrl, options)
 
 
-        if (count) {
-            console.log("COUNT IS SET")
+        if (count) {            
             ctx.set("NGSILD-Results-Count", entities_compacted.length)
         }
 
