@@ -36,7 +36,7 @@ const entities = [
             {
                 "type": "Property",
                 "value": "value1",
-                "datasetId": "dataset1"
+                "datasetId": "urn:ngsi-ld:dataset1"
             }
         ]
     }
@@ -54,10 +54,7 @@ describe('6.7.3.2 DELETE entities/<entityId>/attrs/<attrId>', function () {
         //###################### BEGIN Create entities for test ######################
         const createUrl = testConfig.base_url + "entityOperations/upsert"
 
-        let response = await axios.post(createUrl, entities, config).catch((e) => {
-            //console.log(e)
-
-        }) as AxiosResponse
+        let response = await prep.axiosPost(createUrl, entities, config)
 
         
         expect(response.status).equals(201)
@@ -110,7 +107,7 @@ describe('6.7.3.2 DELETE entities/<entityId>/attrs/<attrId>', function () {
 
 
         // Step 2: Delete instance "dataset1" from "multiAttribute":
-        let deleteUrl = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009/attrs/multiAttribute?datasetId=dataset1"
+        let deleteUrl = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009/attrs/multiAttribute?datasetId=urn:ngsi-ld:dataset1"
         const deleteResponse = await axios.delete(deleteUrl, config)
 
         expect(deleteResponse.status == 204)

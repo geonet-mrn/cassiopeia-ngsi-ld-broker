@@ -68,7 +68,7 @@ export async function compactIri(iri : string, context : any) : Promise<string> 
         "@context": context,
     }
 
-    obj[iri] = ""
+    obj[iri] = "lala"
 
     let cc = await jsonld.compact(obj)
 

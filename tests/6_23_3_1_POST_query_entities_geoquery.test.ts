@@ -44,10 +44,7 @@ async function createEntities() {
         },
         "location": {
             "type": "GeoProperty",
-            "value": {
-                "type": "Point",
-                "coordinates": [8.585334873790753, 48.190456519977353]
-            }
+            "value": "{\"type\": \"Point\",\"coordinates\": [8.585334873790753, 48.190456519977353]}"
         },
         "maxSpeed": {
             "type": "Property",
@@ -97,10 +94,7 @@ async function createEntities() {
         },
         "location": {
             "type": "GeoProperty",
-            "value": {
-                "type": "Point",
-                "coordinates": [8.626806995767446, 48.211859225553688]
-            }
+            "value": "{\"type\": \"Point\",\"coordinates\": [8.626806995767446, 48.211859225553688]}"
         },
         "maxSpeed": {
             "type": "Property",
@@ -150,10 +144,7 @@ async function createEntities() {
         },
         "location": {
             "type": "GeoProperty",
-            "value": {
-                "type": "Point",
-                "coordinates": [8.791811037383784, 48.127597765534865]
-            }
+            "value": "{\"type\": \"Point\",\"coordinates\": [8.791811037383784, 48.127597765534865]}"
         },
         "maxSpeed": {
             "type": "Property",

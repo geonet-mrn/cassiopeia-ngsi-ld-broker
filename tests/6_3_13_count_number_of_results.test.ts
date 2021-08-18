@@ -27,13 +27,7 @@ const entities = [
                 "value": "Deidesheim"
             }
         ],
-        "location": {
-            "type": "GeoProperty",
-            "value": {
-                "type": "Point",
-                "coordinates": [8.18, 49.4]
-            }
-        },
+       
 
         "nestedProp1": {
             "type": "Property",
@@ -63,13 +57,7 @@ const entities = [
         "id": "urn:ngsi-ld:Entity:entity2",
         "type": "TestEntity",
         "name": [{ "type": "Property", "value": "Mannheim" }],
-        "location": {
-            "type": "GeoProperty",
-            "value": {
-                "type": "Point",
-                "coordinates": [8.5, 49.5]
-            }
-        },
+        
         "nestedProp1": {
             "type": "Property",
             "value": "level 1",
@@ -93,13 +81,7 @@ const entities = [
         "id": "urn:ngsi-ld:Entity:entity3",
         "type": "TestEntity",
         "name": [{ "type": "Property", "value": "Somewhere" }],
-        "location": {
-            "type": "GeoProperty",
-            "value": {
-                "type": "Point",
-                "coordinates": [48.5, 60.5]
-            }
-        }
+      
     }
 ]
 

@@ -33,6 +33,7 @@ export function appendCoreContext(nonNormalizedContext: any): Array<any> {
 }
 
 
+/*
 export function compactObject(obj: any, normalizedContext: ldcp.JsonLdContextNormalized): any {
 
     if (obj === null) {
@@ -90,7 +91,7 @@ export function compactObject(obj: any, normalizedContext: ldcp.JsonLdContextNor
 
     //############## END If member is an object ##############   
 }
-
+*/
 
 export function expandObject(obj: any, normalizedContext: ldcp.JsonLdContextNormalized): any {
 

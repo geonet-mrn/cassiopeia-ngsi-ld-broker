@@ -10,7 +10,7 @@ import { TemporalQuery } from "./dataTypes/TemporalQuery"
 import { UpdateResult } from "./dataTypes/UpdateResult"
 import { errorTypes } from "./errorTypes"
 import { checkArrayOfEntities, checkArrayOfUris, checkReifiedAttribute, checkEntity, isUri, isDateTimeUtcString, checkGeoQuery, checkQuery, isReifiedAttribute } from "./validate"
-import { appendCoreContext, compactObject, expandObject, getContextForContextArrayEntry, getNormalizedContext } from "./jsonldUtil"
+import { appendCoreContext, expandObject, getContextForContextArrayEntry, getNormalizedContext } from "./jsonldUtil"
 import { parseJson, compactedEntityToGeoJsonFeature as compactedEntityToGeoJsonFeature } from "./util"
 import * as util from './util'
 import { EntityInfo } from "./dataTypes/EntityInfo"
@@ -27,7 +27,7 @@ import { EntityTypeList } from "./dataTypes/EntityTypeList"
 import { JsonLdContextNormalized } from "jsonld-context-parser/lib/JsonLdContextNormalized"
 import { makeGeoQueryCondition } from "./makeGeoQueryCondition"
 import { makeTemporalQueryCondition } from "./makeTemporalQueryCondition"
-import { checkEntity2 } from './validate2'
+import { checkArrayOfEntities2, checkEntity2 } from './validate2'
 import { ContextDefinition } from 'jsonld'
 import { compactIri, expandIri, getContextLoader } from './jsonLdUtil2'
 
@@ -78,7 +78,7 @@ export class ContextBroker {
     // Spec 5.6.1
     async api_5_6_1_createEntity(entityJson_compacted: string, contextUrl: string | undefined) {
 
-        const entity_compacted = parseJson(entityJson_compacted)
+        let entity_compacted = parseJson(entityJson_compacted)
 
         if (entity_compacted == undefined) {
             throw errorTypes.BadRequestData.withDetail("The request payload is not valid JSON")
@@ -86,56 +86,19 @@ export class ContextBroker {
 
         //################## BEGIN JSON-LD experiments #######################
 
-        entity_compacted['@context'] = []
-        entity_compacted['@context'].push("https://uri.geonet-mrn.de/xdatatogo/xdatatogo-context.jsonld")
-        entity_compacted['@context'].push("https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.3.jsonld")
+        entity_compacted = this.addCoreContext(entity_compacted, contextUrl)
 
-        const customLoader = await getContextLoader(entity_compacted["@context"])
+        const context = entity_compacted["@context"]
+
+        const customLoader = await getContextLoader(context)
 
         let entity_expanded: any = await jsonld.expand(entity_compacted, { documentLoader: customLoader })
 
 
         entity_expanded = entity_expanded[0]
 
-        console.log("-------- Expanded: --------------")
-        console.log(JSON.stringify(entity_expanded))
-
-
-
-        let compacted2 = await jsonld.compact(entity_expanded, entity_compacted['@context'], { compactArrays: true, documentLoader: customLoader })
-
-        delete (compacted2["@context"])
-
-        console.log("-------- Compacted: --------------")
-
-        console.log(JSON.stringify(compacted2))
-
-        //  return
-        //-------------------
-
-        // Expand individual string:
-        let cc = await jsonld.expand({ "TrafficRestriction": "boo", "@context": entity_compacted['@context'] }, { documentLoader: customLoader })
-        //console.log(cc)
-
-        //################## END JSON-LD experiments #######################
-
-
-
-
-
-
-
-        /*
-        const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : entity_compacted['@context']
-        const actualContext = appendCoreContext(nonNormalizedContext)
-        const context = await getNormalizedContext(actualContext)
-        */
-
-        //  const context = await getNormalizedContext(providedContext)
-
-
-        //let entity_expanded = await expandObject(entity_compacted, context)
-
+        
+       
 
         const entityCheckResults = checkEntity2(entity_expanded, true)
 
@@ -180,14 +143,29 @@ export class ContextBroker {
 
         // TODO: 3 "If the Entity Id is not present or it is not a valid URI then an error of type BadRequestData shall be raised."
 
-        const fragment_compacted = parseJson(fragmentString)
+        let fragment_compacted = parseJson(fragmentString)
 
+        /*
         const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : fragment_compacted['@context']
         const actualContext = appendCoreContext(nonNormalizedContext)
         const context = await getNormalizedContext(actualContext)
 
 
         let fragment_expanded = expandObject(fragment_compacted, context)
+*/
+
+
+        fragment_compacted = this.addCoreContext(fragment_compacted, contextUrl)
+
+        const context = fragment_compacted["@context"]
+
+        const customLoader = await getContextLoader(context)
+
+        let fragment_expanded: any = await jsonld.expand(fragment_compacted, { documentLoader: customLoader })
+
+
+
+
 
 
         const entityCheckResults = checkEntity(fragment_expanded, true)
@@ -213,13 +191,32 @@ export class ContextBroker {
     // Spec 5.6.3
     async api_5_6_3_appendEntityAttributes(entityId: string, fragmentJsonString: string, contextUrl: string | undefined, overwrite: boolean): Promise<UpdateResult> {
 
-        const fragment_compacted = parseJson(fragmentJsonString)
+        let fragment_compacted = parseJson(fragmentJsonString)
 
+        /*
         const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : fragment_compacted['@context']
         const actualContext = appendCoreContext(nonNormalizedContext)
         const context = await getNormalizedContext(actualContext)
 
         let fragment_expanded = expandObject(fragment_compacted, context)
+*/
+
+
+
+
+        fragment_compacted = this.addCoreContext(fragment_compacted, contextUrl)
+
+        const context = fragment_compacted["@context"]
+
+        const customLoader = await getContextLoader(context)
+
+        let fragment_expanded: any = await jsonld.expand(fragment_compacted, { documentLoader: customLoader })
+
+
+
+
+
+
 
         //################### BEGIN Validation ################
         if (!isUri(entityId)) {
@@ -257,16 +254,48 @@ export class ContextBroker {
     // Spec 5.6.4
     async api_5_6_4_partialAttributeUpdate(entityId: string, attributeId_compacted: string, fragmentJsonString: string, contextUrl: string | undefined) {
 
-        const fragment_compacted = parseJson(fragmentJsonString)
-
+        let fragment_compacted = parseJson(fragmentJsonString)
+/*
         const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : fragment_compacted['@context']
 
         const actualContext = appendCoreContext(nonNormalizedContext)
         const context = await getNormalizedContext(actualContext)
 
         let fragment_expanded = expandObject(fragment_compacted, context)
+*/
 
-        const attributeId_expanded = expandObject(attributeId_compacted, context)
+
+
+        fragment_compacted = this.addCoreContext(fragment_compacted, contextUrl)
+
+        const context = fragment_compacted["@context"]
+
+        const customLoader = await getContextLoader(context)
+
+        let fragment_expanded: any = await jsonld.expand(fragment_compacted, { documentLoader: customLoader })
+
+
+
+
+
+
+
+        //const attributeId_expanded = expandObject(attributeId_compacted, context)
+        const attributeId_expanded = await expandIri(attributeId_compacted, context)
+
+
+
+
+        
+
+
+
+
+
+
+
+
+
 
         //################### BEGIN Input validation ##################
         if (!isUri(entityId)) {
@@ -382,12 +411,22 @@ export class ContextBroker {
 
         const entities_expanded = []
 
-        for (const entity_compacted of entities_compacted) {
+        for (let entity_compacted of entities_compacted) {
+            /*
             const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : entity_compacted['@context']
             const actualContext = appendCoreContext(nonNormalizedContext)
             const context = await getNormalizedContext(actualContext)
 
             let entity_expanded = expandObject(entity_compacted, context)
+*/
+
+            entity_compacted = this.addCoreContext(entity_compacted, contextUrl)
+
+            const context = entity_compacted["@context"]
+    
+            const customLoader = await getContextLoader(context)
+    
+            let entity_expanded = await jsonld.expand(entity_compacted, { documentLoader: customLoader })
 
             entities_expanded.push(entity_expanded)
         }
@@ -444,18 +483,30 @@ export class ContextBroker {
 
         const entities_expanded = []
 
-        for (const entity_compacted of entities_compacted) {
+        for (let entity_compacted of entities_compacted) {
+
+            /*
             const nonNormalizedContext = (contextUrl != undefined) ? contextUrl : entity_compacted['@context']
             const actualContext = appendCoreContext(nonNormalizedContext)
             const context = await getNormalizedContext(actualContext)
+            */
 
+            entity_compacted = this.addCoreContext(entity_compacted, contextUrl)
 
-            let entity_expanded = expandObject(entity_compacted, context)
+            const context = entity_compacted["@context"]
+    
+            const customLoader = await getContextLoader(context)
+    
+            let entity_expanded = await jsonld.expand(entity_compacted, { documentLoader: customLoader })
+    
+            console.log(JSON.stringify(entity_expanded[0]))
 
-            entities_expanded.push(entity_expanded)
+           // let entity_expanded = expandObject(entity_compacted, context)
+
+            entities_expanded.push(entity_expanded[0] as any)
         }
 
-        const checkResult = checkArrayOfEntities(entities_expanded, true, true)
+        const checkResult = checkArrayOfEntities2(entities_expanded, true, true)
 
         if (checkResult.length > 0) {
             throw errorTypes.BadRequestData.withDetail(checkResult.join("\n"))
@@ -892,24 +943,26 @@ export class ContextBroker {
         options: Array<string>,
         contextUrl: string | undefined): Promise<any | Feature> {
 
+            /*
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
-
+*/
         const keyValues = options.includes("keyValues")
         const includeSysAttrs = options.includes("sysAttrs")
 
 
+        
 
 
 
-        let context2 = this.prepareContext(contextUrl) as any
+        let context = this.prepareContext(contextUrl) as any
 
 
 
 
 
         const query = new Query([new EntityInfo(entityId, undefined, undefined)], attrs_compacted, undefined, undefined, undefined, undefined)
-        const entities = await this.queryEntities(query, false, includeSysAttrs, context2)
+        const entities = await this.queryEntities(query, false, includeSysAttrs, context)
 
         if (entities.length == 0) {
             throw errorTypes.ResourceNotFound.withDetail("No entity found.")
@@ -939,12 +992,12 @@ export class ContextBroker {
         */
 
 
-      
-        
-        const customLoader = await getContextLoader(context2)
 
-        
-        let result_compacted = await jsonld.compact(result_expanded, context2, { documentLoader: customLoader })
+
+        const customLoader = await getContextLoader(context)
+
+
+        let result_compacted = await jsonld.compact(result_expanded, context, { documentLoader: customLoader })
 
 
         return result_compacted
@@ -958,15 +1011,15 @@ export class ContextBroker {
         let keyValues = options.includes("keyValues")
 
 
-     //   const actualContext = appendCoreContext(contextUrl)
+        //   const actualContext = appendCoreContext(contextUrl)
 
-       // const context = await getNormalizedContext(actualContext)
+        // const context = await getNormalizedContext(actualContext)
 
-        let context2 = this.prepareContext(contextUrl)
+        let context = this.prepareContext(contextUrl)
 
 
         // Fetch entities
-        let entities_expanded = await this.queryEntities(query, false, includeSysAttrs, context2)
+        let entities_expanded = await this.queryEntities(query, false, includeSysAttrs, context)
 
         // TODO: 1 Reimplement
         /*
@@ -985,15 +1038,15 @@ export class ContextBroker {
         */
 
 
-       
-        const customLoader = await getContextLoader(context2)
+
+        const customLoader = await getContextLoader(context)
 
 
         const result = Array<any>()
 
         for (const entity_expanded of entities_expanded) {
-            
-            let entity_compacted = await jsonld.compact(entity_expanded, context2  as any, { documentLoader: customLoader })            
+
+            let entity_compacted = await jsonld.compact(entity_expanded, context as any, { documentLoader: customLoader })
             result.push(entity_compacted)
         }
 
@@ -1003,15 +1056,34 @@ export class ContextBroker {
     }
 
 
-    prepareContext(contextUrl : string|undefined) : Array<any> {
+    prepareContext(contextUrl: string | undefined): Array<any> {
 
-        let result = [] 
+        let result = []
 
         if (contextUrl != undefined && contextUrl != "") {
             result.push(contextUrl)
         }
 
         result.push(ngsiLdCoreContextUrl)
+
+        return result
+    }
+
+
+    addCoreContext(entity_compacted: any, contextUrl: string | undefined): any {
+
+        let result = JSON.parse(JSON.stringify(entity_compacted))
+
+        // TODO: Which has priority? contextUrl from header or @context from document?
+        if (result["@context"] == undefined) {
+            result["@context"] = []
+        }
+
+        if (contextUrl != undefined) {
+            result["@context"].push(contextUrl)
+        }
+
+        result["@context"].push(ngsiLdCoreContextUrl)
 
         return result
     }
@@ -1050,7 +1122,8 @@ export class ContextBroker {
             throw errorTypes.InternalError.withDetail("More than one entity with the same ID was found. This is a database corruption and should never happen.")
         }
 
-        return compactObject(entities[0], context)
+        // TODO: 1 Reimplement
+        // return compactObject(entities[0], context)
     }
 
 
@@ -1090,11 +1163,14 @@ export class ContextBroker {
         //############### BEGIN Compact the result #################
         const result = Array<any>()
 
+        // TODO: 1 Reimplement
+        /*
         for (const entity_expanded of entities_expanded) {
             let entity_compacted = compactObject(entity_expanded, context)
             entity_compacted['@context'] = actualContext
             result.push(entity_compacted)
         }
+        */
         //############### END Compact the result #################
 
         return result
@@ -1280,14 +1356,23 @@ export class ContextBroker {
 
 
     private async deleteAttribute(entityId: string, attributeId_compacted: string, datasetId_compacted: string | null | undefined, instanceId: string | undefined, temporal: boolean, contextUrl: any) {
-
+/*
         const actualContext = appendCoreContext(contextUrl)
         const context = await getNormalizedContext(actualContext)
+*/
 
-        
+        let context = this.prepareContext(contextUrl)
+
+
+        /*
         const attributeId_expanded = expandObject(attributeId_compacted, context)
         const datasetId_expanded = expandObject(datasetId_compacted, context)
-        
+        */
+
+        const attributeId_expanded = await expandIri(attributeId_compacted, context)
+
+        // TODO: Expand datasetId?
+        const datasetId_expanded = datasetId_compacted
 
 
         //######################## BEGIN Input validation ##############################
@@ -1345,7 +1430,7 @@ export class ContextBroker {
             sql_t_delete += ";"
             //################# END Delete from temporal attributes table ##################
 
-            console.log("DELETE TEMPORAL")
+            
         }
         else {
 
@@ -1557,6 +1642,7 @@ export class ContextBroker {
             // ATTENTION: 
             // Since property values are not expanded, we don't need to re-compact the GeoJSON object here:
 
+            
             let value = instance_expanded['https://uri.etsi.org/ngsi-ld/hasValue'][0]["@value"]
 
             let value_prepared = undefined
@@ -1568,10 +1654,11 @@ export class ContextBroker {
                 case "object":
                     //value_prepared = compactObject(value, this.ngsiLdCoreContext)
                     value_prepared = await compactIri(value, [ngsiLdCoreContextUrl])
+                    
             }
 
             if (value_prepared === undefined) {
-                throw errorTypes.BadRequestData.withDetail("Invalid GeoJSON string: " + value)
+                throw errorTypes.BadRequestData.withDetail(`Invalid GeoProperty value: '${value}'`)
             }
             const geojson_string = JSON.stringify(value_prepared)
 
@@ -1690,12 +1777,12 @@ export class ContextBroker {
         // parameter shall be included."
 
 
-        
+
         if (query.attrs instanceof Array && query.attrs.length > 0) {
 
             const attrs_expanded = []
 
-            for(const attr of query.attrs) {
+            for (const attr of query.attrs) {
                 attrs_expanded.push(await expandIri(attr, context))
             }
             //const attrs_expanded = expandObject(query.attrs, context)
@@ -1711,7 +1798,7 @@ export class ContextBroker {
         // - "the filter conditions specified by the query are met (as mandated by clause 4.9)":
         if (query.q != undefined) {
 
-            const ngsi_query_sql = this.ngsiQueryParser.makeQuerySql(query, context, attr_table)
+            const ngsi_query_sql = await this.ngsiQueryParser.makeQuerySql(query, context, attr_table)
 
             sql_where += ` AND t1.${tableCfg.COL_ENT_INTERNAL_ID} IN ${ngsi_query_sql}`
         }
@@ -1853,7 +1940,7 @@ export class ContextBroker {
             // because we need it to find the most recently modified attribute instance if this is not a
             // temporal API query:
 
-            console.log(row["attr_type"])
+            
             instance["@type"] = this.attributeTypes[row["attr_type"]]
 
             if (row["dataset_id"] != null) {
@@ -1895,10 +1982,10 @@ export class ContextBroker {
         const attrNames_expanded = []
 
         if (query.attrs != undefined) {
-        for(const attr of query.attrs) {
-            attrNames_expanded.push(await expandIri(attr, context))
+            for (const attr of query.attrs) {
+                attrNames_expanded.push(await expandIri(attr, context))
+            }
         }
-    }
 
         if (attrNames_expanded instanceof Array && attrNames_expanded.length > 0) {
             for (const entity of result) {

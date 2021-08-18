@@ -66,11 +66,12 @@ export function checkDatasetIdUniqueness(attribute: any, key: string): Array<str
 
     for (const instance of attribute) {
 
-        if (existingDatasetIds.includes(instance['https://uri.etsi.org/ngsi-ld/datasetId'])) {
-            result.push(key + ": Multiple attribute instances with same dataset ID: " + instance['https://uri.etsi.org/ngsi-ld/datasetId'])
+      
+        if (existingDatasetIds.includes(instance['https://uri.etsi.org/ngsi-ld/datasetId'][0]['@id'])) {
+            result.push(key + ": Multiple attribute instances with same dataset ID: " + instance['https://uri.etsi.org/ngsi-ld/datasetId'][0]['@id'])
         }
         else {
-            existingDatasetIds.push(instance['https://uri.etsi.org/ngsi-ld/datasetId'])
+            existingDatasetIds.push(instance['https://uri.etsi.org/ngsi-ld/datasetId'][0]['@id'])
         }
 
     }
@@ -120,7 +121,7 @@ export function checkInvalidCharacters(value: any): Array<string> {
 
 
 
-export function checkArrayOfEntities(entities: Array<any>, checkNonZeroLength: boolean, expectUniqueDatasetIds: boolean): Array<string> {
+export function checkArrayOfEntities2(entities: Array<any>, checkNonZeroLength: boolean, expectUniqueDatasetIds: boolean): Array<string> {
 
     let result = Array<string>()
 
@@ -218,6 +219,8 @@ export function checkReifiedAttribute(attribute: any, key: string, expectedType:
     //###################### BEGIN Iterate over attribute instances ######################
     for (const instance of attribute) {
 
+        
+
         //################# BEGIN Check JS data type of instance object ################
         if (instance == null || instance == undefined) {
             result.push(key + ": Attribute instance is null or undefined")
@@ -246,10 +249,16 @@ export function checkReifiedAttribute(attribute: any, key: string, expectedType:
         //################# END Check JSdata type of instance object ################
 
 
+        if (instance["@type"] == undefined || instance["@type"][0] == undefined) {
+            result.push(key + ": Attribute instance type is undefined")
+            continue
+        }
+
+        const instanceType = instance['@type'][0]
 
         //########### BEGIN Check if instance has expected attribute type ##############
-        if (expectedType != undefined && instance['@type'][0] != expectedType) {
-            result.push(key + `: Invalid instance type: '${instance['@type'][0]}'`)
+        if (expectedType != undefined && instanceType != expectedType) {
+            result.push(key + `: Invalid instance type: '${instanceType}'`)
         }
         //########### END Check if instance has expected attribute type ##############
 
@@ -257,10 +266,10 @@ export function checkReifiedAttribute(attribute: any, key: string, expectedType:
 
         //############ BEGIN Make sure that all instances have the same type #############
         if (foundType == undefined) {
-            foundType = instance['@type'][0]
+            foundType = instanceType
         }
 
-        if (instance['@type'][0] != foundType) {
+        if (instanceType != foundType) {
             result.push(key + ": Different instance types in one attribute")
         }
         //############ END Make sure that all instances have the same type #############
@@ -284,7 +293,7 @@ export function checkReifiedAttribute(attribute: any, key: string, expectedType:
 
         // TODO: 2 Exception to the "no null value" rule: Fragment with order to delete an instance!
 
-        if (instance['@type'] == "https://uri.etsi.org/ngsi-ld/Property") {
+        if (instanceType == "https://uri.etsi.org/ngsi-ld/Property") {
 
             if (value_expanded == undefined || value_expanded == null) {
                 result.push(key + ": Attribute instance value is null or undefined.")
@@ -296,7 +305,7 @@ export function checkReifiedAttribute(attribute: any, key: string, expectedType:
 
             result = result.concat(checkInstanceMembers(instance, defaultPropertyMembers))
         }
-        else if (instance['@type'] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
+        else if (instanceType == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
 
             // Spec 4.5.2
             // Spec 5.2.7
@@ -321,16 +330,17 @@ export function checkReifiedAttribute(attribute: any, key: string, expectedType:
 
             result = result.concat(checkInstanceMembers(instance, defaultGeoPropertyMembers))
         }
-        else if (instance['@type'] == "https://uri.etsi.org/ngsi-ld/Relationship") {
+        else if (instanceType == "https://uri.etsi.org/ngsi-ld/Relationship") {
 
-            if (!isUri(instance["https://uri.etsi.org/ngsi-ld/hasObject"])) {
-                result.push(key + ": Relationship 'object' not an URI: " + instance["https://uri.etsi.org/ngsi-ld/hasObject"])
+            if (!isUri(instance["https://uri.etsi.org/ngsi-ld/hasObject"][0]["@id"])) {
+                
+                result.push(key + ": Relationship 'object' not an URI: " + instance["https://uri.etsi.org/ngsi-ld/hasObject"][0]["@id"])
             }
 
             result = result.concat(checkInstanceMembers(instance, defaultRelationshipMembers))
         }
         else {
-            result.push(key + ": Invalid type: '" + instance['@type'] + '"')
+            result.push(key + ": Invalid type: '" + instanceType + '"')
         }
         //################### END Perform Property-type-specific checks #################
     }
@@ -365,8 +375,14 @@ export function checkEntity2(entity: any, expectUniqueDatasetIds: boolean): Arra
         result.push("Entity ID is not a URI")
     }
 
-    if (!isUri(entity['@type'][0])) {
-        result.push("Entity type is not a URI")
+    if (entity['@type'] == undefined) {
+        result.push("Entity type is not defined")
+    }
+    else {
+
+        if (!isUri(entity['@type'][0])) {
+            result.push("Entity type is not a URI")
+        }
     }
 
 
@@ -446,7 +462,7 @@ export function checkQuery(query: Query): Array<string> {
 }
 
 
-export function isReifiedAttribute(attribute: any, attributeName : string): boolean {
+export function isReifiedAttribute(attribute: any, attributeName: string): boolean {
     return (checkReifiedAttribute(attribute, attributeName, undefined, false).length == 0)
 }
 

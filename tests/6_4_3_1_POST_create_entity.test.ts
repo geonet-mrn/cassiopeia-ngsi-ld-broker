@@ -87,7 +87,10 @@ describe('6.4.3.1 POST /entities/', function () {
         response = await axios.get(testConfig.base_url + "entities/urn:ngsi-ld:Test1", config)
 
         expect(response.status).equals(200)
-        expect(response.data.name[0].value).equals("Test")
+
+        const entity =response.data
+        
+        expect(response.data.name.value).equals("Test")
     })
 
 

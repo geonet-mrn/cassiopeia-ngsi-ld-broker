@@ -17,6 +17,7 @@ import { isDateString, isDateTimeUtcString, isTimeUtcString, isUri } from "./val
 import { PsqlTableConfig } from "./PsqlTableConfig"
 import * as ldcp from 'jsonld-context-parser'
 import { JsonLdContextNormalized } from "jsonld-context-parser"
+import { expandIri } from "./jsonLdUtil2"
 
 
 
@@ -58,7 +59,7 @@ export class NgsiLdQueryParser {
     constructor(private tableCfg: PsqlTableConfig) { }
 
 
-    makeQuerySql(query: Query, context: JsonLdContextNormalized, attr_table: string): string {
+    async makeQuerySql(query: Query, context: JsonLdContextNormalized, attr_table: string): Promise<string> {
 
         if (query.q == undefined) {
             return ""
@@ -69,7 +70,7 @@ export class NgsiLdQueryParser {
         const ast = this.buildAst(tokens)
 
 
-        return this.build(ast, context, attr_table)
+        return await this.build(ast, context, attr_table)
     }
 
 
@@ -95,7 +96,7 @@ export class NgsiLdQueryParser {
     }
 
 
-    private build(ast: Array<any>, context: ldcp.JsonLdContextNormalized, attrTable: string): string {
+    private async build(ast: Array<any>, context: ldcp.JsonLdContextNormalized, attrTable: string): Promise<string> {
 
         let result = "("
 
@@ -117,8 +118,13 @@ export class NgsiLdQueryParser {
                 throw errorTypes.InvalidRequest.withDetail("Invalid query path: " + attrPath_compacted.toString())
             }
 
-            const firstPathPiece_expanded = context.expandTerm(firstPathPiece_compacted, true)
-            const lastPathPiece_expanded = context.expandTerm(attrPath_compacted[attrPath_compacted.length - 1], true)!
+            //const firstPathPiece_expanded = context.expandTerm(firstPathPiece_compacted, true)
+            //const lastPathPiece_expanded = context.expandTerm(attrPath_compacted[attrPath_compacted.length - 1], true)!
+
+            const firstPathPiece_expanded = await expandIri(firstPathPiece_compacted, context)
+            const lastPathPiece_expanded = await expandIri(attrPath_compacted[attrPath_compacted.length - 1], context)
+
+
 
             // Remove first piece of attribute path. We do this because the first path piece is not part of
             // the JSON database field. It exists in separate form in the ATTR_NAME column:
@@ -130,7 +136,8 @@ export class NgsiLdQueryParser {
 
             for (const propName of attrPath_compacted) {
 
-                const propNameExpanded = context.expandTerm(propName, true)!
+                //const propNameExpanded = context.expandTerm(propName, true)!
+                const propNameExpanded = await expandIri(propName,context)
 
                 if (this.nonReifiedDefaultProperties.includes(propNameExpanded)) {
 
@@ -192,35 +199,35 @@ export class NgsiLdQueryParser {
 
                 // TODO: Maybe use different methods for equality comparators (==,!=) and the others
                 case "==": {
-                    result += this.blubb(left, "=", right, context, attrTable)
+                    result += await this.blubb(left, "=", right, context, attrTable)
                     break
                 }
                 case "!=": {
-                    result += this.blubb(left, "!=", right, context, attrTable)
+                    result +=  await this.blubb(left, "!=", right, context, attrTable)
                     break
                 }
                 case ">=": {
-                    result += this.blubb(left, ">=", right, context, attrTable)
+                    result += await  this.blubb(left, ">=", right, context, attrTable)
                     break
                 }
                 case ">": {
-                    result += this.blubb(left, ">", right, context, attrTable)
+                    result += await  this.blubb(left, ">", right, context, attrTable)
                     break
                 }
                 case "<=": {
-                    result += this.blubb(left, "<=", right, context, attrTable)
+                    result += await  this.blubb(left, "<=", right, context, attrTable)
                     break
                 }
                 case "<": {
-                    result += this.blubb(left, "<", right, context, attrTable)
+                    result += await  this.blubb(left, "<", right, context, attrTable)
                     break
                 }
                 case "|": {
-                    result += this.build(left, context, attrTable) + " UNION " + this.build(right, context, attrTable)
+                    result += await  this.build(left, context, attrTable) + " UNION " + this.build(right, context, attrTable)
                     break
                 }
                 case ";": {
-                    result += this.build(left, context, attrTable) + " INTERSECT " + this.build(right, context, attrTable)
+                    result += await  this.build(left, context, attrTable) + " INTERSECT " + this.build(right, context, attrTable)
                     break
                 }
                 default: {
@@ -240,7 +247,7 @@ export class NgsiLdQueryParser {
 
 
     // Spec 4.9
-    private blubb(leftSide: string, op: string, rightSide: string, context: ldcp.JsonLdContextNormalized, attrTable: string): string {
+    private async blubb(leftSide: string, op: string, rightSide: string, context: any, attrTable: string): Promise<string> {
 
 
         // TODO: ValueList
@@ -273,7 +280,8 @@ export class NgsiLdQueryParser {
         // since it is the key of the attribute and not included in the JSON field in the database:
         for (const key of attrPath.slice(1)) {
 
-            const expandedKey = context.expandTerm(key, true)!
+            //const expandedKey = context.expandTerm(key, true)!
+            const expandedKey = await expandIri(key, context)
 
             if (this.nonReifiedDefaultProperties.includes(expandedKey)) {
 
@@ -307,7 +315,9 @@ export class NgsiLdQueryParser {
             // ATTENTION: Note that we access "value" as a JSON OBJECT here ("->" operator), 
             // and not as its direct value ("->>" operator)!!
 
-            jsonFullPathSql_property += `->'https://uri.etsi.org/ngsi-ld/hasValue'`
+            //jsonFullPathSql_property += `->'https://uri.etsi.org/ngsi-ld/hasValue'`
+            // TODO: 1 What here?
+            jsonFullPathSql_property += `->'https://uri.etsi.org/ngsi-ld/hasValue'->0->>'@value'`
 
             for (let ii = 0; ii < trailingPath.length; ii++) {
                 const key = trailingPath[ii]
@@ -330,7 +340,9 @@ export class NgsiLdQueryParser {
             // we access "value" as its direct value here ("->>" Operator)!         
 
             if (!(this.nonReifiedDefaultProperties.includes(attrPath[attrPath.length - 1]))) {
-                jsonFullPathSql_property += `->>'https://uri.etsi.org/ngsi-ld/hasValue'`
+                //jsonFullPathSql_property += `->>'https://uri.etsi.org/ngsi-ld/hasValue'`
+                // This appears to be correct:
+                jsonFullPathSql_property += `->'https://uri.etsi.org/ngsi-ld/hasValue'->0->>'@value'`
             }
         }
         //############# END Build Complete attribute path expression (with trailing path) ##############           
@@ -338,7 +350,10 @@ export class NgsiLdQueryParser {
 
 
         // Start the SQL query with making sure that the the attribute name matches:
-        const firstPathPiece = context.expandTerm(attrPath[0], true)
+        //const firstPathPiece = context.expandTerm(attrPath[0], true)
+        const firstPathPiece = await expandIri(attrPath[0], context)
+
+
         let result = `SELECT eid FROM ${attrTable} WHERE ${attrTable}.attr_name = '${firstPathPiece}' `
 
         // ... then continue with the value condition:
@@ -453,16 +468,7 @@ export class NgsiLdQueryParser {
             }
 
             // TODO: Implement value list support for relationships:
-            /*
-            case CompareValueType.URI: {
-                // NOTE: Compare expression for Relationships is different, so we don't set test1 here and
-                // write the Relationship expression below if test1 == null.
-                // NOTE: For Relationship queries, the trailing path does not play a role:
-                
-                result += `${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Relationship')} AND ${jsonAttrPathSql}->>'https://uri.etsi.org/ngsi-ld/hasObject' = '${compareValue}'`
-                break
-            }
-            */
+            
             default: {
                 throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "Unsupported compare type: " + compareType)
             }
@@ -530,14 +536,15 @@ export class NgsiLdQueryParser {
                 
                 result += " OR "
 
-                result += `(${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Relationship')} AND ${jsonAttrPathSql}->>'https://uri.etsi.org/ngsi-ld/hasObject' ${op} '${stringWithoutQuotes}')`
+                // TODO: 1 What here?
+                result += `(${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Relationship')} AND ${jsonAttrPathSql}->'https://uri.etsi.org/ngsi-ld/hasObject'->0->>'@id'::text ${op} '${stringWithoutQuotes}')`
                 break
             }
             case CompareValueType.URI: {
                
                 // NOTE: For Relationship queries, the trailing path does not play a role:
 
-                result += `${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Relationship')} AND ${jsonAttrPathSql}->>'https://uri.etsi.org/ngsi-ld/hasObject' = '${compareValue}'`
+                result += `${attrTable}.${this.tableCfg.COL_ATTR_TYPE} = ${this.attributeTypes.indexOf('https://uri.etsi.org/ngsi-ld/Relationship')} AND ${jsonAttrPathSql}->'https://uri.etsi.org/ngsi-ld/hasObject'->0->>'@id'::text = '${compareValue}'`
                 break
             }
             default: {
@@ -662,15 +669,6 @@ export class NgsiLdQueryParser {
                 throw errorTypes.InternalError.withDetail(this.ERROR_STRING_INTRO + "Failed to determine value type")
             }
 
-            /*
-            if (item.match('"[^"]*"')) {
-                const itemWithoutEnclosingQuotes = item.substr(1, item.length - 2) 
-              
-                if (isUri(itemWithoutEnclosingQuotes)) {
-                    newType = CompareValueType.QUOTEDURI
-                }
-            }
-            */
 
             if (previousType != CompareValueType.UNKNOWN && newType != previousType) {
                 throw errorTypes.InvalidRequest.withDetail(this.ERROR_STRING_INTRO + "Types of invidivual values in ranges and value lists must be equal.")

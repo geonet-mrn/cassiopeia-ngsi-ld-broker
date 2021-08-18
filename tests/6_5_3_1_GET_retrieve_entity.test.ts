@@ -125,7 +125,8 @@ describe('6.5.3.1 GET entities/<entityId>', function () {
 
 
 
-
+    // TODO: 1 Reimplement
+    /*
     it("should return the requested entity as a GeoJSON Feature if the accept header 'application/geo+json' is set (spec 6.3.15)", async function () {
 
         const geoJsonRequestConfig = {
@@ -144,6 +145,7 @@ describe('6.5.3.1 GET entities/<entityId>', function () {
         
         expect(response.data.type).equal("Feature")
     });
+    */
 
 });
 
