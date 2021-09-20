@@ -268,9 +268,6 @@ export function checkReifiedAttribute(attribute: any, key: string, expectedType:
         const value_expanded = instance['https://uri.etsi.org/ngsi-ld/hasValue']
 
 
-
-
-
         //################# BEGIN Check types of common members ####################
         if (instance["https://uri.etsi.org/ngsi-ld/observedAt"] != undefined && !isDateTimeUtcString(instance["https://uri.etsi.org/ngsi-ld/observedAt"])) {
             result.push(key + ": 'observedAt' is not a valid ISO 8601 UTC DateTime string.")
@@ -303,8 +300,6 @@ export function checkReifiedAttribute(attribute: any, key: string, expectedType:
 
             // Spec 4.5.2
             // Spec 5.2.7
-
-
 
             if (value_expanded == undefined || value_expanded == null) {
                 result.push(key + ": Attribute instance value is null or undefined.")

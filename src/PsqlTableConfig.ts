@@ -1,10 +1,14 @@
 export class PsqlTableConfig {
 
     //############# BEGIN SQL table and column namen constants ###############
-    readonly TBL_ATTR = "attributes"
+    readonly TBL_ATTR_TEMPORAL = "attributes"
     readonly TBL_ENT = "entities"
+    readonly VIEW_LATEST_ATTR = "view_latest_attributes"
+    readonly TBL_ATTR_LATEST = "latest_attributes"    
 
     
+    readonly COL_ATTR_EID = "eid"
+    readonly COL_ATTR_GEOM = "geom"
     readonly COL_ATTR_NAME = "attr_name"
     readonly COL_ATTR_TYPE = "attr_type"
     readonly COL_DATASET_ID = "dataset_id"
@@ -20,7 +24,6 @@ export class PsqlTableConfig {
     readonly COL_ENT_ID = "ent_id"
     readonly COL_ENT_TYPE = "ent_type"
     readonly COL_ENT_CREATED_AT = "ent_created_at"
-    readonly COL_ENT_MODIFIED_AT = "ent_modified_at"
-    readonly COL_ENT_TEMPORAL = "ent_temporal"
+    readonly COL_ENT_MODIFIED_AT = "ent_modified_at"    
     //############# END SQL table and column namen constants ###############
 }

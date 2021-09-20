@@ -10,90 +10,82 @@ let config = {
     auth: testConfig.auth
 }
 
-async function createEntity() {
-
-
-
-    const entity = {
-
-
-        "id": "urn:xdatatogo:TrafficRestriction:test",
-        "type": "TrafficRestriction",
-
-        "dateValidFrom": {
-            "type": "Property",
-            "value": {
-                "@type": "DateTime",
-                "@value": "2021-02-08T06:00:00.000Z"
-            }
-        },
-        "dateValidUntil": {
-            "type": "Property",
-            "value": {
-                "@type": "DateTime",
-                "@value": "2021-02-08T06:00:00.000Z"
-            }
-        },
-        "location": {
-            "type": "GeoProperty",
-            "value": {
-                "type": "Point",
-                "coordinates": [50, 50]
-            }
-        },
-        "maxSpeed": {
-            "type": "Property",
-            "value": 123
-        },
-        "maxVehicleAxleLoad": {
-            "type": "Property",
-            "value": 123
-        },
-        "maxVehicleHeight": {
-            "type": "Property",
-            "value": 123
-        },
-        "maxVehicleWeight": {
-            "type": "Property",
-            "value": 123
-        },
-        "maxVehicleWidth": {
-            "type": "Property",
-            "value": 123
-        }
-    }
-
- 
-
-    // Create entity:
-
-
-    let response = await axios.post(testConfig.base_url + "entities/", entity, config).catch((e) => {
-        console.log(e)
-    })
-
-  
-}
-
+const entityId = "urn:xdatatogo:TrafficRestriction:test"
 
 describe('6.23.3.1 POST entityOperations/query', function () {
 
     before(async () => {
-        await prep.deleteAllEntities()
-
-        await createEntity()
-
+        await prep.deleteAllEntities()        
     })
 
 
     after(async () => {
         await prep.deleteAllEntities()
-
-       
     })
 
 
+    it("should create the entity", async function () {
 
+        const entity = {
+
+
+            "id": entityId,
+            "type": "TrafficRestriction",
+
+            "dateValidFrom": {
+                "type": "Property",
+                "value": {
+                    "@type": "DateTime",
+                    "@value": "2021-02-08T06:00:00.000Z"
+                }
+            },
+            "dateValidUntil": {
+                "type": "Property",
+                "value": {
+                    "@type": "DateTime",
+                    "@value": "2021-02-08T06:00:00.000Z"
+                }
+            },
+            "location": {
+                "type": "GeoProperty",
+                "value": {
+                    "type": "Point",
+                    "coordinates": [50, 50]
+                }
+            },
+            "maxSpeed": {
+                "type": "Property",
+                "value": 123
+            },
+            "maxVehicleAxleLoad": {
+                "type": "Property",
+                "value": 123
+            },
+            "maxVehicleHeight": {
+                "type": "Property",
+                "value": 123
+            },
+            "maxVehicleWeight": {
+                "type": "Property",
+                "value": 123
+            },
+            "maxVehicleWidth": {
+                "type": "Property",
+                "value": 123
+            }
+        }
+
+
+
+        // Create entity:
+
+
+        let response = await axios.post(testConfig.base_url + "entities/", entity, config).catch((e) => {
+            console.log(e)
+        }) as AxiosResponse
+
+        expect(response.status).equals(201)
+    })
 
 
     it("should return the entities that match the property query", async function () {
@@ -105,20 +97,27 @@ describe('6.23.3.1 POST entityOperations/query', function () {
 
         }
 
-      
+
+        let err = undefined
 
         let response = await axios.post(testConfig.base_url + "entityOperations/query", query, config).catch((e) => {
-            console.log(e)
+            err = e
         }) as AxiosResponse
 
+        if (err != undefined) {
+            console.log(err)
+        }
 
+        expect(response).to.not.be.undefined
 
         expect(response.data.length).equals(1)
-        //console.log(response.data)
 
-        expect(response.data[0].id).equals("urn:xdatatogo:TrafficRestriction:test")
 
-     
+        const entity = response.data[0]
+
+        expect(entity.id).equals(entityId)
+
+        expect(entity.maxVehicleAxleLoad.length).equals(1)
     })
 
 
@@ -137,7 +136,6 @@ describe('6.23.3.1 POST entityOperations/query', function () {
             "type": "Query"
         }
 
-        
 
 
         let response = await axios.post(testConfig.base_url + "entityOperations/query/", query, config).catch((e) => {
@@ -171,17 +169,15 @@ describe('6.23.3.1 POST entityOperations/query', function () {
             "type": "Query"
         }
 
-       
+
         let response = await axios.post(testConfig.base_url + "entityOperations/query/", query, config).catch((e) => {
             console.log(e)
         }) as AxiosResponse
 
         expect(response.data).instanceOf(Array)
 
-        expect(response.data[0].id).equals("urn:xdatatogo:TrafficRestriction:test")
-
-
-     
+        expect(response.data[0].id).equals(entityId)
     })
+    
 });
 

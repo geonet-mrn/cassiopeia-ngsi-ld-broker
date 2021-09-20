@@ -90,17 +90,15 @@ describe('6.5.3.1 GET entities/<entityId>', function () {
 
     before(async () => {
         await prep.deleteAllEntities()
+    })
 
 
-        const config = {
-            headers: {
-                "content-type": "application/ld+json"
-            },
-            auth: testConfig.auth
-        }
+    after(async () => {
+        await prep.deleteAllEntities()
+    })
 
 
-
+    it('should create the Entity', async function () {
 
 
         //###################### BEGIN Create entities for test ######################
@@ -116,16 +114,7 @@ describe('6.5.3.1 GET entities/<entityId>', function () {
     })
 
 
-    after(async () => {
-        await prep.deleteAllEntities()
-
-    })
-
-
     it('should return the Entity with the ID specified in the URL', async function () {
-
-
-
 
         let getUrl = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009"
 
@@ -139,7 +128,6 @@ describe('6.5.3.1 GET entities/<entityId>', function () {
 
     it("should return the requested entity as a GeoJSON Feature if the accept header 'application/geo+json' is set (spec 6.3.15)", async function () {
 
-
         const geoJsonRequestConfig = {
             headers: {
                 "content-type": "application/ld+json",
@@ -147,7 +135,6 @@ describe('6.5.3.1 GET entities/<entityId>', function () {
             },
             auth: testConfig.auth
         }
-
 
 
         let getUrl = testConfig.base_url + "entities/urn:ngsi-ld:Municipality:07332009"

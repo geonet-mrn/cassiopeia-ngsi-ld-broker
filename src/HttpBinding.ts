@@ -2,30 +2,27 @@
 // https://www.etsi.org/deliver/etsi_gs/CIM/001_099/009/01.03.01_60/gs_CIM009v010301p.pdf
 
 // TODO: 1 Test PostgreSQL connection at broker startup
+// TODO: 1 Difference between 5.6.2 and 5.6.4?
+// TODO: 2 Correct implementation for what to expand and what not
+// TODO: 2 Add GeoJSON output for post query requests
+// TODO: 3 Implement 4.6.2 (limitation of supported names)
 // TODO: 3 Spec 6.3.4 vervollständigen (v.a. check von Accept Headers)
-// TODO: 3 Spec 6.3.5 (Extract context from request)
-// TODO: 3 Spec 6.3.6 (Response context representation)
-// TODO: 3 Support GeoJSON for GeoProperty as string
-// TODO: 3 Correct implementation for what to expand and what not
+// TODO: 3 Spec 6.3.6
 
+// TODO: 3 Validation: Make sure that all attribute instances have the same type
 // TODO: 3 Automatically add "createdAt" and "modifiedAt" to all Attributes in JSON 
 // so that these fields can be queried with the query language. Remove them from output if not explicitly requested.
 
-
-
-// TODO: 3 GeoJSON response headers-Gedöns (spec 6.3.6)
+// TODO: 3 GeoJSON response headers (spec 6.3.6)
 // TODO: 3 5.7.2.4 Match ID patterns
+
+
 // TODO: 4 Complete criteria in Spec 5.5.4 (context and null)
-// TODO: 4 Spec 4.5.9
+
 // TODO: 4 Print context parse errors in response
 // TODO: 4 Spec 5.7.2.4 Context header in GeoJSON response?
-// TODO 4: Implement "limit" / pagination (spec 6.3.10)
-// TODO: Spec 5.5.5
-// TODO: Spec 5.5.6
-// TODO: 5 Spec 5.5.9 (pagination)
-// TODO: 5 Spec 6.3.12
-// TODO: 5 Spec 6.3.13 (results count header)
-
+// TODO: 4 Implement "limit" / pagination (spec 5.5.9 / 6.3.10)
+// TODO: 4 Spec 4.5.9 / 6.3.12 (simplified or aggregated temporal representation of entities)
 
 
 import * as Koa from "koa"
@@ -40,10 +37,11 @@ import { EntityInfo } from "./dataTypes/EntityInfo"
 import { Query } from "./dataTypes/Query"
 import { TemporalQuery } from "./dataTypes/TemporalQuery"
 import { getNormalizedContext, NGSI_LD_CORE_CONTEXT_URL } from "./jsonld"
-import { PsqlBackend } from "./psqlBackend/PsqlBackend"
+
 import * as fs from 'fs'
 import * as auth from 'basic-auth'
-//import createStatsCollector = require("mocha/lib/stats-collector")
+import { FeatureCollection } from "./dataTypes/FeatureCollection"
+import { compactedEntityToGeoJsonFeature } from "./util"
 
 
 export class HttpBinding {
@@ -59,7 +57,7 @@ export class HttpBinding {
 
     private readonly ERROR_MSG_NOT_IMPLEMENTED_YET = "This operation is not implemented yet."
 
-    private readonly catchExceptions = false
+    private readonly catchExceptions = true
 
     // NOTE: The HTTP handler methods must be defined as arrow functions in order to work!
 
@@ -70,14 +68,13 @@ export class HttpBinding {
     http_6_4_3_1_POST_createEntity = async (ctx: any, next: any) => {
 
         if (this.getUser(auth(ctx.request)) == null) {
-            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")        
+            throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
 
         await this.broker.api_5_6_1_createEntity(ctx.request.rawBody, contextUrl)
         ctx.status = 201
-
 
         await next()
     }
@@ -92,6 +89,7 @@ export class HttpBinding {
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
 
         const options = (typeof (ctx.request.query.options) == "string") ? (ctx.request.query.options as string).split(",") : []
+        const count = ctx.request.query.count == "true" // spec 6.3.13
 
         //############## BEGIN Build EntityInfo array ###############
         const entityIds = (typeof (ctx.request.query.id) == "string") ? (ctx.request.query.id as string).split(",") : []
@@ -118,6 +116,7 @@ export class HttpBinding {
         const georel = ctx.request.query.georel
         const geometry = ctx.request.query.geometry
         const geoproperty = ctx.request.query.geoproperty
+        
 
         let coordinates = undefined
 
@@ -159,11 +158,42 @@ export class HttpBinding {
         }
 
         // Create main Query object:        
-        const query = new Query(entities, attrs, q, geoQ, csf, undefined, geometryProperty, datasetId, options)
+        const query = new Query(entities, attrs, q, geoQ, csf, undefined)
 
         // Perform query:
-        ctx.body = await this.broker.api_5_7_2_queryEntities(query, contextUrl)
+        const entities_compacted = await this.broker.api_5_7_2_queryEntities(query, contextUrl, options)
+
+
+        if (count) {
+            console.log("COUNT IS SET")
+            ctx.set("NGSILD-Results-Count", entities_compacted.length)
+        }
+
         ctx.status = 200
+        
+        // NOTE: Here, we enable GeoJSON output if the query parameter 'geometryProperty' is defined.
+        // This does not follow the NGSI-LD spec. Correctly, GeoJSON output is enabled through setting
+        // of the request accept header "application/geo+json" (see spec 6.3.15). This is implemented as well
+        // by setting "geometryProperty" to its default value "location" in the code above if the request 
+        // accept header is set.
+
+        // If no GeoJSON output is requested, return normal NGSI-LD:
+        if (geometryProperty == undefined) {
+            ctx.body = entities_compacted
+        }
+        else {
+            // Otherwise, return GeoJSON:
+            const result = new FeatureCollection()            
+
+            for (const entity_compacted of entities_compacted) {
+                const feature = compactedEntityToGeoJsonFeature(entity_compacted, geometryProperty, datasetId)
+                result.features.push(feature)
+            }
+
+            ctx.body = result
+        }
+        
+
         await next()
     }
 
@@ -174,13 +204,12 @@ export class HttpBinding {
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
 
-        const attrs = (ctx.request.query.attrs) ? ctx.request.query.attrs.split(",") : undefined
         const options = (typeof (ctx.request.query.options) == "string") ? (ctx.request.query.options as string).split(",") : []
 
+
+        const attrs = (ctx.request.query.attrs) ? ctx.request.query.attrs.split(",") : undefined
+
         // NOTE: The parameters 'geometryProperty' and 'datasetId' are defined in spec 6.3.15:
-
-        const datasetId = ctx.request.query.datasetId
-
 
         let geometryProperty = ctx.request.query.geometryProperty
 
@@ -189,7 +218,7 @@ export class HttpBinding {
         }
 
 
-        ctx.body = await this.broker.api_5_7_1_retrieveEntity(ctx.params.entityId, attrs, geometryProperty, datasetId, options, contextUrl)
+        ctx.body = await this.broker.api_5_7_1_retrieveEntity(ctx.params.entityId, attrs, geometryProperty, ctx.request.query.datasetId, options, contextUrl)
         ctx.status = 200
         await next()
     }
@@ -225,14 +254,14 @@ export class HttpBinding {
 
         const overwrite = !options.includes("noOverwrite")
 
-        let result = await this.broker.api_5_6_3_appendEntityAttributes(ctx.params.entityId, ctx.request.rawBody, contextUrl, overwrite)       
+        let result = await this.broker.api_5_6_3_appendEntityAttributes(ctx.params.entityId, ctx.request.rawBody, contextUrl, overwrite)
 
-        if (result.notUpdated.length == 0) {
-            ctx.status = 204
-        }
-        else {
+        if (result.notUpdated.length > 0) {
             ctx.body = result
             ctx.status = 207
+        }
+        else {
+            ctx.status = 204
         }
 
         await next()
@@ -521,10 +550,9 @@ export class HttpBinding {
     // Binding for spec 5.7.4
     http_6_18_3_2_GET_queryTemporalEntities = async (ctx: any, next: any) => {
 
-        const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
-
-
         // TODO: Share code here with non-temporal query method
+
+        const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
 
         const options = (typeof (ctx.request.query.options) == "string") ? (ctx.request.query.options as string).split(",") : []
 
@@ -604,10 +632,10 @@ export class HttpBinding {
 
 
         // Create main Query object:        
-        const query = new Query(entities, attrs, q, geoQ, csf, temporalQ, geometryProperty, datasetId, options)
+        const query = new Query(entities, attrs, q, geoQ, csf, temporalQ)
 
         // Perform query:
-        ctx.body = await this.broker.api_5_7_4_queryTemporalEntities(query, contextUrl)
+        ctx.body = await this.broker.api_5_7_4_queryTemporalEntities(query, contextUrl,options)
 
         await next()
     }
@@ -618,6 +646,8 @@ export class HttpBinding {
     http_6_19_3_1_GET_retrieveTemporalEntity = async (ctx: any, next: any) => {
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request) as string
+
+        const options = (typeof (ctx.request.query.options) == "string") ? (ctx.request.query.options as string).split(",") : []
 
         const attrs = (ctx.request.query.attrs) ? ctx.request.query.attrs.split(",") : undefined
 
@@ -642,7 +672,7 @@ export class HttpBinding {
 
         // TODO: 2 Pass GeoJSON parameters
 
-        ctx.body = await this.broker.api_5_7_3_retrieveTemporalEntity(ctx.params.entityId, attrs, temporalQ, contextUrl)
+        ctx.body = await this.broker.api_5_7_3_retrieveTemporalEntity(ctx.params.entityId, attrs, temporalQ, contextUrl, options)
         ctx.status = 200
 
         await next()
@@ -703,7 +733,7 @@ export class HttpBinding {
     // Spec 6.22.3.1
     // Binding for spec 5.6.14
     http_6_22_3_1_PATCH_modifyAttributeInstanceOfTemporalEntity = async (ctx: any, next: any) => {
-       
+
         if (this.getUser(auth(ctx.request)) == null) {
             throw errorTypes.BadRequestData.withDetail("Operation not allowed with the provided user credentials.")
         }
@@ -738,7 +768,11 @@ export class HttpBinding {
     // Binding for spec 5.7.2
     http_6_23_3_1_POST_entityOperationsQuery = async (ctx: any, next: any) => {
 
+        const options = (typeof (ctx.request.query.options) == "string") ? (ctx.request.query.options as string).split(",") : []
+
         // NOTE: This is the POST version of the "query entities" operation.
+
+        let geometryProperty = ctx.request.query.geometryProperty
 
         //############### BEGIN Try to create Query object from request payload ###############
         let query = undefined
@@ -760,8 +794,8 @@ export class HttpBinding {
         }
 
 
-        if (ctx.request.headers["accept"] == "application/geo+json" && query.geometryProperty == undefined) {
-            query.geometryProperty = "location"
+        if (ctx.request.headers["accept"] == "application/geo+json" && geometryProperty == undefined) {
+            geometryProperty = "location"
         }
 
 
@@ -777,7 +811,7 @@ export class HttpBinding {
         }
         //##################### END Resolve context ##################
 
-        ctx.body = await this.broker.api_5_7_2_queryEntities(query, contextUrl)
+        ctx.body = await this.broker.api_5_7_2_queryEntities(query, contextUrl, options)
         ctx.status = 200
         await next()
     }
@@ -787,7 +821,9 @@ export class HttpBinding {
     // Binding for spec 5.7.4
     http_6_24_3_1_POST_temporalEntityOperationsQuery = async (ctx: any, next: any) => {
 
-        // NOTE: This is the POST version of the "query tempooral entities" operation.
+        // NOTE: This is the POST version of the "query temporal entities" operation.
+
+        const options = (typeof (ctx.request.query.options) == "string") ? (ctx.request.query.options as string).split(",") : []
 
         //############### BEGIN Try to create Query object from request payload ###############
         let query = undefined
@@ -823,10 +859,7 @@ export class HttpBinding {
         }
         //##################### END Resolve context ##################
 
-        //console.log(JSON.stringify(query))
-
-        //ctx.body = await this.broker.api_5_7_2_queryEntities(query, contextUrl)
-        ctx.body = await this.broker.api_5_7_4_queryTemporalEntities(query, contextUrl)
+        ctx.body = await this.broker.api_5_7_4_queryTemporalEntities(query, contextUrl,options)
         ctx.status = 200
         await next()
     }
@@ -897,7 +930,7 @@ export class HttpBinding {
         }
 
 
-        ctx.body = await this.broker.inofficial_deleteAllEntities()
+        ctx.body = await this.broker.api_inofficial_deleteAllEntities()
 
         await next()
     }
@@ -911,7 +944,7 @@ export class HttpBinding {
 
         const contextUrl = this.resolveRequestJsonLdContext(ctx.request)
 
-        ctx.body = await this.broker.inofficial_temporalEntityOperationsUpsert(ctx.request.rawBody, contextUrl)
+        ctx.body = await this.broker.api_inofficial_temporalEntityOperationsUpsert(ctx.request.rawBody, contextUrl)
 
         await next()
     }
@@ -925,11 +958,7 @@ export class HttpBinding {
 
         const ngsiLdCoreContext = await getNormalizedContext([NGSI_LD_CORE_CONTEXT_URL])
 
-        const psql = new PsqlBackend(this.config, ngsiLdCoreContext)
-
-        this.broker = new ContextBroker(psql)
-
-
+        this.broker = new ContextBroker(this.config, ngsiLdCoreContext)
 
         this.setUpRoutes()
 
@@ -939,6 +968,8 @@ export class HttpBinding {
                 try {
                     await next();
                 } catch (error) {
+
+                    console.log(error)
 
                     ctx.status = error.status || 500;
 
@@ -975,24 +1006,9 @@ export class HttpBinding {
 
         //################ BEGIN Enable response payload compression ################
         if (this.config.compressOutput) {
-  
+
             this.app.use(compress({
                 threshold: 2048,
-               
-                /*
-                filter(content_type: string) {
-                    return /text/i.test(content_type)
-                },
-                */
-                  /*         
-                gzip: {
-                    flush: require('zlib').constants.Z_SYNC_FLUSH
-                },
-                deflate: {
-                    flush: require('zlib').constants.Z_SYNC_FLUSH,
-                },
-                br: false // disable brotli
-               */
             }))
         }
         //################ END Enable response payload compression ################

@@ -1,9 +1,10 @@
 import { JsonLdContextNormalized } from "jsonld-context-parser"
-import { GeoQuery } from "../dataTypes/GeoQuery"
-import { errorTypes } from "../errorTypes"
-import { expandObject } from "../jsonld"
-import { checkGeoQuery } from "../validate"
+import { GeoQuery } from "./dataTypes/GeoQuery"
+import { errorTypes } from "./errorTypes"
+import { expandObject } from "./jsonld"
+
 import { PsqlTableConfig } from "./PsqlTableConfig"
+import { checkGeoQuery } from "./validate"
 
 const spatialQueryFunctions: any = {
     "within": "ST_Within",
@@ -16,7 +17,7 @@ const spatialQueryFunctions: any = {
 
 
 
-export function makeGeoQueryCondition(geoQuery: GeoQuery, context : JsonLdContextNormalized, tableCfg : PsqlTableConfig): string {
+export function makeGeoQueryCondition(geoQuery: GeoQuery, context : JsonLdContextNormalized, tableCfg : PsqlTableConfig, attrTable : string): string {
 
     //############# BEGIN Validate ###############
     const geoQueryCheck = checkGeoQuery(geoQuery)
@@ -68,14 +69,14 @@ export function makeGeoQueryCondition(geoQuery: GeoQuery, context : JsonLdContex
 
     const geoProperty_expanded = expandObject(geoQuery.geoproperty, context)
 
-    let result = `(SELECT eid FROM ${tableCfg.TBL_ATTR} WHERE ${tableCfg.TBL_ATTR}.${tableCfg.COL_ATTR_NAME} = '${geoProperty_expanded}' AND `
+    let result = `(SELECT eid FROM ${attrTable} WHERE ${attrTable}.${tableCfg.COL_ATTR_NAME} = '${geoProperty_expanded}' AND `
 
 
     // NOTE: "ST_DWithin" has another call signature than the other spatial query functions.
     // That's why we need to differentiate here:
 
     if (geoFilterFunc in spatialQueryFunctions) {
-        result += `${spatialQueryFunctions[geoFilterFunc]}(${tableCfg.TBL_ATTR}.geom, ST_SetSRID(ST_GeomFromGeoJSON('${JSON.stringify(queryGeomString)}'), 4326))`
+        result += `${spatialQueryFunctions[geoFilterFunc]}(${attrTable}.geom, ST_SetSRID(ST_GeomFromGeoJSON('${queryGeomString}'), 4326))`
     }
     else if (geoFilterFunc == "near" && geoRelParts.length == 2) {
 
@@ -108,7 +109,7 @@ export function makeGeoQueryCondition(geoQuery: GeoQuery, context : JsonLdContex
         }
         //############### END Try to parse distance value ##############
 
-        result += `ST_DWithin(${tableCfg.TBL_ATTR}.geom::geography, ST_SetSRID(ST_GeomFromGeoJSON('${queryGeomString}'), 4326)::geography, ${distance}, true)`
+        result += `ST_DWithin(${attrTable}.geom::geography, ST_SetSRID(ST_GeomFromGeoJSON('${queryGeomString}'), 4326)::geography, ${distance}, true)`
     }
     else {
         throw errorTypes.InvalidRequest.withDetail("Invalid geo query: 'georel' does not match a supported pattern.")

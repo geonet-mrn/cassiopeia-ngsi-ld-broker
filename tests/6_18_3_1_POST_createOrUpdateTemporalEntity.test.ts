@@ -2,7 +2,7 @@ import { expect, assert } from "chai";
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios'
 import * as prep from "./testUtil"
 import { testConfig } from './testConfig'
-
+import * as uuid from 'uuid'
 
 
 let config = {
@@ -11,7 +11,7 @@ let config = {
 }
 
    
-const entityId = "urn:ngsi-ld:TemporalTestEntity:test"
+const entityId = "urn:ngsi-ld:TemporalTestEntity:test" + uuid.v4()
 
 
 
@@ -102,6 +102,16 @@ describe('6.18.3.1 POST temporal/entities/', function () {
             "testProperty": [{
                 "type": "Property",
                 "value": 3
+            },
+            {
+                "type": "Property",
+                "value": 5,
+                "datasetId" : "urn:ngsi-ld:DatasetId:Test"
+            },
+            {
+                "type": "Property",
+                "value": 7,
+                "datasetId" : "urn:ngsi-ld:DatasetId:Test"
             }]
         }
 
@@ -137,31 +147,38 @@ describe('6.18.3.1 POST temporal/entities/', function () {
 
         expect(getResponse.data.id).equals(entityId)
 
-        expect(getResponse.data.testProperty.length).equals(3)
+
+
+        expect(getResponse.data.testProperty.length).equals(5)
     
         
-        const compareEntity = {
+        
+       
+    })
 
 
-            "id": entityId,
-            "type": "TemporalTestEntity",
 
-            "testProperty": [{
-                "type": "Property",
-                "value": 1
-            },
-            {
-                "type": "Property",
-                "value": 2
-            },
-            {
-                "type": "Property",
-                "value": 3
-            }]
-        }
 
-        // NOTE: This does no longer work because of the instanceIds
-       // expect(JSON.stringify(getResponse.data)).equals(JSON.stringify(compareEntity))
+    // NOTE: This tests new behaviour that was implemented from 2021-08-11 on:
+
+    it("should make the entity available through the 'normal' API (non-temporal) as well", async function () {
+
+
+        const url = testConfig.base_url + "entities/" + entityId
+
+        
+        const response = await axios.get(url)
+
+        expect(response).to.not.be.undefined
+
+        const entity = response.data
+
+
+        // The property 'testProperty' should have only one instance:
+
+   
+        expect(entity.testProperty.length).equals(2)
+        
     })
 
 

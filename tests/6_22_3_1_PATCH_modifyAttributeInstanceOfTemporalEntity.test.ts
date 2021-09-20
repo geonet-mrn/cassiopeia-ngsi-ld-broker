@@ -55,7 +55,7 @@ const patchFragment = {
 }
 
 
-describe('6.23.3.2 PATCH temporal/entities/<entityId>/attrs/<attrId>/<instanceId>', function () {
+describe('6.23.3.1 PATCH temporal/entities/<entityId>/attrs/<attrId>/<instanceId>', function () {
 
 
 
@@ -142,7 +142,6 @@ describe('6.23.3.2 PATCH temporal/entities/<entityId>/attrs/<attrId>/<instanceId
 
         for (const instance of e2.propertyToPatch) {
             if (instance.instanceId == instanceId) {
-                console.log("INSTANCE ID MATCH")
                
                 expect(instance.value).equals("after")
                 patchSuccess = true

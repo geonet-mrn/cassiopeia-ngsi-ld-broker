@@ -1,7 +1,8 @@
-import { TemporalQuery } from "../dataTypes/TemporalQuery"
-import { errorTypes } from "../errorTypes"
-import { isDateTimeUtcString } from "../validate"
+
+import { TemporalQuery } from "./dataTypes/TemporalQuery"
+import { errorTypes } from "./errorTypes"
 import { PsqlTableConfig } from "./PsqlTableConfig"
+import { isDateTimeUtcString } from "./validate"
 
 
 export function makeTemporalQueryCondition(temporalQ: TemporalQuery, tableCfg : PsqlTableConfig): string {

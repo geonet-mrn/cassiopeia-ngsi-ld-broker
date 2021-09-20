@@ -1,4 +1,5 @@
 import { Feature } from "./dataTypes/Feature"
+import { errorTypes } from "./errorTypes"
 import * as validate from "./validate"
 
 
@@ -13,6 +14,7 @@ export function parseJson(jsonString: string): any {
         return undefined
     }
 }
+
 
 
 export function compactedEntityToGeoJsonFeature(entity_compacted: any, geometryProperty_compacted: string | undefined = "location", datasetId: string | undefined): Feature {
@@ -63,6 +65,48 @@ export function compactedEntityToGeoJsonFeature(entity_compacted: any, geometryP
     const properties = JSON.parse(JSON.stringify(entity_compacted))
 
     return new Feature(entity_compacted['@id'], geometry, properties)
+}
+
+
+export function unpackGeoPropertyStringValues(entity_expanded : any) {
+
+    let result = JSON.parse(JSON.stringify(entity_expanded))
+
+    for(const key in result) {
+        let attribute_expanded = result[key]        
+
+        
+        if (!validate.isReifiedAttribute(attribute_expanded,key)) {
+            continue
+        }
+
+
+        if (!(attribute_expanded instanceof Array)) {
+            attribute_expanded = [attribute_expanded]
+        }
+
+
+        for(const instance_expanded of attribute_expanded) {
+            if (instance_expanded["@type"] != "https://uri.etsi.org/ngsi-ld/GeoProperty") {
+                continue
+            }
+
+            const value = instance_expanded["https://uri.etsi.org/ngsi-ld/hasValue"]
+            
+            if (typeof value == "string") {
+                const value_unpacked = parseJson(value)
+
+                if (value_unpacked == undefined) {
+                    throw errorTypes.BadRequestData.withDetail("The value of GeoProperty " + key + " is not a valid GeoJSON string")
+                }
+                else {
+                    instance_expanded["https://uri.etsi.org/ngsi-ld/hasValue"] = value_unpacked
+                }
+            }
+        }
+    }
+
+    return result
 }
 
 
