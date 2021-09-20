@@ -255,9 +255,9 @@ export class ContextBroker {
         //############# END Get internal ID of entity #############
 
 
-        const fragment_reduced : any = {}
+        const fragment_reduced: any = {}
 
-        for(const key in fragment_expanded) {
+        for (const key in fragment_expanded) {
             if (key == attributeId_expanded) {
                 fragment_reduced[key] = fragment_expanded[key]
             }
@@ -1800,8 +1800,23 @@ export class ContextBroker {
         }
         //############# END Add empty arrays for requested attributes with no matching instances #############
 
+        //#################### BEGIN Order attributes alphabetically ##############
+        let result_ordered = []
 
-        return result
+        for (const entity of result) {
+            const ordered = Object.keys(entity).sort().reduce(
+                (obj: any, key: string) => {
+                    obj[key] = entity[key];
+                    return obj;
+                },
+                {}
+            );
+
+            result_ordered.push(ordered)
+        }
+        //#################### END Order attributes alphabetically ##############
+
+        return result_ordered
     }
 
 
@@ -1914,7 +1929,7 @@ export class ContextBroker {
 
                 }
                 else if (existingInstancesWithSameDatasetId.length == 1 && overwrite) {
-                    
+
                     //if (overwrite && JSON.stringify(existingInstancesWithSameDatasetId[0]["json"]) != JSON.stringify(this.cleanUpAttributeInstanceForWrite(instance_expanded))) {                        
 
                     sql_t_append_or_update += queryBuilder.getUpdateQueryForTable(tableCfg.TBL_ATTR_LATEST)
@@ -1923,7 +1938,7 @@ export class ContextBroker {
                     sql_t_append_or_update += this.makeSqlCondition_datasetId(existingInstancesWithSameDatasetId[0]["dataset_id"])
                     sql_t_append_or_update += ";"
 
-                    instanceUpdated = true                    
+                    instanceUpdated = true
                 }
                 else if (existingInstancesWithSameDatasetId.length > 1) {
                     throw errorTypes.InternalError.withDetail("Multiple instances with same datasetId")
