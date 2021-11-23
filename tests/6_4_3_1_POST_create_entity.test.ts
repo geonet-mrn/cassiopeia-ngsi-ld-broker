@@ -14,6 +14,7 @@ let config = {
 const entityId1 = "urn:ngsi-ld:Test1"
 const entityId2 = "urn:ngsi-ld:Test2"
 const entityId3 = "urn:ngsi-ld:Test3"
+const entityId4 = "urn:ngsi-ld:Test4"
 
 const validEntity =
 {
@@ -65,6 +66,17 @@ const entityWithStringGeoProperty =
 
 
 
+let entityWithSingleQuotesInValue = {
+    'id': entityId4,
+    'type': 'Datensatz',
+    'osm_specifics': {
+        'type': 'Property',
+        //'value': "['leisure'='golf_course']"
+        
+        'value': { 'osm_query': "['leisure'='golf_course']", 'aggregation': 'count' }
+    }
+}
+
 
 describe('6.4.3.1 POST /entities/', function () {
 
@@ -110,6 +122,20 @@ describe('6.4.3.1 POST /entities/', function () {
 
         expect(response.status).equals(200)
         expect(response.data.id).equals(entityId3)
+
+    })
+
+
+    it("should create a new Entity with a string property where the value contains single quotes", async function () {
+
+        let response = await axiosPost(testConfig.base_url + "entities/", entityWithSingleQuotesInValue, config)
+
+        expect(response.status).equals(201)
+
+        response = await axios.get(testConfig.base_url + "entities/" + entityId4, config)
+
+        expect(response.status).equals(200)
+        expect(response.data.id).equals(entityId4)
 
     })
 

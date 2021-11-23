@@ -27,8 +27,6 @@ import { EntityTypeList } from "./dataTypes/EntityTypeList"
 import { JsonLdContextNormalized } from "jsonld-context-parser/lib/JsonLdContextNormalized"
 import { makeGeoQueryCondition } from "./makeGeoQueryCondition"
 import { makeTemporalQueryCondition } from "./makeTemporalQueryCondition"
-import { error } from 'console'
-
 
 
 
@@ -1475,7 +1473,14 @@ export class ContextBroker {
 
         // Write JSON:
         const cleanedInstance = this.cleanUpAttributeInstanceForWrite(instance_expanded)
-        queryBuilder.add(tableCfg.COL_INSTANCE_JSON, JSON.stringify(cleanedInstance))
+
+        let cleanedInstanceString = JSON.stringify(cleanedInstance)
+
+        // Escape single quotes:
+        cleanedInstanceString = cleanedInstanceString.replace(/'/g, "''")
+
+        
+        queryBuilder.add(tableCfg.COL_INSTANCE_JSON, cleanedInstanceString)
 
         // ############### BEGIN Write 'geom' column ################
         if (instance_expanded['@type'] == "https://uri.etsi.org/ngsi-ld/GeoProperty") {
@@ -1853,8 +1858,6 @@ export class ContextBroker {
 
 
     private async writeAttributes(entityInternalId: number, fragment_expanded: any, overwrite: boolean, append: boolean) {
-
-        console.log("writing fragment " + entityInternalId)
 
         const now = new Date()
 
